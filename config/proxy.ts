@@ -1,0 +1,276 @@
+import { defineConfig } from 'vite';
+
+export const proxyConfig = {
+  // 用户相关API代理
+  '/api/user': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('用户API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '用户服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理用户API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理用户API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 抖音webhook API代理
+  '/api/douyin/webhook': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('webhook API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: 'webhook服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理webhook API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理webhook API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 抖音广告数据API代理
+  '/api/douyin/ads': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('广告数据API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '广告数据服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理广告数据API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理广告数据API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 健康检查API代理
+  '/api/health': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('健康检查API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '健康检查服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理健康检查API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理健康检查API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 抖音认证API代理（需要后端处理）
+  '/api/douyin/token': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('抖音认证API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '认证服务器连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理认证API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理认证API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // eCPM数据API代理到后端服务器
+  '/douyin/ecpm': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      // 将 /douyin/ecpm 转换为 /api/douyin/ecpm
+      return path.replace('/douyin/ecpm', '/api/douyin/ecpm');
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('eCPM API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: 'eCPM服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理eCPM API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理eCPM API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 抖音认证API代理
+  '/douyin/token': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      // 将 /douyin/token 转换为 /api/douyin/token
+      return path.replace('/douyin/token', '/api/douyin/token');
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('抖音认证API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '认证服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理认证API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理认证API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 测试连接API代理
+  '/douyin/test-connection': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path.replace('/douyin/test-connection', '/api/douyin/test-connection');
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('测试连接API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '测试连接服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理测试连接API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理测试连接API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+  // 测试连接API代理（直接路径）
+  '/api/douyin/test-connection': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('测试连接API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '测试连接服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理测试连接API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理测试连接API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
+
+  // eCPM数据API代理到后端服务器（使用后端处理逻辑）
+  '/api/douyin/ecpm': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('eCPM API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: 'eCPM服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理eCPM API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理eCPM API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+};
