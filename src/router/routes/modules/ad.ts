@@ -22,6 +22,16 @@ const AD: AppRouteRecordRaw = {
         roles: ['admin'],
       },
     },
+    {
+      path: 'ecpm-user',
+      name: 'EcpmUser',
+      component: () => import('@/views/ad/ecpm-user/index.vue'),
+      meta: {
+        locale: 'menu.ad.ecpm.user',
+        requiresAuth: true,
+        roles: ['*'],
+      },
+    },
   ],
 };
 

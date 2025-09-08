@@ -6,12 +6,20 @@
           <h1>eCPM数据管理</h1>
           <p>查看和管理小游戏广告的eCPM数据</p>
         </div>
-        <button
-          @click="showAddAppModal = true"
-          class="btn btn-primary"
-        >
-          新增应用
-        </button>
+        <div class="header-actions">
+          <button
+            @click="showAddUserModal = true"
+            class="btn btn-secondary"
+          >
+            新增用户
+          </button>
+          <button
+            @click="showAddAppModal = true"
+            class="btn btn-primary"
+          >
+            新增应用
+          </button>
+        </div>
       </div>
     </div>
 
@@ -31,7 +39,7 @@
               :key="app.appid"
               :value="app.appid"
             >
-              {{ app.name }} ({{ app.appid }})
+              {{ app.name }} ({{ app.appid }}) - {{ getUserDisplayName(app.owner) }}
             </option>
           </select>
         </div>
@@ -186,6 +194,26 @@
             />
           </div>
 
+          <div class="form-item">
+            <label>所属用户</label>
+            <select
+              v-model="newApp.owner"
+              class="form-input"
+            >
+              <option value="">请选择所属用户</option>
+              <option value="admin">管理员 (admin)</option>
+              <option value="user">普通用户 (user)</option>
+              <option value="user2">测试用户 (user2)</option>
+              <option
+                v-for="customUser in customUsers"
+                :key="customUser.username"
+                :value="customUser.username"
+              >
+                {{ customUser.name }} ({{ customUser.username }})
+              </option>
+            </select>
+          </div>
+
           <!-- 测试连接区域 -->
           <div class="test-section" v-if="newApp.appid && newApp.appSecret">
             <div class="test-header">
@@ -214,10 +242,74 @@
           <button @click="closeModal" class="btn btn-secondary" :disabled="saving">取消</button>
           <button
             @click="saveNewApp"
-            :disabled="!newApp.name || !newApp.appid || !newApp.appSecret || saving"
+            :disabled="!newApp.name || !newApp.appid || !newApp.appSecret || !newApp.owner || saving"
             class="btn btn-primary"
           >
             {{ saving ? '验证中...' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增用户模态框 -->
+    <div v-if="showAddUserModal" class="modal-overlay" @click="closeUserModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>新增用户</h3>
+          <button @click="closeUserModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-item">
+            <label>用户名</label>
+            <input
+              v-model="newUser.username"
+              type="text"
+              placeholder="输入用户名（用于登录）"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>密码</label>
+            <input
+              v-model="newUser.password"
+              type="password"
+              placeholder="输入密码"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>显示名称</label>
+            <input
+              v-model="newUser.name"
+              type="text"
+              placeholder="输入用户显示名称"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>用户角色</label>
+            <select
+              v-model="newUser.role"
+              class="form-input"
+            >
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeUserModal" class="btn btn-secondary" :disabled="creating">取消</button>
+          <button
+            @click="createNewUser"
+            :disabled="!newUser.username || !newUser.password || !newUser.name || creating"
+            class="btn btn-primary"
+          >
+            {{ creating ? '创建中...' : '创建用户' }}
           </button>
         </div>
       </div>
@@ -227,6 +319,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { db, initDatabase } from '@/utils/database';
 
 // 响应式数据
 const loading = ref(false);
@@ -250,6 +343,9 @@ const appList = ref([]);
 // 选中的应用ID
 const selectedAppId = ref('');
 
+// 自定义用户列表
+const customUsers = ref([]);
+
 // 新增应用相关
 const showAddAppModal = ref(false);
 const saving = ref(false);
@@ -258,7 +354,18 @@ const testResult = ref(null);
 const newApp = reactive({
   name: '',
   appid: '',
-  appSecret: ''
+  appSecret: '',
+  owner: ''
+});
+
+// 新增用户相关
+const showAddUserModal = ref(false);
+const creating = ref(false);
+const newUser = reactive({
+  username: '',
+  password: '',
+  name: '',
+  role: 'user'
 });
 
 // 工具函数
@@ -267,34 +374,119 @@ const formatDateTime = (dateTimeStr) => {
   return dateTimeStr.replace('T', ' ').substring(0, 19);
 };
 
+// 获取用户显示名称
+const getUserDisplayName = (username) => {
+  if (!username) return '未分配';
+
+  // 检查是否是内置用户
+  if (username === 'admin') return '管理员';
+  if (username === 'user') return '普通用户';
+  if (username === 'user2') return '测试用户';
+
+  // 检查是否是自定义用户
+  const customUser = customUsers.value.find(user => user.username === username);
+  if (customUser) {
+    return customUser.name;
+  }
+
+  return username;
+};
+
+// 加载自定义用户列表
+const loadCustomUsers = () => {
+  try {
+    const savedUsers = localStorage.getItem('custom_users');
+    if (savedUsers) {
+      customUsers.value = JSON.parse(savedUsers);
+    } else {
+      customUsers.value = [];
+    }
+  } catch (err) {
+    console.error('加载自定义用户列表失败:', err);
+    customUsers.value = [];
+  }
+};
+
 // 应用列表管理函数
 const loadAppList = () => {
   try {
-    const savedApps = localStorage.getItem('douyin_apps');
-    if (savedApps) {
-      appList.value = JSON.parse(savedApps);
-    } else {
-      // 默认应用
-      appList.value = [{
+    // 管理员可以查看所有用户的应用
+    const allApps = [];
+
+    // 加载所有用户的应用
+    const userKeys = ['douyin_apps_54321', 'douyin_apps_67890', 'douyin_apps_12345'];
+
+    // 加载内置用户的应用
+    userKeys.forEach(key => {
+      const savedApps = localStorage.getItem(key);
+      if (savedApps) {
+        const userApps = JSON.parse(savedApps);
+        allApps.push(...userApps);
+      }
+    });
+
+    // 加载自定义用户的应用
+    customUsers.value.forEach(customUser => {
+      const userKey = `douyin_apps_${customUser.token}`;
+      const savedApps = localStorage.getItem(userKey);
+      if (savedApps) {
+        const userApps = JSON.parse(savedApps);
+        allApps.push(...userApps);
+      }
+    });
+
+    // 如果没有应用，添加默认应用
+    if (allApps.length === 0) {
+      allApps.push({
         appid: 'tt8c62fadf136c334702',
         appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-        name: '默认应用'
-      }];
-      saveAppList();
+        name: '默认应用',
+        owner: 'admin'
+      });
     }
+
+    appList.value = allApps;
   } catch (err) {
     console.error('加载应用列表失败:', err);
     appList.value = [{
       appid: 'tt8c62fadf136c334702',
       appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-      name: '默认应用'
+      name: '默认应用',
+      owner: 'admin'
     }];
   }
 };
 
 const saveAppList = () => {
   try {
-    localStorage.setItem('douyin_apps', JSON.stringify(appList.value));
+    // 按用户分组保存应用
+    const appsByUser = {};
+
+    appList.value.forEach(app => {
+      const owner = app.owner || 'admin';
+      if (!appsByUser[owner]) {
+        appsByUser[owner] = [];
+      }
+      appsByUser[owner].push(app);
+    });
+
+    // 保存到对应用户的存储中
+    Object.keys(appsByUser).forEach(owner => {
+      let userToken;
+      if (owner === 'user') {
+        userToken = '54321';
+      } else if (owner === 'user2') {
+        userToken = '67890';
+      } else if (owner === 'admin') {
+        userToken = '12345';
+      } else {
+        // 自定义用户，使用用户名作为token的一部分
+        const customUser = customUsers.value.find(user => user.username === owner);
+        userToken = customUser ? customUser.token : owner;
+      }
+      const storageKey = `douyin_apps_${userToken}`;
+      localStorage.setItem(storageKey, JSON.stringify(appsByUser[owner]));
+    });
   } catch (err) {
     console.error('保存应用列表失败:', err);
   }
@@ -509,8 +701,19 @@ const closeModal = () => {
   newApp.name = '';
   newApp.appid = '';
   newApp.appSecret = '';
+  newApp.owner = '';
   testResult.value = null;
   testing.value = false;
+};
+
+// 关闭用户模态框
+const closeUserModal = () => {
+  showAddUserModal.value = false;
+  newUser.username = '';
+  newUser.password = '';
+  newUser.name = '';
+  newUser.role = 'user';
+  creating.value = false;
 };
 
 // 测试应用配置连接
@@ -635,8 +838,8 @@ const validateAppConfig = async (appid, appSecret) => {
 
 // 保存新应用
 const saveNewApp = async () => {
-  if (!newApp.name || !newApp.appid || !newApp.appSecret) {
-    alert('请填写完整的应用信息');
+  if (!newApp.name || !newApp.appid || !newApp.appSecret || !newApp.owner) {
+    alert('请填写完整的应用信息，包括所属用户');
     return;
   }
 
@@ -668,6 +871,7 @@ const saveNewApp = async () => {
       name: newApp.name,
       appid: newApp.appid,
       appSecret: newApp.appSecret,
+      owner: newApp.owner,
       validated: true,
       validatedAt: new Date().toISOString()
     });
@@ -676,7 +880,7 @@ const saveNewApp = async () => {
     saveAppList();
 
     console.log('✅ 应用配置保存成功');
-    alert('应用配置验证成功并已保存！');
+    alert(`应用配置验证成功并已保存给用户: ${newApp.owner === 'user' ? '普通用户' : newApp.owner === 'user2' ? '测试用户' : newApp.owner === 'admin' ? '管理员' : '未知用户'}！`);
 
     // 自动选择新应用
     selectedAppId.value = newApp.appid;
@@ -693,9 +897,63 @@ const saveNewApp = async () => {
   }
 };
 
+// 创建新用户
+const createNewUser = async () => {
+  if (!newUser.username || !newUser.password || !newUser.name) {
+    alert('请填写完整的用户信息');
+    return;
+  }
+
+  creating.value = true;
+
+  try {
+    console.log('🔄 开始创建新用户...');
+
+    // 检查用户名是否已存在
+    const existingUsers = JSON.parse(localStorage.getItem('custom_users') || '[]');
+    const userExists = existingUsers.find(user => user.username === newUser.username);
+    if (userExists) {
+      alert('该用户名已存在，请使用不同的用户名');
+      return;
+    }
+
+    // 生成用户Token
+    const userToken = Date.now().toString();
+
+    // 创建新用户
+    const newUserData = {
+      username: newUser.username,
+      password: newUser.password,
+      name: newUser.name,
+      role: newUser.role,
+      token: userToken,
+      createdAt: new Date().toISOString()
+    };
+
+    // 保存到用户列表
+    existingUsers.push(newUserData);
+    localStorage.setItem('custom_users', JSON.stringify(existingUsers));
+
+    console.log('✅ 用户创建成功');
+    alert(`用户"${newUser.name}"创建成功！\n用户名: ${newUser.username}\n密码: ${newUser.password}`);
+
+    // 关闭模态框
+    closeUserModal();
+
+  } catch (err) {
+    console.error('❌ 创建用户失败:', err);
+    alert('创建用户失败，请稍后重试');
+  } finally {
+    creating.value = false;
+  }
+};
+
 // 页面加载时初始化
 onMounted(() => {
   console.log('🚀 eCPM页面初始化');
+
+  // 加载自定义用户列表
+  loadCustomUsers();
 
   // 加载应用列表
   loadAppList();

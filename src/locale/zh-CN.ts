@@ -42,6 +42,7 @@ export default {
   'menu.user': '个人中心',
   'menu.ad': '广告管理',
   'menu.ad.ecpm.simple': 'eCPM数据',
+  'menu.ad.ecpm.user': 'eCPM数据查看',
   'menu.arcoWebsite': 'Arco Design',
   'menu.faq': '常见问题',
   'navbar.docs': '文档中心',

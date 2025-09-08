@@ -82,8 +82,8 @@
 
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
-    username: 'admin', // 演示默认值
-    password: 'admin', // demo default value
+    username: 'admin', // 管理员默认值
+    password: 'admin', // admin default value
   });
   const userInfo = reactive({
     username: loginConfig.value.username,
@@ -116,6 +116,14 @@
         // The actual production environment requires encrypted storage.
         loginConfig.value.username = rememberPassword ? username : '';
         loginConfig.value.password = rememberPassword ? password : '';
+
+        // 保存用户token用于区分不同用户
+        // 等待登录完成，然后从localStorage获取token
+        await userStore.login(values as LoginData);
+        const token = window.localStorage.getItem('token');
+        if (token) {
+          window.localStorage.setItem('userToken', token);
+        }
       } catch (err) {
         errorMessage.value = (err as Error).message;
       } finally {

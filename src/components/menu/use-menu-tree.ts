@@ -28,10 +28,14 @@ export default function useMenuTree() {
           return null;
         }
 
-        // leaf node
+        // leaf node - but still check hideInMenu
         if (element.meta?.hideChildrenInMenu || !element.children) {
           element.children = [];
-          return element;
+          // Check hideInMenu even for leaf nodes
+          if (element.meta?.hideInMenu !== true) {
+            return element;
+          }
+          return null;
         }
 
         // route filter hideInMenu true
