@@ -63,9 +63,19 @@ const useUserStore = defineStore('user', {
     // Login
     async login(loginForm: LoginData) {
       try {
+        console.log('userStore.login: 开始调用API', loginForm);
         const res = await userLogin(loginForm);
+        console.log('userStore.login: API响应', res);
+        console.log('userStore.login: token数据', res.data?.token);
         setToken(res.data.token);
+        console.log('userStore.login: token已存储到localStorage');
+
+        // 登录成功后获取用户信息
+        console.log('userStore.login: 获取用户信息');
+        await this.info();
+        console.log('userStore.login: 用户信息已更新', this.role);
       } catch (err) {
+        console.error('userStore.login: 登录失败', err);
         clearToken();
         throw err;
       }

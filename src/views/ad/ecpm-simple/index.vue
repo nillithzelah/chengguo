@@ -3,9 +3,9 @@
     <div class="page-header">
       <div class="header-content">
         <div>
-          <h1>eCPM数据管理</h1>
-          <p>查看和管理小游戏广告的eCPM数据</p>
-        </div>
+           <h1>管理员ECPM数据管理</h1>
+           <p>查看和管理所有用户的eCPM数据</p>
+         </div>
         <div class="header-actions">
           <button
             @click="showAddUserModal = true"
@@ -320,6 +320,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { db, initDatabase } from '@/utils/database';
+import useUserStore from '@/store/modules/user';
 
 // 响应式数据
 const loading = ref(false);
@@ -410,44 +411,79 @@ const loadCustomUsers = () => {
 // 应用列表管理函数
 const loadAppList = () => {
   try {
-    // 管理员可以查看所有用户的应用
+    console.log('🔄 加载应用列表...');
+
+    // 获取当前用户信息
+    const userStore = useUserStore();
+    const currentUser = userStore.userInfo;
+    console.log('👤 当前用户:', currentUser);
+
     const allApps = [];
 
-    // 加载所有用户的应用
-    const userKeys = ['douyin_apps_54321', 'douyin_apps_67890', 'douyin_apps_12345'];
+    // 根据用户角色决定可以查看的应用
+    if (currentUser.role === 'admin') {
+      console.log('👑 管理员用户，加载所有应用');
 
-    // 加载内置用户的应用
-    userKeys.forEach(key => {
-      const savedApps = localStorage.getItem(key);
-      if (savedApps) {
-        const userApps = JSON.parse(savedApps);
-        allApps.push(...userApps);
+      // 管理员可以查看所有用户的应用
+      const userKeys = ['douyin_apps_54321', 'douyin_apps_67890', 'douyin_apps_12345'];
+
+      // 加载内置用户的应用
+      userKeys.forEach(key => {
+        const savedApps = localStorage.getItem(key);
+        if (savedApps) {
+          const userApps = JSON.parse(savedApps);
+          allApps.push(...userApps);
+        }
+      });
+
+      // 加载自定义用户的应用
+      customUsers.value.forEach(customUser => {
+        const userKey = `douyin_apps_${customUser.token}`;
+        const savedApps = localStorage.getItem(userKey);
+        if (savedApps) {
+          const userApps = JSON.parse(savedApps);
+          allApps.push(...userApps);
+        }
+      });
+
+      // 如果没有应用，添加默认应用
+      if (allApps.length === 0) {
+        allApps.push({
+          appid: 'tt8c62fadf136c334702',
+          appSecret: '56808246ee49c052ecc7be8be79551859837409e',
+          name: '默认应用',
+          owner: 'admin'
+        });
       }
-    });
+    } else {
+      console.log('👤 普通用户，加载自己的应用');
 
-    // 加载自定义用户的应用
-    customUsers.value.forEach(customUser => {
-      const userKey = `douyin_apps_${customUser.token}`;
+      // 普通用户只能查看自己的应用
+      // 从localStorage中获取当前用户的token
+      const userToken = localStorage.getItem('userToken') || '54321'; // 默认使用user的token
+
+      const userKey = `douyin_apps_${userToken}`;
       const savedApps = localStorage.getItem(userKey);
       if (savedApps) {
         const userApps = JSON.parse(savedApps);
         allApps.push(...userApps);
       }
-    });
 
-    // 如果没有应用，添加默认应用
-    if (allApps.length === 0) {
-      allApps.push({
-        appid: 'tt8c62fadf136c334702',
-        appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-        name: '默认应用',
-        owner: 'admin'
-      });
+      // 如果用户没有应用，添加默认应用
+      if (allApps.length === 0) {
+        allApps.push({
+          appid: 'tt8c62fadf136c334702',
+          appSecret: '56808246ee49c052ecc7be8be79551859837409e',
+          name: '默认应用',
+          owner: currentUser.name || 'user'
+        });
+      }
     }
 
+    console.log('📋 加载的应用列表:', allApps);
     appList.value = allApps;
   } catch (err) {
-    console.error('加载应用列表失败:', err);
+    console.error('❌ 加载应用列表失败:', err);
     appList.value = [{
       appid: 'tt8c62fadf136c334702',
       appSecret: '56808246ee49c052ecc7be8be79551859837409e',
@@ -909,40 +945,53 @@ const createNewUser = async () => {
   try {
     console.log('🔄 开始创建新用户...');
 
-    // 检查用户名是否已存在
-    const existingUsers = JSON.parse(localStorage.getItem('custom_users') || '[]');
-    const userExists = existingUsers.find(user => user.username === newUser.username);
-    if (userExists) {
-      alert('该用户名已存在，请使用不同的用户名');
-      return;
+    // 通过后端API创建用户
+    const response = await fetch('/api/user/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: newUser.username,
+        password: newUser.password,
+        name: newUser.name,
+        role: newUser.role
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.code !== 20000) {
+      throw new Error(result.message || '创建用户失败');
     }
 
-    // 生成用户Token
-    const userToken = Date.now().toString();
+    console.log('✅ 用户创建成功');
 
-    // 创建新用户
+    // 同时更新前端的自定义用户列表（用于显示）
+    const existingUsers = JSON.parse(localStorage.getItem('custom_users') || '[]');
     const newUserData = {
       username: newUser.username,
       password: newUser.password,
       name: newUser.name,
       role: newUser.role,
-      token: userToken,
+      token: Date.now().toString(), // 生成前端token用于显示
       createdAt: new Date().toISOString()
     };
 
-    // 保存到用户列表
     existingUsers.push(newUserData);
     localStorage.setItem('custom_users', JSON.stringify(existingUsers));
 
-    console.log('✅ 用户创建成功');
-    alert(`用户"${newUser.name}"创建成功！\n用户名: ${newUser.username}\n密码: ${newUser.password}`);
+    // 更新自定义用户列表
+    customUsers.value = existingUsers;
+
+    alert(`用户"${newUser.name}"创建成功！\n用户名: ${newUser.username}\n密码: ${newUser.password}\n\n用户已保存到数据库，可以使用此账号登录。`);
 
     // 关闭模态框
     closeUserModal();
 
   } catch (err) {
     console.error('❌ 创建用户失败:', err);
-    alert('创建用户失败，请稍后重试');
+    alert(`创建用户失败: ${err.message}`);
   } finally {
     creating.value = false;
   }

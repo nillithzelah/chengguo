@@ -18,8 +18,8 @@ export default mergeConfig(
       // },
       host: '0.0.0.0', // 允许外部访问
       port: 5173,
+      strictPort: true, // 强制使用指定端口，不自动切换
       open: false,
-      strictPort: false, // 如果端口被占用，尝试下一个可用端口
       fs: {
         strict: true,
       },

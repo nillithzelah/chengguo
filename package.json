@@ -17,7 +17,11 @@
     "preview": "npm run build && vite preview --host",
     "type:check": "vue-tsc --noEmit --skipLibCheck",
     "lint-staged": "npx lint-staged",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "db:init": "node scripts/init-db.js",
+    "db:cleanup": "node scripts/cleanup-db.js",
+    "db:show": "node scripts/show-db-data.js",
+    "db:test": "node -e \"require('./config/database').testConnection().then(r => process.exit(r ? 0 : 1))\""
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
@@ -38,6 +42,7 @@
     "@arco-design/web-vue": "2.40.0",
     "@vueuse/core": "^9.3.0",
     "axios": "^0.24.0",
+    "bcrypt": "^6.0.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -50,9 +55,12 @@
     "mitt": "^3.0.0",
     "node-schedule": "^2.1.1",
     "nprogress": "^0.2.0",
+    "pg": "^8.16.3",
     "pinia": "^2.0.23",
     "query-string": "^8.0.3",
+    "sequelize": "^6.37.7",
     "sortablejs": "^1.15.0",
+    "sqlite3": "^5.1.7",
     "vue": "^3.2.40",
     "vue-echarts": "^6.2.3",
     "vue-i18n": "9.2.2",

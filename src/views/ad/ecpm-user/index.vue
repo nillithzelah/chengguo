@@ -3,9 +3,9 @@
     <div class="page-header">
       <div class="header-content">
         <div>
-          <h1>eCPM数据查看</h1>
-          <p>查看小游戏广告的eCPM数据统计</p>
-        </div>
+           <h1>用户ECPM数据查看</h1>
+           <p>查看当前用户的小游戏广告eCPM数据统计</p>
+         </div>
       </div>
     </div>
 

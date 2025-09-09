@@ -1,7 +1,12 @@
 import debug from './env';
 
 export default ({ mock, setup }: { mock?: boolean; setup: () => void }) => {
-  if (mock !== false && debug) setup();
+  // 在开发环境中，如果明确设置为不使用mock，或者有后端服务器运行，则不启用mock
+  const shouldUseMock = mock !== false && debug && process.env.VITE_USE_MOCK !== 'false';
+
+  if (shouldUseMock) {
+    setup();
+  }
 };
 
 export const successResponseWrap = (data: unknown) => {

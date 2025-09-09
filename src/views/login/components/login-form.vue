@@ -50,13 +50,9 @@
           >
             {{ $t('login.form.rememberPassword') }}
           </a-checkbox>
-          <a-link>{{ $t('login.form.forgetPassword') }}</a-link>
         </div>
         <a-button type="primary" html-type="submit" long :loading="loading">
           {{ $t('login.form.login') }}
-        </a-button>
-        <a-button type="text" long class="login-form-register-btn" @click="goToRegister">
-          {{ $t('login.form.register') }}
         </a-button>
       </a-space>
     </a-form>
@@ -101,15 +97,22 @@
     if (!errors) {
       setLoading(true);
       try {
+        console.log('开始登录...', values);
         await userStore.login(values as LoginData);
+        console.log('登录成功，准备跳转...');
+
         const { redirect, ...othersQuery } = router.currentRoute.value.query;
+        console.log('跳转目标:', redirect || 'EcpmSimple');
+
         router.push({
           name: (redirect as string) || 'EcpmSimple',
           query: {
             ...othersQuery,
           },
         });
+
         Message.success(t('login.form.login.success'));
+
         const { rememberPassword } = loginConfig.value;
         const { username, password } = values;
         // 实际生产环境需要进行加密存储。
@@ -119,12 +122,13 @@
 
         // 保存用户token用于区分不同用户
         // 等待登录完成，然后从localStorage获取token
-        await userStore.login(values as LoginData);
         const token = window.localStorage.getItem('token');
+        console.log('获取到的token:', token);
         if (token) {
           window.localStorage.setItem('userToken', token);
         }
       } catch (err) {
+        console.error('登录失败:', err);
         errorMessage.value = (err as Error).message;
       } finally {
         setLoading(false);
@@ -135,9 +139,6 @@
     loginConfig.value.rememberPassword = value;
   };
 
-  const goToRegister = () => {
-    router.push('/register');
-  };
 </script>
 
 <style lang="less" scoped>
@@ -168,20 +169,13 @@
 
     &-password-actions {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       color: #ffffff;
 
       :deep(.arco-checkbox-label) {
         color: #ffffff !important;
       }
-
-      :deep(.arco-link) {
-        color: #ffffff !important;
-      }
     }
 
-    &-register-btn {
-      color: #ffffff !important;
-    }
   }
 </style>

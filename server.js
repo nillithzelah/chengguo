@@ -5,17 +5,46 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
-// Mock user data - In production, use a proper database
-const users = [
-  {
-    id: 1,
-    username: 'admin',
-    password: 'admin',
-    name: 'Admin',
-    role: 'admin',
-    avatar: 'https://p1-arco.byteimg.com/tos-cn-i-uwbnlip3yd/3ee5f13fb09879ecb5185e440cef6eb9.png~tplv-uwbnlip3yd-webp.webp'
-  }
-];
+// 数据库和模型导入
+const { testConnection, sequelize } = require('./config/database');
+const defineUserModel = require('./models/User');
+const defineGameModel = require('./models/Game');
+const defineUserGameModel = require('./models/UserGame');
+
+// 初始化模型
+const User = defineUserModel(sequelize);
+const Game = defineGameModel(sequelize);
+const UserGame = defineUserGameModel(sequelize);
+
+// 定义模型关联关系
+User.belongsToMany(Game, {
+  through: UserGame,
+  foreignKey: 'user_id',
+  otherKey: 'game_id',
+  as: 'games'
+});
+
+Game.belongsToMany(User, {
+  through: UserGame,
+  foreignKey: 'game_id',
+  otherKey: 'user_id',
+  as: 'users'
+});
+
+UserGame.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+UserGame.belongsTo(Game, {
+  foreignKey: 'game_id',
+  as: 'game'
+});
+
+UserGame.belongsTo(User, {
+  foreignKey: 'assigned_by',
+  as: 'assignedByUser'
+});
 
 // JWT secret key - In production, use a strong secret key from environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -52,20 +81,55 @@ const authenticateJWT = (req, res, next) => {
 };
 
 // 用户登录
-app.post('/api/user/login', (req, res) => {
-  const { username, password } = req.body;
-  
-  // 简单的用户验证 - 在生产环境中应该使用数据库查询和密码哈希
-  const user = users.find(u => u.username === username && u.password === password);
-  
-  if (user) {
+app.post('/api/user/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        code: 400,
+        message: '用户名和密码不能为空'
+      });
+    }
+
+    // 从数据库查找用户
+    const user = await User.findByUsername(username);
+
+    if (!user) {
+      return res.status(401).json({
+        code: 50008,
+        message: '用户名或密码错误'
+      });
+    }
+
+    // 验证密码
+    const isValidPassword = await user.validatePassword(password);
+
+    if (!isValidPassword) {
+      return res.status(401).json({
+        code: 50008,
+        message: '用户名或密码错误'
+      });
+    }
+
+    // 检查用户是否激活
+    if (!user.is_active) {
+      return res.status(401).json({
+        code: 50008,
+        message: '账号已被禁用'
+      });
+    }
+
+    // 更新最后登录时间
+    await User.updateLastLogin(user.id);
+
     // 生成token
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
-    
+
     res.json({
       code: 20000,
       data: {
@@ -80,32 +144,45 @@ app.post('/api/user/login', (req, res) => {
       },
       message: '登录成功'
     });
-  } else {
-    res.status(401).json({
-      code: 50008,
-      message: '用户名或密码错误'
+
+  } catch (error) {
+    console.error('登录错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
     });
   }
 });
 
 // 获取用户信息 - 支持 GET 和 POST 方法
-const handleUserInfo = (req, res) => {
-  const user = users.find(u => req.user ? u.id === req.user.userId : false);
-  if (user) {
+const handleUserInfo = async (req, res) => {
+  try {
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({
+        code: 50008,
+        message: '未认证'
+      });
+    }
+
+    const user = await User.findByPk(req.user.userId);
+
+    if (!user || !user.is_active) {
+      return res.status(404).json({
+        code: 50008,
+        message: '用户不存在或已被禁用'
+      });
+    }
+
     res.json({
       code: 20000,
-      data: {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar
-      }
+      data: user.toFrontendFormat()
     });
-  } else {
-    res.status(404).json({
-      code: 50008,
-      message: '用户不存在'
+
+  } catch (error) {
+    console.error('获取用户信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
     });
   }
 };
@@ -114,6 +191,58 @@ const handleUserInfo = (req, res) => {
 app.get('/api/user/info', authenticateJWT, handleUserInfo);
 app.post('/api/user/info', authenticateJWT, handleUserInfo);
 
+// 创建新用户
+app.post('/api/user/create', async (req, res) => {
+  try {
+    const { username, password, name, role } = req.body;
+
+    if (!username || !password || !name) {
+      return res.status(400).json({
+        code: 400,
+        message: '用户名、密码和显示名称不能为空'
+      });
+    }
+
+    // 检查用户名是否已存在
+    const existingUser = await User.findByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({
+        code: 400,
+        message: '用户名已存在'
+      });
+    }
+
+    // 创建新用户
+    const newUser = await User.createUser({
+      username,
+      password,
+      name,
+      role: role || 'user'
+    });
+
+    console.log('✅ 新用户创建成功:', username);
+
+    res.json({
+      code: 20000,
+      data: {
+        id: newUser.id,
+        username: newUser.username,
+        name: newUser.name,
+        role: newUser.role,
+        created_at: newUser.created_at
+      },
+      message: '用户创建成功'
+    });
+
+  } catch (error) {
+    console.error('创建用户错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
 // 用户登出
 app.post('/api/user/logout', (req, res) => {
   res.json({
@@ -121,6 +250,144 @@ app.post('/api/user/logout', (req, res) => {
     data: {},
     message: '登出成功'
   });
+});
+
+// 个人中心相关API - 返回空数据以避免前端报错
+app.post('/api/user/my-project/list', (req, res) => {
+  res.json({
+    code: 20000,
+    data: [],
+    message: '获取成功'
+  });
+});
+
+app.post('/api/user/latest-activity', (req, res) => {
+  res.json({
+    code: 20000,
+    data: [],
+    message: '获取成功'
+  });
+});
+
+app.post('/api/user/my-team/list', (req, res) => {
+  res.json({
+    code: 20000,
+    data: [],
+    message: '获取成功'
+  });
+});
+
+app.post('/api/user/certification', (req, res) => {
+  res.json({
+    code: 20000,
+    data: {
+      enterpriseInfo: {},
+      record: []
+    },
+    message: '获取成功'
+  });
+});
+
+// 删除用户 (仅管理员)
+app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以删除用户
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以删除用户'
+      });
+    }
+
+    // 不允许删除自己
+    if (parseInt(id) === currentUser.userId) {
+      return res.status(400).json({
+        code: 400,
+        message: '不能删除自己的账号'
+      });
+    }
+
+    // 查找用户
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        message: '用户不存在'
+      });
+    }
+
+    // 删除用户
+    await user.destroy();
+
+    console.log(`管理员 ${currentUser.username} 删除了用户 ${user.username} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      message: '用户删除成功'
+    });
+
+  } catch (error) {
+    console.error('删除用户错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取所有用户列表 (仅管理员)
+app.get('/api/user/list', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以查看用户列表
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看用户列表'
+      });
+    }
+
+    // 获取所有用户
+    const users = await User.findAll({
+      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at', 'password_plain'],
+      order: [['created_at', 'DESC']]
+    });
+
+    console.log('用户列表查询结果:', users.map(u => ({ id: u.id, username: u.username, password_plain: u.password_plain })));
+
+    // 格式化数据
+    const formattedUsers = users.map(user => ({
+      id: user.id,
+      username: user.username,
+      name: user.name || '',
+      email: user.email || '',
+      role: user.role,
+      is_active: user.is_active,
+      last_login_at: user.last_login_at,
+      created_at: user.created_at,
+      password: user.password_plain || '******' // 显示明文密码或默认值
+    }));
+
+    res.json({
+      code: 20000,
+      data: {
+        users: formattedUsers,
+        total: formattedUsers.length
+      },
+      message: '获取用户列表成功'
+    });
+
+  } catch (error) {
+    console.error('获取用户列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
 });
 
 // 抖音webhook端点
@@ -532,8 +799,40 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 服务器运行在端口 ${PORT}`);
-  console.log(`📡 Webhook地址: http://localhost:${PORT}/api/douyin/webhook`);
-  console.log(`🔍 健康检查: http://localhost:${PORT}/api/health`);
-});
+// 初始化数据库并启动服务器
+async function startServer() {
+  try {
+    // 测试数据库连接
+    console.log('📡 测试数据库连接...');
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      console.error('❌ 数据库连接失败，请检查配置');
+      console.log('💡 请确保：');
+      console.log('   1. PostgreSQL服务正在运行');
+      console.log('   2. .env文件配置正确');
+      console.log('   3. 数据库和用户已创建');
+      console.log('   4. 运行: node scripts/init-db.js');
+      process.exit(1);
+    }
+
+    // 启动服务器
+    app.listen(PORT, () => {
+      console.log(`🚀 服务器运行在端口 ${PORT}`);
+      console.log(`📡 Webhook地址: http://localhost:${PORT}/api/douyin/webhook`);
+      console.log(`🔍 健康检查: http://localhost:${PORT}/api/health`);
+      console.log(`🔐 用户认证: http://localhost:${PORT}/api/user/login`);
+      console.log('');
+      console.log('📝 默认用户:');
+      console.log('   管理员: admin / admin123');
+      console.log('   用户: user / user123');
+      console.log('   审核员: moderator / mod123');
+    });
+
+  } catch (error) {
+    console.error('❌ 服务器启动失败:', error);
+    process.exit(1);
+  }
+}
+
+// 启动服务器
+startServer();

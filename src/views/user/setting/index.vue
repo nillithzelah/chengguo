@@ -8,13 +8,13 @@
     </a-row>
     <a-row class="wrapper">
       <a-col :span="24">
-        <a-tabs default-active-key="1" type="rounded">
-          <a-tab-pane key="1" :title="$t('userSetting.tab.basicInformation')">
+        <a-tabs default-active-key="3" type="rounded">
+          <!-- <a-tab-pane key="1" :title="$t('userSetting.tab.basicInformation')">
             <BasicInformation />
           </a-tab-pane>
           <a-tab-pane key="2" :title="$t('userSetting.tab.securitySettings')">
             <SecuritySettings />
-          </a-tab-pane>
+          </a-tab-pane> -->
           <a-tab-pane key="3" :title="$t('userSetting.tab.certification')">
             <Certification />
           </a-tab-pane>
@@ -26,8 +26,8 @@
 
 <script lang="ts" setup>
   import UserPanel from './components/user-panel.vue';
-  import BasicInformation from './components/basic-information.vue';
-  import SecuritySettings from './components/security-settings.vue';
+  // import BasicInformation from './components/basic-information.vue';
+  // import SecuritySettings from './components/security-settings.vue';
   import Certification from './components/certification.vue';
 </script>
 
