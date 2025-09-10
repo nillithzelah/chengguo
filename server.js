@@ -390,6 +390,594 @@ app.get('/api/user/list', authenticateJWT, async (req, res) => {
   }
 });
 
+// 获取用户游戏列表 (管理员可看所有，普通用户只能看自己的)
+app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { userId } = req.params;
+
+    // 检查权限：管理员可以查看任何用户的游戏列表，普通用户只能查看自己的
+    if (currentUser.role !== 'admin' && parseInt(userId) !== currentUser.userId) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只能查看自己的游戏列表'
+      });
+    }
+
+    // 验证用户是否存在
+    const targetUser = await User.findByPk(userId);
+    if (!targetUser) {
+      return res.status(404).json({
+        code: 404,
+        message: '用户不存在'
+      });
+    }
+
+    // 获取用户的游戏列表 - 使用原生SQL查询确保包含app_secret字段
+    const userGames = await sequelize.query(`
+      SELECT
+        ug.id, ug.user_id, ug.game_id, ug.role, ug.permissions,
+        ug.assigned_at as "assignedAt", ug.assigned_by as "assignedBy",
+        ug.created_at, ug.updated_at,
+        g.id as "game.id", g.appid as "game.appid", g.name as "game.name",
+        g.app_secret as "game.appSecret", g.description as "game.description",
+        g.status as "game.status", g.validated as "game.validated",
+        g.created_at as "game.created_at",
+        u.username as "assignedByUser.username", u.name as "assignedByUser.name"
+      FROM user_games ug
+      INNER JOIN games g ON ug.game_id = g.id AND g.status = 'active'
+      LEFT JOIN users u ON ug.assigned_by = u.id
+      WHERE ug.user_id = ?
+      ORDER BY ug.assigned_at DESC
+    `, {
+      replacements: [userId],
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // 重新格式化为预期的结构
+    const formattedGames = userGames.map(item => ({
+      id: item.id,
+      game: {
+        id: item['game.id'],
+        appid: item['game.appid'],
+        name: item['game.name'],
+        appSecret: item['game.appSecret'],
+        description: item['game.description'],
+        status: item['game.status'],
+        validated: item['game.validated'],
+        created_at: item['game.created_at']
+      },
+      role: item.role,
+      permissions: item.permissions || {},
+      assignedAt: item.assignedAt,
+      assignedBy: item['assignedByUser.username'] ? {
+        username: item['assignedByUser.username'],
+        name: item['assignedByUser.name']
+      } : null
+    }));
+
+    console.log(`管理员 ${currentUser.username} 查看用户 ${targetUser.username} 的游戏列表`);
+
+    res.json({
+      code: 20000,
+      data: {
+        user: {
+          id: targetUser.id,
+          username: targetUser.username,
+          name: targetUser.name,
+          role: targetUser.role
+        },
+        games: formattedGames,
+        total: formattedGames.length
+      },
+      message: '获取用户游戏列表成功'
+    });
+
+  } catch (error) {
+    console.error('获取用户游戏列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 为用户分配游戏权限 (仅管理员)
+app.post('/api/game/assign', authenticateJWT, async (req, res) => {
+ try {
+   const currentUser = req.user;
+   const { userId, gameId, role = 'viewer' } = req.body;
+
+   // 检查权限：只有管理员可以分配游戏权限
+   if (currentUser.role !== 'admin') {
+     return res.status(403).json({
+       code: 403,
+       message: '权限不足，只有管理员可以分配游戏权限'
+     });
+   }
+
+   // 验证用户是否存在
+   const targetUser = await User.findByPk(userId);
+   if (!targetUser || !targetUser.is_active) {
+     return res.status(404).json({
+       code: 404,
+       message: '用户不存在或已被禁用'
+     });
+   }
+
+   // 验证游戏是否存在
+   const game = await Game.findByPk(gameId);
+   if (!game || game.status !== 'active') {
+     return res.status(404).json({
+       code: 404,
+       message: '游戏不存在或已停用'
+     });
+   }
+
+   // 检查是否已存在关联
+   const existing = await UserGame.findOne({
+     where: { user_id: userId, game_id: gameId }
+   });
+
+   if (existing) {
+     // 更新现有权限
+     await existing.update({
+       role,
+       assignedBy: currentUser.userId,
+       assignedAt: new Date(),
+       updated_at: new Date()
+     });
+
+     console.log(`管理员 ${currentUser.username} 更新用户 ${targetUser.username} 的游戏 ${game.name} 权限为 ${role}`);
+     res.json({
+       code: 20000,
+       message: '游戏权限更新成功'
+     });
+   } else {
+     // 创建新关联
+     await UserGame.create({
+       user_id: userId,
+       game_id: gameId,
+       role,
+       assignedBy: currentUser.userId,
+       assignedAt: new Date()
+     });
+
+     console.log(`管理员 ${currentUser.username} 为用户 ${targetUser.username} 分配游戏 ${game.name}，权限：${role}`);
+     res.json({
+       code: 20000,
+       message: '游戏权限分配成功'
+     });
+   }
+
+ } catch (error) {
+   console.error('分配游戏权限错误:', error);
+   res.status(500).json({
+     code: 500,
+     message: '服务器内部错误'
+   });
+ }
+});
+
+// 移除用户的游戏权限 (仅管理员)
+app.delete('/api/game/remove/:userId/:gameId', authenticateJWT, async (req, res) => {
+ try {
+   const currentUser = req.user;
+   const { userId, gameId } = req.params;
+
+   // 检查权限：只有管理员可以移除游戏权限
+   if (currentUser.role !== 'admin') {
+     return res.status(403).json({
+       code: 403,
+       message: '权限不足，只有管理员可以移除游戏权限'
+     });
+   }
+
+   // 验证用户是否存在
+   const targetUser = await User.findByPk(userId);
+   if (!targetUser) {
+     return res.status(404).json({
+       code: 404,
+       message: '用户不存在'
+     });
+   }
+
+   // 验证游戏是否存在
+   const game = await Game.findByPk(gameId);
+   if (!game) {
+     return res.status(404).json({
+       code: 404,
+       message: '游戏不存在'
+     });
+   }
+
+   // 删除关联
+   const deletedCount = await UserGame.destroy({
+     where: { user_id: userId, game_id: gameId }
+   });
+
+   if (deletedCount > 0) {
+     console.log(`管理员 ${currentUser.username} 移除了用户 ${targetUser.username} 的游戏 ${game.name} 权限`);
+     res.json({
+       code: 20000,
+       message: '游戏权限移除成功'
+     });
+   } else {
+     res.status(404).json({
+       code: 404,
+       message: '未找到相应的游戏权限记录'
+     });
+   }
+
+ } catch (error) {
+   console.error('移除游戏权限错误:', error);
+   res.status(500).json({
+     code: 500,
+     message: '服务器内部错误'
+   });
+ }
+});
+
+// 获取游戏的所有用户 (仅管理员)
+app.get('/api/game/:id/users', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+
+    // 检查权限：只有管理员可以查看游戏用户列表
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看游戏用户列表'
+      });
+    }
+
+    // 验证游戏是否存在
+    const game = await Game.findByPk(id);
+    if (!game) {
+      return res.status(404).json({
+        code: 404,
+        message: '游戏不存在'
+      });
+    }
+
+    // 查询游戏的所有用户（通过user_games表）
+    const userGames = await UserGame.findAll({
+      where: { game_id: id },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'username', 'name', 'role']
+      }],
+      order: [['assigned_at', 'DESC']]
+    });
+
+    // 格式化数据
+    const formattedUsers = userGames.map(userGame => ({
+      id: userGame.id,
+      user: userGame.user,
+      role: userGame.role,
+      permissions: userGame.permissions,
+      assignedAt: userGame.assignedAt,
+      assignedBy: userGame.assignedByUser ? {
+        username: userGame.assignedByUser.username,
+        name: userGame.assignedByUser.name
+      } : null
+    }));
+
+    res.json({
+      code: 20000,
+      data: {
+        game: {
+          id: game.id,
+          name: game.name,
+          appid: game.appid
+        },
+        users: formattedUsers,
+        total: formattedUsers.length
+      },
+      message: '获取游戏用户列表成功'
+    });
+
+  } catch (error) {
+    console.error('获取游戏用户列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取游戏的所有者信息 (仅管理员)
+app.get('/api/game/:id/owner', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+
+    // 检查权限：只有管理员可以查看游戏所有者信息
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看游戏所有者信息'
+      });
+    }
+
+    // 验证游戏是否存在
+    const game = await Game.findByPk(id);
+    if (!game) {
+      return res.status(404).json({
+        code: 404,
+        message: '游戏不存在'
+      });
+    }
+
+    // 查询游戏的所有者（通过user_games表查找owner用户）
+    const userGame = await UserGame.findOne({
+      where: { game_id: id, role: 'owner' },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'username', 'name', 'role']
+      }]
+    });
+
+    if (userGame && userGame.user) {
+      res.json({
+        code: 20000,
+        data: {
+          owner: userGame.user,
+          assignedAt: userGame.assignedAt
+        },
+        message: '获取游戏所有者信息成功'
+      });
+    } else {
+      // 如果没有找到owner，可能是系统创建的游戏，返回默认管理员
+      res.json({
+        code: 20000,
+        data: {
+          owner: {
+            id: 1,
+            username: 'admin',
+            name: '系统管理员',
+            role: 'admin'
+          },
+          assignedAt: game.created_at
+        },
+        message: '获取游戏所有者信息成功（使用默认管理员）'
+      });
+    }
+
+  } catch (error) {
+    console.error('获取游戏所有者信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取游戏列表 (管理员看所有，普通用户看自己的)
+app.get('/api/game/list', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    if (currentUser.role === 'admin') {
+      // 管理员可以看到所有活跃游戏
+      const games = await Game.findAll({
+        where: { status: 'active' },
+        attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret'],
+        order: [['created_at', 'DESC']]
+      });
+
+      res.json({
+        code: 20000,
+        data: {
+          games: games,
+          total: games.length
+        },
+        message: '获取游戏列表成功'
+      });
+    } else {
+      // 普通用户只能看到自己有权限的游戏
+      const userGames = await UserGame.findAll({
+        where: { user_id: currentUser.userId },
+        include: [{
+          model: Game,
+          as: 'game',
+          where: { status: 'active' },
+          required: true
+        }],
+        order: [['assigned_at', 'DESC']]
+      });
+
+      // 提取游戏信息
+      const games = userGames.map(userGame => userGame.game);
+
+      res.json({
+        code: 20000,
+        data: {
+          games: games,
+          total: games.length
+        },
+        message: '获取游戏列表成功'
+      });
+    }
+
+  } catch (error) {
+    console.error('获取游戏列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 删除游戏 (仅管理员)
+app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
+  try {
+    console.log('🗑️ 删除游戏请求:', { id: req.params.id, user: req.user });
+
+    const currentUser = req.user;
+    const { id } = req.params;
+
+    // 检查权限：只有管理员可以删除游戏
+    if (currentUser.role !== 'admin') {
+      console.log('❌ 权限不足:', { userRole: currentUser.role, requiredRole: 'admin' });
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以删除游戏'
+      });
+    }
+
+    // 查找游戏
+    const game = await Game.findByPk(id);
+    if (!game) {
+      return res.status(404).json({
+        code: 404,
+        message: '游戏不存在'
+      });
+    }
+
+    // 检查游戏是否有关联的用户权限记录
+    const userGameCount = await UserGame.count({
+      where: { game_id: id }
+    });
+
+    if (userGameCount > 0) {
+      // 如果有用户权限记录，先删除它们
+      await UserGame.destroy({
+        where: { game_id: id }
+      });
+      console.log(`删除了 ${userGameCount} 条用户游戏权限记录`);
+    }
+
+    // 删除游戏
+    await game.destroy();
+
+    console.log(`管理员 ${currentUser.username} 删除了游戏 ${game.name} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      message: '游戏删除成功',
+      data: {
+        deletedGame: {
+          id: game.id,
+          name: game.name,
+          appid: game.appid
+        },
+        deletedPermissions: userGameCount
+      }
+    });
+
+  } catch (error) {
+    console.error('删除游戏错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 创建新游戏 (仅管理员)
+app.post('/api/game/create', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { name, appid, appSecret, description } = req.body;
+
+    // 检查权限：只有管理员可以创建游戏
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以创建游戏'
+      });
+    }
+
+    // 验证必填字段
+    if (!name || !appid || !appSecret) {
+      return res.status(400).json({
+        code: 400,
+        message: '游戏名称、App ID和App Secret不能为空'
+      });
+    }
+
+    // 检查App ID是否已存在
+    const existingGame = await Game.findByAppId(appid);
+    if (existingGame) {
+      return res.status(400).json({
+        code: 400,
+        message: '该App ID已存在，请使用不同的App ID'
+      });
+    }
+
+    // 创建新游戏
+    const newGame = await Game.create({
+      name,
+      appid,
+      appSecret,
+      description: description || '',
+      status: 'active',
+      validated: true, // 前端已经验证过
+      validatedAt: new Date()
+    });
+
+    console.log(`管理员 ${currentUser.username} 创建了新游戏: ${name} (App ID: ${appid})`);
+
+    res.json({
+      code: 20000,
+      data: {
+        game: newGame.toFrontendFormat(),
+        id: newGame.id
+      },
+      message: '游戏创建成功'
+    });
+
+  } catch (error) {
+    console.error('创建游戏错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取所有用户的基本信息 (仅管理员，用于用户选择器)
+app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以查看用户列表
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看用户列表'
+      });
+    }
+
+    // 获取所有活跃用户的基本信息
+    const users = await User.findAll({
+      where: { is_active: true },
+      attributes: ['id', 'username', 'name', 'role'],
+      order: [['username', 'ASC']]
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        users: users,
+        total: users.length
+      },
+      message: '获取用户基本信息成功'
+    });
+
+  } catch (error) {
+    console.error('获取用户基本信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
 // 抖音webhook端点
 app.get('/api/douyin/webhook', (req, res) => {
   console.log('📡 抖音webhook GET请求验证:', req.query);

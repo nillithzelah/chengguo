@@ -74,3 +74,116 @@ export function getUserList() {
 export function deleteUser(userId: number) {
   return axios.delete(`/api/user/delete/${userId}`);
 }
+
+// 获取用户基本信息列表 (管理员，用于用户选择器)
+export interface UserBasicItem {
+  id: number;
+  username: string;
+  name: string;
+  role: string;
+}
+
+export interface UserBasicListRes {
+  users: UserBasicItem[];
+  total: number;
+}
+
+export function getUserBasicList() {
+  return axios.get<UserBasicListRes>('/api/user/basic-list');
+}
+
+// 获取用户游戏列表 (管理员)
+export interface GameInfo {
+  id: number;
+  appid: string;
+  name: string;
+  description: string;
+  status: string;
+  validated: boolean;
+  created_at: string;
+}
+
+export interface UserGameItem {
+  id: number;
+  game: GameInfo;
+  role: string;
+  permissions: any;
+  assigned_at: string;
+  assigned_by: {
+    username: string;
+    name: string;
+  } | null;
+}
+
+export interface UserGameListRes {
+  user: {
+    id: number;
+    username: string;
+    name: string;
+    role: string;
+  };
+  games: UserGameItem[];
+  total: number;
+}
+
+export function getUserGames(userId: number) {
+  return axios.get<UserGameListRes>(`/api/game/user-games/${userId}`);
+}
+
+// 为用户分配游戏权限
+export interface AssignGameData {
+  userId: number;
+  gameId: number;
+  role?: 'owner' | 'editor' | 'viewer';
+}
+
+export function assignGameToUser(data: AssignGameData) {
+  return axios.post('/api/game/assign', data);
+}
+
+// 移除用户的游戏权限
+export function removeUserGame(userId: number, gameId: number) {
+  return axios.delete(`/api/game/remove/${userId}/${gameId}`);
+}
+
+// 获取所有游戏列表
+export interface GameItem {
+  id: number;
+  appid: string;
+  name: string;
+  description: string;
+  status: string;
+  validated: boolean;
+  created_at: string;
+}
+
+export interface GameListRes {
+  games: GameItem[];
+  total: number;
+}
+
+export function getGameList() {
+  return axios.get<GameListRes>('/api/game/list');
+}
+
+// 创建新游戏
+export interface CreateGameData {
+  name: string;
+  appid: string;
+  appSecret: string;
+  description?: string;
+}
+
+export interface CreateGameRes {
+  game: GameItem;
+  id: number;
+}
+
+export function createGame(data: CreateGameData) {
+  return axios.post<CreateGameRes>('/api/game/create', data);
+}
+
+// 删除游戏 (管理员)
+export function deleteGame(gameId: number) {
+  return axios.delete(`/api/game/delete/${gameId}`);
+}

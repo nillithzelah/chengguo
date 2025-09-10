@@ -23,6 +23,36 @@ async function initializeDatabase() {
   const Game = defineGameModel(sequelize);
   const UserGame = defineUserGameModel(sequelize);
 
+  // 定义模型关联关系
+  User.belongsToMany(Game, {
+    through: UserGame,
+    foreignKey: 'user_id',
+    otherKey: 'game_id',
+    as: 'games'
+  });
+
+  Game.belongsToMany(User, {
+    through: UserGame,
+    foreignKey: 'game_id',
+    otherKey: 'user_id',
+    as: 'users'
+  });
+
+  UserGame.belongsTo(User, {
+    foreignKey: 'user_id',
+    as: 'user'
+  });
+
+  UserGame.belongsTo(Game, {
+    foreignKey: 'game_id',
+    as: 'game'
+  });
+
+  UserGame.belongsTo(User, {
+    foreignKey: 'assigned_by',
+    as: 'assignedByUser'
+  });
+
   return { User, Game, UserGame };
 }
 
@@ -113,7 +143,7 @@ async function showDatabaseData() {
         游戏: ug.game ? `${ug.game.name}(${ug.game.appid})` : '未知游戏',
         权限角色: ug.role === 'owner' ? '👑 所有者' : ug.role === 'editor' ? '✏️ 编辑者' : '👁️ 查看者',
         分配人: ug.assignedByUser ? ug.assignedByUser.username : '系统',
-        分配时间: ug.assigned_at.toLocaleString('zh-CN'),
+        分配时间: ug.assigned_at ? ug.assigned_at.toLocaleString('zh-CN') : '未设置',
         创建时间: ug.created_at.toLocaleString('zh-CN')
       })));
     }

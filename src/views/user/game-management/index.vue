@@ -1,0 +1,1207 @@
+<template>
+  <div class="container">
+    <Breadcrumb :items="['menu.user', 'menu.user.game.user']" />
+
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <div class="header-content">
+        <div>
+          <h2>用户游戏管理</h2>
+          <p>查看和管理用户拥有的游戏权限</p>
+        </div>
+        <div class="header-actions">
+          <!-- 隐藏新增游戏应用按钮，只有管理员可见 -->
+          <button
+            v-if="userStore.userInfo?.role === 'admin'"
+            @click="openAddGameModal"
+            :disabled="!selectedUserId || selectedUserId === ''"
+            class="btn btn-primary"
+          >
+            新增游戏应用
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户选择器 -->
+    <div class="user-selector">
+      <div class="selector-item">
+        <label>选择用户：</label>
+        <select
+          v-model="selectedUserId"
+          @change="handleUserChange"
+          :disabled="userLoading"
+          class="user-select"
+        >
+          <option value="" disabled>请选择用户</option>
+          <option
+            v-for="user in userList"
+            :key="user.id"
+            :value="user.id"
+          >
+            {{ user.name }} ({{ user.username }})
+          </option>
+        </select>
+        <span v-if="userLoading" class="loading-text">加载中...</span>
+      </div>
+      <!-- 调试信息 -->
+      <div class="debug-info" style="margin-top: 10px; font-size: 12px; color: #666;">
+        调试: 用户列表数量: {{ userList.length }}, 选中用户ID: "{{ selectedUserId }}"
+      </div>
+    </div>
+
+    <!-- 用户信息显示 -->
+    <div v-if="selectedUser && selectedUserId && selectedUserId !== ''" class="user-info">
+      <a-card title="用户信息" class="user-card">
+        <div class="user-details">
+          <div class="detail-item">
+            <span class="label">用户名：</span>
+            <span class="value">{{ selectedUser.username }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">姓名：</span>
+            <span class="value">{{ selectedUser.name }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">角色：</span>
+            <a-tag :color="getRoleColor(selectedUser.role)" size="small">
+              {{ getRoleText(selectedUser.role) }}
+            </a-tag>
+          </div>
+        </div>
+      </a-card>
+    </div>
+
+    <!-- 游戏列表 -->
+    <div v-if="selectedUserId && selectedUserId !== ''" class="games-section">
+      <a-card title="拥有的游戏" class="games-card">
+        <template #extra>
+          <a-button @click="refreshGames" :loading="gameLoading">
+            <template #icon>
+              <icon-refresh />
+            </template>
+            刷新
+          </a-button>
+        </template>
+
+        <!-- 调试信息 -->
+        <div style="margin-bottom: 16px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
+          调试: 游戏列表数量: {{ gameList.length }}, 加载状态: {{ gameLoading }}
+        </div>
+
+        <a-table
+          :columns="gameColumns"
+          :data="gameList"
+          :loading="gameLoading"
+          row-key="id"
+          :pagination="false"
+        >
+          <template #game_name="{ record }">
+            <div class="game-info">
+              <div class="game-name">{{ record.game.name }}</div>
+              <div class="game-appid">AppID: {{ record.game.appid }}</div>
+            </div>
+          </template>
+
+          <template #role="{ record }">
+            <a-tag
+              :color="getGameRoleColor(record.role)"
+              size="small"
+            >
+              {{ getGameRoleText(record.role) }}
+            </a-tag>
+          </template>
+
+          <template #assigned_at="{ record }">
+            {{ formatDate(record.assigned_at) }}
+          </template>
+
+          <template #assigned_by="{ record }">
+            <div v-if="record.assigned_by">
+              {{ record.assigned_by.name }} ({{ record.assigned_by.username }})
+            </div>
+            <div v-else class="text-muted">系统分配</div>
+          </template>
+
+          <template #status="{ record }">
+            <a-tag
+              :color="record.game.validated ? 'green' : 'orange'"
+              size="small"
+            >
+              {{ record.game.validated ? '已验证' : '未验证' }}
+            </a-tag>
+          </template>
+
+          <template #actions="{ record }">
+            <a-popconfirm
+              title="确定要删除此游戏吗？"
+              ok-text="确定删除"
+              cancel-text="取消"
+              @ok="handleDeleteGame(record)"
+            >
+              <template #content>
+                <div style="color: #ff4d4f; font-weight: 500;">
+                  此操作不可恢复！<br>
+                  将删除游戏及其所有用户权限记录。
+                </div>
+              </template>
+              <a-button type="text" size="small" style="color: #ff4d4f;">
+                <template #icon>
+                  <icon-delete />
+                </template>
+                删除游戏
+              </a-button>
+            </a-popconfirm>
+          </template>
+        </a-table>
+
+        <div v-if="gameList.length === 0 && !gameLoading" class="no-games">
+          <a-empty description="该用户暂无游戏权限" />
+        </div>
+      </a-card>
+    </div>
+
+
+    <!-- 新增游戏应用模态框 -->
+    <div v-if="showAddGameModal && userStore.userInfo?.role === 'admin'" class="modal-overlay" @click="closeGameModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>为用户新增游戏应用</h3>
+          <button @click="closeGameModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- 用户提示信息 -->
+          <div v-if="selectedUser" class="user-notice">
+            <div class="notice-icon">👤</div>
+            <div class="notice-content">
+              <div class="notice-title">为用户新增游戏应用</div>
+              <div class="notice-user">{{ selectedUser.name }} ({{ selectedUser.username }})</div>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label>游戏名称</label>
+            <input
+              v-model="newGame.name"
+              type="text"
+              placeholder="输入游戏名称（用于标识）"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App ID</label>
+            <input
+              v-model="newGame.appid"
+              type="text"
+              placeholder="输入抖音游戏的App ID"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App Secret</label>
+            <input
+              v-model="newGame.appSecret"
+              type="password"
+              placeholder="输入32位App Secret，如：56808246ee49c052ecc7be8be79551859837409e"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 App Secret是32位字符串，从抖音开放平台获取</small>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label>游戏描述</label>
+            <textarea
+              v-model="newGame.description"
+              placeholder="输入游戏描述（可选）"
+              class="form-input"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <!-- 测试连接区域 -->
+          <div class="test-section" v-if="newGame.appid && newGame.appSecret">
+            <div class="test-header">
+              <h4>🔗 连接测试</h4>
+              <div class="test-actions">
+                <button
+                  @click="fillExampleData"
+                  class="btn btn-small"
+                >
+                  📝 填入示例数据
+                </button>
+                <button
+                  @click="testGameConnection"
+                  :disabled="testing"
+                  class="btn btn-outline"
+                >
+                  {{ testing ? '测试中...' : '测试连接' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 测试结果显示 -->
+            <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
+              <div class="test-message">{{ testResult.message }}</div>
+              <div v-if="testResult.success" class="test-details">
+                <small>Token: {{ testResult.token }}</small><br>
+                <small>有效期: {{ testResult.expiresIn }}秒</small>
+              </div>
+              <div v-if="!testResult.success && testResult.suggestion" class="test-suggestion">
+                <small>💡 {{ testResult.suggestion }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeGameModal" class="btn btn-secondary" :disabled="saving">取消</button>
+          <button
+            @click="saveNewGame"
+            :disabled="!newGame.name || !newGame.appid || !newGame.appSecret || saving"
+            class="btn btn-primary"
+          >
+            {{ saving ? '验证中...' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted, watch } from 'vue';
+import { Message } from '@arco-design/web-vue';
+import { IconRefresh, IconDelete } from '@arco-design/web-vue/es/icon';
+import useUserStore from '@/store/modules/user';
+import { getUserBasicList, getUserGames, assignGameToUser, createGame, deleteGame, type UserBasicItem, type UserGameListRes } from '@/api/user';
+
+// 响应式数据
+const userLoading = ref(false);
+const gameLoading = ref(false);
+const selectedUserId = ref<string>(''); // HTML select使用字符串值
+const selectedUser = ref<UserBasicItem | null>(null);
+const userList = ref<UserBasicItem[]>([]);
+const gameList = ref<any[]>([]);
+
+
+// 新增游戏相关
+const showAddGameModal = ref(false);
+const saving = ref(false);
+const testing = ref(false);
+const testResult = ref(null);
+const newGame = reactive({
+  name: '',
+  appid: '',
+  appSecret: '',
+  description: ''
+});
+
+// 用户Store
+const userStore = useUserStore();
+
+// 游戏表格列配置
+const gameColumns = [
+  {
+    title: '游戏信息',
+    slotName: 'game_name',
+    width: 250
+  },
+  {
+    title: '权限角色',
+    dataIndex: 'role',
+    slotName: 'role',
+    width: 120
+  },
+  {
+    title: '分配时间',
+    dataIndex: 'assigned_at',
+    slotName: 'assigned_at',
+    width: 160
+  },
+  {
+    title: '分配人',
+    dataIndex: 'assigned_by',
+    slotName: 'assigned_by',
+    width: 150
+  },
+  {
+    title: '游戏状态',
+    dataIndex: 'status',
+    slotName: 'status',
+    width: 100
+  },
+  {
+    title: '操作',
+    dataIndex: 'actions',
+    slotName: 'actions',
+    width: 120
+  }
+];
+
+// 获取角色颜色
+const getRoleColor = (role: string) => {
+  const colors = {
+    admin: 'red',
+    moderator: 'orange',
+    user: 'blue'
+  };
+  return colors[role] || 'default';
+};
+
+// 获取角色文本
+const getRoleText = (role: string) => {
+  const texts = {
+    admin: '管理员',
+    moderator: '审核员',
+    user: '普通用户'
+  };
+  return texts[role] || role;
+};
+
+// 获取游戏角色颜色
+const getGameRoleColor = (role: string) => {
+  const colors = {
+    owner: 'red',
+    editor: 'orange',
+    viewer: 'blue'
+  };
+  return colors[role] || 'default';
+};
+
+// 获取游戏角色文本
+const getGameRoleText = (role: string) => {
+  const texts = {
+    owner: '所有者',
+    editor: '编辑者',
+    viewer: '查看者'
+  };
+  return texts[role] || role;
+};
+
+// 格式化日期
+const formatDate = (dateStr: string) => {
+  return new Date(dateStr).toLocaleString('zh-CN');
+};
+
+// 加载用户列表
+const loadUserList = async () => {
+  userLoading.value = true;
+  try {
+    const response = await getUserBasicList();
+    userList.value = response.data.users;
+  } catch (error) {
+    console.error('加载用户列表失败:', error);
+    Message.error('加载用户列表失败');
+  } finally {
+    userLoading.value = false;
+  }
+};
+
+// 加载用户游戏列表
+const loadUserGames = async (userId: number) => {
+  gameLoading.value = true;
+  console.log('🎮 开始加载用户游戏列表，用户ID:', userId);
+  try {
+    const response = await getUserGames(userId);
+    console.log('🎮 API响应:', response);
+    console.log('🎮 用户数据:', response.data.user);
+    console.log('🎮 游戏数据:', response.data.games);
+
+    selectedUser.value = response.data.user;
+    gameList.value = response.data.games;
+
+    console.log('🎮 数据已更新到响应式变量');
+    console.log('🎮 selectedUser:', selectedUser.value);
+    console.log('🎮 gameList:', gameList.value);
+  } catch (error) {
+    console.error('❌ 加载用户游戏列表失败:', error);
+    Message.error('加载用户游戏列表失败');
+  } finally {
+    gameLoading.value = false;
+  }
+};
+
+// 处理用户选择变化
+const handleUserChange = (event: Event) => {
+  const target = event.target as HTMLSelectElement;
+  const userIdStr = target.value;
+  if (userIdStr) {
+    selectedUserId.value = userIdStr;
+    const userId = parseInt(userIdStr);
+    loadUserGames(userId);
+  }
+};
+
+// 刷新游戏列表
+const refreshGames = () => {
+  if (selectedUserId.value) {
+    const userId = parseInt(selectedUserId.value);
+    loadUserGames(userId);
+  }
+};
+
+
+
+// 处理删除游戏
+const handleDeleteGame = async (record: any) => {
+  try {
+    console.log('🗑️ 开始删除游戏:', record.game.name);
+
+    await deleteGame(record.game.id);
+    Message.success(`游戏 "${record.game.name}" 删除成功`);
+
+    // 刷新游戏列表
+    if (selectedUserId.value) {
+      const userId = parseInt(selectedUserId.value);
+      await loadUserGames(userId);
+    }
+  } catch (error) {
+    console.error('删除游戏失败:', error);
+    Message.error('删除游戏失败');
+  }
+};
+
+// 显示新增游戏模态框
+const openAddGameModal = () => {
+  // 检查管理员权限
+  if (userStore.userInfo?.role !== 'admin') {
+    Message.error('您没有权限执行此操作');
+    return;
+  }
+
+  if (!selectedUserId.value || selectedUserId.value === '') {
+    Message.warning('请先选择用户');
+    return;
+  }
+
+  showAddGameModal.value = true;
+  newGame.name = '';
+  newGame.appid = '';
+  newGame.appSecret = '';
+  newGame.description = '';
+  testResult.value = null;
+  testing.value = false;
+};
+
+// 填入示例数据
+const fillExampleData = () => {
+  newGame.appid = 'tt8c62fadf136c334702';
+  newGame.appSecret = '56808246ee49c052ecc7be8be79551859837409e';
+  newGame.name = '示例游戏应用';
+  newGame.description = '这是一个示例游戏应用配置';
+  testResult.value = null;
+};
+
+// 关闭游戏模态框
+const closeGameModal = () => {
+  showAddGameModal.value = false;
+  newGame.name = '';
+  newGame.appid = '';
+  newGame.appSecret = '';
+  newGame.description = '';
+  testResult.value = null;
+  testing.value = false;
+};
+
+// 测试游戏连接
+const testGameConnection = async () => {
+  if (!newGame.appid || !newGame.appSecret) {
+    alert('请先填写App ID和App Secret');
+    return;
+  }
+
+  testing.value = true;
+  testResult.value = null;
+
+  try {
+    console.log('🔗 开始测试游戏连接...');
+
+    // 通过后端代理调用token API进行测试
+    const response = await fetch('/api/douyin/test-connection', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appid: newGame.appid,
+        secret: newGame.appSecret
+      })
+    });
+
+    const result = await response.json();
+    console.log('📥 测试连接响应:', result);
+
+    if (response.ok && (result.code === 0 || result.err_no === 0)) {
+      console.log('✅ 游戏连接测试成功');
+
+      testResult.value = {
+        success: true,
+        message: '✅ 连接成功！游戏配置有效',
+        token: result.data?.access_token || 'token_received',
+        expiresIn: result.data?.expires_in || 7200
+      };
+    } else {
+      console.log('❌ 游戏连接测试失败:', result.message || result.error || result.err_tips);
+
+      // 处理不同的错误格式和提供解决建议
+      let errorMessage = '连接失败';
+      let suggestion = '';
+
+      if (result.err_tips) {
+        errorMessage = result.err_tips;
+        if (result.err_tips === 'bad secret') {
+          suggestion = '请检查App Secret是否正确。从抖音开放平台获取32位App Secret字符串。';
+        }
+      } else if (result.message) {
+        errorMessage = result.message;
+      } else if (result.error) {
+        errorMessage = result.error;
+      }
+
+      testResult.value = {
+        success: false,
+        message: `❌ ${errorMessage}`,
+        error: errorMessage,
+        suggestion: suggestion
+      };
+    }
+
+  } catch (err) {
+    console.error('❌ 测试连接时出错:', err);
+    testResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${err.message}`,
+      error: err.message
+    };
+  } finally {
+    testing.value = false;
+  }
+};
+
+// 验证游戏配置
+const validateGameConfig = async (appid, appSecret) => {
+  try {
+    console.log('🔐 开始验证游戏配置...');
+
+    // 通过后端代理调用token API进行验证
+    const response = await fetch('/api/douyin/test-connection', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appid: appid,
+        secret: appSecret
+      })
+    });
+
+    const result = await response.json();
+    console.log('📥 游戏配置验证响应:', result);
+
+    if (response.ok && (result.code === 0 || result.err_no === 0)) {
+      console.log('✅ 游戏配置验证成功');
+      return {
+        success: true,
+        token: result.data?.access_token || 'token_validated'
+      };
+    } else {
+      console.log('❌ 游戏配置验证失败:', result.message || result.error || result.err_tips);
+
+      // 处理不同的错误格式
+      let errorMessage = '验证失败';
+      if (result.err_tips) {
+        errorMessage = result.err_tips;
+      } else if (result.message) {
+        errorMessage = result.message;
+      } else if (result.error) {
+        errorMessage = result.error;
+      }
+
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+
+  } catch (err) {
+    console.error('❌ 验证游戏配置时出错:', err);
+    return { success: false, error: err.message || '网络错误，请检查连接' };
+  }
+};
+
+// 保存新游戏
+const saveNewGame = async () => {
+  // 检查管理员权限
+  if (userStore.userInfo?.role !== 'admin') {
+    Message.error('您没有权限执行此操作');
+    return;
+  }
+
+  if (!newGame.name || !newGame.appid || !newGame.appSecret) {
+    alert('请填写完整的游戏信息');
+    return;
+  }
+
+  saving.value = true;
+
+  try {
+    console.log('🔄 开始保存新游戏配置...');
+
+    // 检查游戏ID是否已存在（暂时跳过检查）
+    // const existingGame = availableGames.value.find(game => game.appid === newGame.appid);
+    // if (existingGame) {
+    //   alert('该App ID已存在，请使用不同的App ID');
+    //   return;
+    // }
+
+    // 验证游戏配置
+    console.log('🔐 正在验证游戏配置...');
+    const validation = await validateGameConfig(newGame.appid, newGame.appSecret);
+
+    if (!validation.success) {
+      alert(`游戏配置验证失败: ${validation.error}\n请检查App ID和App Secret是否正确。`);
+      return;
+    }
+
+    console.log('✅ 游戏配置验证通过，Token:', validation.token.substring(0, 20) + '...');
+
+    // 第一步：保存游戏到数据库
+    console.log('💾 开始保存游戏到数据库...');
+    let savedGame;
+    try {
+      const gameData = {
+        name: newGame.name,
+        appid: newGame.appid,
+        appSecret: newGame.appSecret,
+        description: newGame.description
+      };
+      console.log('📤 发送游戏保存请求:', gameData);
+
+      const saveResponse = await createGame(gameData);
+      savedGame = saveResponse.data;
+      console.log('✅ 游戏保存成功:', savedGame);
+
+    } catch (saveError) {
+      console.error('❌ 游戏保存失败:', saveError);
+      alert(`游戏配置验证成功，但保存到数据库时失败: ${saveError.message}`);
+      return;
+    }
+
+    // 第二步：为当前选择的用户分配游戏权限
+    if (selectedUserId.value && savedGame && savedGame.id) {
+      console.log('🔗 开始为用户分配游戏权限...');
+      console.log('📋 用户ID:', selectedUserId.value);
+      console.log('🎮 游戏ID:', savedGame.id);
+      console.log('👑 分配角色: owner');
+
+      try {
+        const assignData = {
+          userId: parseInt(selectedUserId.value),
+          gameId: savedGame.id, // 使用真实的游戏ID
+          role: 'owner' as 'owner' | 'editor' | 'viewer' // 默认分配所有者权限
+        };
+        console.log('📤 发送分配请求数据:', assignData);
+
+        const assignResponse = await assignGameToUser(assignData);
+        console.log('✅ 游戏权限分配成功:', assignResponse.data);
+
+        // 刷新用户游戏列表
+        const userId = parseInt(selectedUserId.value);
+        await loadUserGames(userId);
+
+      } catch (assignError) {
+        console.error('❌ 游戏权限分配失败:', assignError);
+        console.error('❌ 分配错误详情:', assignError.response?.data || assignError.message);
+
+        // 即使分配失败，也要告知用户游戏已保存成功
+        alert(`游戏配置验证成功并已保存！\n游戏名称: ${newGame.name}\nApp ID: ${newGame.appid}\n\n⚠️ 警告：游戏已保存但权限分配失败，请手动分配权限。`);
+        return;
+      }
+    }
+
+    alert(`游戏配置验证成功并已保存！\n游戏名称: ${newGame.name}\nApp ID: ${newGame.appid}\n已为用户 ${selectedUser.value?.name} 分配所有者权限`);
+
+    // 关闭模态框
+    closeGameModal();
+
+  } catch (err) {
+    console.error('❌ 保存游戏配置失败:', err);
+    alert('保存失败，请稍后重试');
+  } finally {
+    saving.value = false;
+  }
+};
+
+// 组件挂载时加载数据
+onMounted(() => {
+  // 检查用户权限
+  if (userStore.userInfo?.role !== 'admin') {
+    Message.error('您没有权限访问此页面');
+    return;
+  }
+
+  loadUserList();
+});
+</script>
+
+<style scoped lang="less">
+.container {
+  padding: 20px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  @media (max-width: 768px) {
+    .header-content {
+      flex-direction: column;
+      gap: 16px;
+    }
+  }
+
+  h2 {
+    margin: 0 0 8px 0;
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-3);
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 12px;
+  }
+}
+
+/* 按钮样式 */
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #165dff;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #0e42d2;
+}
+
+.user-selector {
+  margin-bottom: 24px;
+
+  .selector-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    label {
+      font-weight: 500;
+      color: var(--color-text-1);
+      white-space: nowrap;
+    }
+
+    .user-select {
+      width: 300px;
+      padding: 8px 12px;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      cursor: pointer;
+
+      &:focus {
+        outline: none;
+        border-color: #165dff;
+        box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+      }
+
+      &:disabled {
+        background: #f5f5f5;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      option {
+        padding: 8px;
+      }
+    }
+
+    .loading-text {
+      color: var(--color-text-3);
+      font-size: 14px;
+    }
+  }
+}
+
+.user-info {
+  margin-bottom: 24px;
+}
+
+.user-card {
+  .user-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .label {
+      font-weight: 500;
+      color: var(--color-text-2);
+      min-width: 60px;
+    }
+
+    .value {
+      color: var(--color-text-1);
+    }
+  }
+}
+
+.games-section {
+  .games-card {
+    .game-info {
+      .game-name {
+        font-weight: 500;
+        color: var(--color-text-1);
+        margin-bottom: 4px;
+      }
+
+      .game-appid {
+        font-size: 12px;
+        color: var(--color-text-3);
+      }
+    }
+
+    .text-muted {
+      color: var(--color-text-3);
+      font-style: italic;
+    }
+  }
+
+  .no-games {
+    text-align: center;
+    padding: 40px 0;
+  }
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #86909c;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: #1d2129;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-secondary {
+  background: #f2f3f5;
+  color: #1d2129;
+}
+
+.btn-secondary:hover {
+  background: #e5e6eb;
+}
+
+/* 用户提示信息样式 */
+.user-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.notice-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.notice-content {
+  flex: 1;
+}
+
+.notice-title {
+  font-weight: 600;
+  color: #1d2129;
+  margin-bottom: 4px;
+}
+
+.notice-user {
+  color: #165dff;
+  font-size: 14px;
+}
+
+/* 表单样式 */
+.form-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.form-item label {
+  display: block;
+  font-weight: 500;
+  color: #1d2129;
+  margin-bottom: 8px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #165dff;
+  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+}
+
+.form-input textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-hint {
+  margin-top: 4px;
+  color: #86909c;
+  font-size: 12px;
+}
+
+.form-hint small {
+  display: block;
+  line-height: 1.4;
+}
+
+/* 测试连接区域样式 */
+.test-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.test-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.test-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-outline {
+  padding: 6px 12px;
+  border: 1px solid #165dff;
+  background: white;
+  color: #165dff;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #165dff;
+  color: white;
+}
+
+.btn-outline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.test-result {
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.test-result.success {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.test-result.error {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.test-message {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.test-details {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.test-details small {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.test-suggestion {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.test-suggestion small {
+  color: #ff7875;
+  font-weight: 500;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    margin: 16px;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 16px 20px;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  .test-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .test-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .test-actions .btn {
+    width: 100%;
+  }
+
+  .test-section {
+    padding: 12px;
+  }
+}
+</style>

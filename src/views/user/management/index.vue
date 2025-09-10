@@ -10,7 +10,12 @@
 
     <!-- 操作栏 -->
     <div class="action-bar">
-      <a-button type="primary" @click="() => { console.log('新增用户按钮被点击'); showCreateModal = true; }">
+      <!-- 隐藏新增用户按钮，只有管理员可见 -->
+      <a-button
+        v-if="userStore.userInfo?.role === 'admin'"
+        type="primary"
+        @click="() => { console.log('新增用户按钮被点击'); showCreateModal = true; }"
+      >
         <template #icon>
           <icon-plus />
         </template>
@@ -93,7 +98,7 @@
     </a-table>
 
     <!-- 新增用户模态框 -->
-    <div v-if="showCreateModal" class="modal-overlay" @click="resetCreateForm">
+    <div v-if="showCreateModal && userStore.userInfo?.role === 'admin'" class="modal-overlay" @click="resetCreateForm">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>新增用户</h3>
@@ -470,6 +475,12 @@ const resetCreateForm = () => {
 // 处理创建用户
 const handleCreateUser = async () => {
   console.log('handleCreateUser: 开始创建用户');
+
+  // 检查管理员权限
+  if (userStore.userInfo?.role !== 'admin') {
+    Message.error('您没有权限执行此操作');
+    return;
+  }
 
   try {
     // 基础表单验证

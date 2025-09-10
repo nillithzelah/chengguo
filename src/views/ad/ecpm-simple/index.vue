@@ -7,18 +7,22 @@
            <p>查看和管理所有用户的eCPM数据</p>
          </div>
         <div class="header-actions">
-          <button
-            @click="showAddUserModal = true"
-            class="btn btn-secondary"
-          >
-            新增用户
-          </button>
-          <button
-            @click="showAddAppModal = true"
-            class="btn btn-primary"
-          >
-            新增应用
-          </button>
+           <!-- 隐藏新增用户按钮，只有管理员可见 -->
+           <!-- <button -->
+             <!-- v-if="userStore.userInfo?.role === 'admin'" -->
+             <!-- @click="showAddUserModal = true" -->
+             <!-- class="btn btn-secondary" -->
+           <!-- > -->
+             <!-- 新增用户 -->
+           <!-- </button> -->
+           <!-- 隐藏新增应用按钮，只有管理员可见 -->
+           <!-- <button -->
+             <!-- v-if="userStore.userInfo?.role === 'admin'" -->
+             <!-- @click="showAddAppModal = true" -->
+             <!-- class="btn btn-primary" -->
+           <!-- > -->
+             <!-- 新增应用 -->
+           <!-- </button> -->
         </div>
       </div>
     </div>
@@ -318,9 +322,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
 import { db, initDatabase } from '@/utils/database';
 import useUserStore from '@/store/modules/user';
+
+// 获取用户Store实例
+const userStore = useUserStore();
+
+// 监听用户状态变化，重新加载应用列表
+watch(() => userStore.userInfo, async (newUser, oldUser) => {
+  if (newUser && (!oldUser || newUser.name !== oldUser.name || newUser.role !== oldUser.role)) {
+    console.log('👤 用户状态变化，重新加载应用列表');
+    await loadAppList();
+
+    // 重新设置默认应用
+    if (appList.value.length > 0) {
+      selectedAppId.value = appList.value[0].appid;
+      queryParams.mp_id = appList.value[0].appid;
+      console.log('✅ 重新设置默认应用:', appList.value[0].name, appList.value[0].appid);
+    }
+  }
+}, { immediate: false });
 
 // 响应式数据
 const loading = ref(false);
@@ -379,17 +401,13 @@ const formatDateTime = (dateTimeStr) => {
 const getUserDisplayName = (username) => {
   if (!username) return '未分配';
 
-  // 检查是否是内置用户
-  if (username === 'admin') return '管理员';
-  if (username === 'user') return '普通用户';
-  if (username === 'user2') return '测试用户';
-
   // 检查是否是自定义用户
   const customUser = customUsers.value.find(user => user.username === username);
   if (customUser) {
     return customUser.name;
   }
 
+  // 对于系统用户，直接显示用户名
   return username;
 };
 
@@ -409,7 +427,7 @@ const loadCustomUsers = () => {
 };
 
 // 应用列表管理函数
-const loadAppList = () => {
+const loadAppList = async () => {
   try {
     console.log('🔄 加载应用列表...');
 
@@ -420,46 +438,85 @@ const loadAppList = () => {
 
     const allApps = [];
 
-    // 根据用户角色决定可以查看的应用
-    if (currentUser.role === 'admin') {
-      console.log('👑 管理员用户，加载所有应用');
+    // 首先从数据库获取所有游戏及其所有者信息
+    try {
+      console.log('📡 从数据库获取游戏列表...');
 
-      // 管理员可以查看所有用户的应用
-      const userKeys = ['douyin_apps_54321', 'douyin_apps_67890', 'douyin_apps_12345'];
-
-      // 加载内置用户的应用
-      userKeys.forEach(key => {
-        const savedApps = localStorage.getItem(key);
-        if (savedApps) {
-          const userApps = JSON.parse(savedApps);
-          allApps.push(...userApps);
+      // 获取游戏列表
+      const gameResponse = await fetch('/api/game/list', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      // 加载自定义用户的应用
-      customUsers.value.forEach(customUser => {
-        const userKey = `douyin_apps_${customUser.token}`;
-        const savedApps = localStorage.getItem(userKey);
-        if (savedApps) {
-          const userApps = JSON.parse(savedApps);
-          allApps.push(...userApps);
-        }
-      });
+      if (gameResponse.ok) {
+        const gameResult = await gameResponse.json();
+        if (gameResult.code === 20000 && gameResult.data?.games) {
+          console.log('✅ 从数据库获取游戏成功:', gameResult.data.games.length, '个游戏');
 
-      // 如果没有应用，添加默认应用
-      if (allApps.length === 0) {
-        allApps.push({
-          appid: 'tt8c62fadf136c334702',
-          appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-          name: '默认应用',
-          owner: 'admin'
-        });
+          // 为每个游戏查询所有者信息
+          for (const game of gameResult.data.games) {
+            try {
+              // 查询这个游戏的owner用户（通过user_games表）
+              const ownerResponse = await fetch(`http://localhost:3000/api/game/${game.id}/owner`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+
+              let ownerUsername = 'admin'; // 默认所有者
+
+              if (ownerResponse.ok) {
+                const ownerResult = await ownerResponse.json();
+                if (ownerResult.code === 20000 && ownerResult.data?.owner) {
+                  ownerUsername = ownerResult.data.owner.username;
+                }
+              }
+
+              allApps.push({
+                appid: game.appid,
+                appSecret: game.app_secret || '',
+                name: game.name,
+                owner: ownerUsername, // 使用实际的所有者用户名
+                validated: game.validated,
+                validatedAt: game.validated_at,
+                created_at: game.created_at
+              });
+
+            } catch (ownerError) {
+              console.warn(`⚠️ 获取游戏 ${game.name} 的所有者信息失败:`, ownerError);
+              // 如果获取所有者失败，使用默认值
+              allApps.push({
+                appid: game.appid,
+                appSecret: game.app_secret || '',
+                name: game.name,
+                owner: 'admin',
+                validated: game.validated,
+                validatedAt: game.validated_at,
+                created_at: game.created_at
+              });
+            }
+          }
+        }
+      } else {
+        console.log('⚠️ 从数据库获取游戏失败，使用localStorage备用方案');
       }
-    } else {
-      console.log('👤 普通用户，加载自己的应用');
+    } catch (dbError) {
+      console.error('❌ 从数据库获取游戏出错:', dbError);
+    }
 
-      // 普通用户只能查看自己的应用
-      // 从localStorage中获取当前用户的token
+    // 所有用户都只能查看自己拥有的应用
+    console.log('👤 加载当前用户拥有的应用');
+
+    // 从数据库获取当前用户拥有的应用
+    if (allApps.length === 0) {
+      console.log('📦 数据库中没有找到用户应用，尝试从localStorage加载...');
+
+      // 获取当前用户的token来查找对应的应用
       const userToken = localStorage.getItem('userToken') || '54321'; // 默认使用user的token
 
       const userKey = `douyin_apps_${userToken}`;
@@ -467,20 +524,18 @@ const loadAppList = () => {
       if (savedApps) {
         const userApps = JSON.parse(savedApps);
         allApps.push(...userApps);
-      }
-
-      // 如果用户没有应用，添加默认应用
-      if (allApps.length === 0) {
-        allApps.push({
-          appid: 'tt8c62fadf136c334702',
-          appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-          name: '默认应用',
-          owner: currentUser.name || 'user'
-        });
+        console.log(`✅ 从localStorage加载了 ${userApps.length} 个应用`);
+      } else {
+        console.log('⚠️ localStorage中也没有找到用户应用');
       }
     }
 
-    console.log('📋 加载的应用列表:', allApps);
+    // 如果仍然没有应用，显示提示但不添加默认应用
+    if (allApps.length === 0) {
+      console.log('📝 用户暂无应用，请通过用户管理页面添加应用');
+    }
+
+    console.log('📋 最终加载的应用列表:', allApps);
     appList.value = allApps;
   } catch (err) {
     console.error('❌ 加载应用列表失败:', err);
@@ -998,19 +1053,22 @@ const createNewUser = async () => {
 };
 
 // 页面加载时初始化
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 eCPM页面初始化');
 
   // 加载自定义用户列表
   loadCustomUsers();
 
-  // 加载应用列表
-  loadAppList();
+  // 等待应用列表加载完成
+  await loadAppList();
 
   // 设置默认选中的应用
   if (appList.value.length > 0) {
     selectedAppId.value = appList.value[0].appid;
     queryParams.mp_id = appList.value[0].appid;
+    console.log('✅ 设置默认应用:', appList.value[0].name, appList.value[0].appid);
+  } else {
+    console.log('⚠️ 没有找到用户应用，跳过默认设置');
   }
 
   // 设置默认日期
@@ -1020,8 +1078,12 @@ onMounted(() => {
 
   queryParams.date_hour = yesterday.toISOString().split('T')[0];
 
-  // 自动加载数据
-  loadData();
+  // 如果有应用，自动加载数据
+  if (appList.value.length > 0) {
+    loadData();
+  } else {
+    console.log('📝 用户暂无应用，跳过数据加载');
+  }
 });
 </script>
 

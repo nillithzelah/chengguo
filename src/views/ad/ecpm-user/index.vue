@@ -144,7 +144,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, watch } from 'vue';
+import useUserStore from '@/store/modules/user';
+
+// 获取用户Store实例
+const userStore = useUserStore();
 
 // 响应式数据
 const loading = ref(false);
@@ -153,7 +157,7 @@ const tableData = ref([]);
 
 // 查询参数
 const queryParams = reactive({
-  mp_id: 'tt8c62fadf136c334702',
+  mp_id: '',
   date_hour: '',
   page_no: 1,
   page_size: 50
@@ -162,7 +166,7 @@ const queryParams = reactive({
 // 统计数据
 const stats = ref(null);
 
-// 应用列表管理（只读）
+// 应用列表管理
 const appList = ref([]);
 
 // 选中的应用ID
@@ -174,29 +178,109 @@ const formatDateTime = (dateTimeStr) => {
   return dateTimeStr.replace('T', ' ').substring(0, 19);
 };
 
-// 应用列表管理函数（只读）
-const loadAppList = () => {
+// 应用列表管理函数（从数据库获取当前用户的应用）
+const loadAppList = async () => {
   try {
-    const savedApps = localStorage.getItem('douyin_apps');
-    if (savedApps) {
-      appList.value = JSON.parse(savedApps);
-    } else {
-      // 默认应用（只读）
-      appList.value = [{
-        appid: 'tt8c62fadf136c334702',
-        appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-        name: '默认应用'
-      }];
+    console.log('🔄 加载应用列表...');
+
+    // 获取当前用户信息
+    const userStore = useUserStore();
+    const currentUser = userStore.userInfo;
+    console.log('👤 当前用户:', currentUser);
+
+    const allApps = [];
+
+    // 从数据库获取游戏列表（API已经根据用户权限过滤）
+    try {
+      console.log('📡 从数据库获取游戏列表...');
+
+      // 获取游戏列表
+      const gameResponse = await fetch('/api/game/list', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (gameResponse.ok) {
+        const gameResult = await gameResponse.json();
+        if (gameResult.code === 20000 && gameResult.data?.games) {
+          console.log('✅ 从数据库获取游戏成功:', gameResult.data.games.length, '个游戏');
+
+          // API已经根据用户权限过滤，直接使用返回的游戏列表
+          for (const game of gameResult.data.games) {
+            allApps.push({
+              appid: game.appid,
+              appSecret: game.appSecret || game.app_secret || '',
+              name: game.name,
+              owner: currentUser?.name || 'unknown',
+              validated: game.validated,
+              validatedAt: game.validated_at,
+              created_at: game.created_at
+            });
+          }
+        }
+      } else {
+        console.log('⚠️ 从数据库获取游戏失败，使用localStorage备用方案');
+      }
+    } catch (dbError) {
+      console.error('❌ 从数据库获取游戏出错:', dbError);
     }
+
+    // 所有用户都只能查看自己拥有的应用
+    console.log('👤 加载当前用户拥有的应用');
+
+    // 从数据库获取当前用户拥有的应用
+    if (allApps.length === 0) {
+      console.log('📦 数据库中没有找到用户应用，尝试从localStorage加载...');
+
+      // 获取当前用户的token来查找对应的应用
+      const userToken = localStorage.getItem('userToken') || '54321'; // 默认使用user的token
+
+      const userKey = `douyin_apps_${userToken}`;
+      const savedApps = localStorage.getItem(userKey);
+      if (savedApps) {
+        const userApps = JSON.parse(savedApps);
+        allApps.push(...userApps);
+        console.log(`✅ 从localStorage加载了 ${userApps.length} 个应用`);
+      } else {
+        console.log('⚠️ localStorage中也没有找到用户应用');
+      }
+    }
+
+    // 如果仍然没有应用，显示提示但不添加默认应用
+    if (allApps.length === 0) {
+      console.log('📝 用户暂无应用，请通过用户管理页面添加应用');
+    }
+
+    console.log('📋 最终加载的应用列表:', allApps);
+    appList.value = allApps;
   } catch (err) {
-    console.error('加载应用列表失败:', err);
+    console.error('❌ 加载应用列表失败:', err);
     appList.value = [{
       appid: 'tt8c62fadf136c334702',
       appSecret: '56808246ee49c052ecc7be8be79551859837409e',
-      name: '默认应用'
+      name: '默认应用',
+      owner: 'admin'
     }];
   }
 };
+
+// 监听用户状态变化，重新加载应用列表
+watch(() => userStore.userInfo, async (newUser, oldUser) => {
+  if (newUser && (!oldUser || newUser.name !== oldUser.name || newUser.role !== oldUser.role)) {
+    console.log('👤 用户状态变化，重新加载应用列表');
+    await loadAppList();
+
+    // 重新设置默认应用
+    if (appList.value.length > 0) {
+      selectedAppId.value = appList.value[0].appid;
+      queryParams.mp_id = appList.value[0].appid;
+      console.log('✅ 重新设置默认应用:', appList.value[0].name, appList.value[0].appid);
+    }
+  }
+}, { immediate: false });
 
 // 应用选择变化处理
 const onAppChange = () => {
@@ -402,27 +486,29 @@ const exportData = () => {
 };
 
 // 页面加载时初始化
-onMounted(() => {
+onMounted(async () => {
   console.log('🚀 eCPM用户页面初始化');
 
   // 加载应用列表
-  loadAppList();
+  await loadAppList();
 
   // 设置默认选中的应用
   if (appList.value.length > 0) {
     selectedAppId.value = appList.value[0].appid;
     queryParams.mp_id = appList.value[0].appid;
+
+    // 设置默认日期
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    queryParams.date_hour = yesterday.toISOString().split('T')[0];
+
+    // 自动加载数据
+    loadData();
+  } else {
+    console.log('⚠️ 用户暂无应用，跳过数据加载');
   }
-
-  // 设置默认日期
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  queryParams.date_hour = yesterday.toISOString().split('T')[0];
-
-  // 自动加载数据
-  loadData();
 });
 </script>
 

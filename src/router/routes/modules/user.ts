@@ -43,6 +43,26 @@ const USER: AppRouteRecordRaw = {
         roles: ['admin'], // 只有管理员可以访问
       },
     },
+    {
+      path: 'user-game-management',
+      name: 'UserGameManagement',
+      component: () => import('@/views/user/game-management/index.vue'),
+      meta: {
+        locale: 'menu.user.game.user',
+        requiresAuth: true,
+        roles: ['admin'], // 只有管理员可以访问
+      },
+    },
+    {
+      path: 'game-management',
+      name: 'GameManagement',
+      component: () => import('@/views/game-management/index.vue'),
+      meta: {
+        locale: 'menu.user.game.admin',
+        requiresAuth: true,
+        roles: ['admin'], // 只有管理员可以访问
+      },
+    },
   ],
 };
 
