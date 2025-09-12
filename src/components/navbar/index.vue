@@ -110,12 +110,12 @@
       </li>
       <li>
         <a-dropdown trigger="click">
-          <a-avatar
-            :size="32"
-            :style="{ marginRight: '8px', cursor: 'pointer' }"
-          >
-            <img alt="avatar" :src="avatar" />
-          </a-avatar>
+          <a-space align="center" :style="{ cursor: 'pointer' }">
+            <a-avatar :size="32">
+              <img alt="avatar" :src="avatar" />
+            </a-avatar>
+            <span class="user-name">{{ userStore.name || userStore.userInfo?.name || '用户' }}</span>
+          </a-space>
           <template #content>
             <a-doption>
               <a-space @click="handleLogout">
@@ -237,6 +237,17 @@
       position: absolute;
       bottom: 14px;
       margin-left: 14px;
+    }
+
+    .user-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-1);
+      margin-left: 8px;
+      white-space: nowrap;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 </style>

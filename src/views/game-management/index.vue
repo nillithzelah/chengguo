@@ -345,7 +345,7 @@ const filterGamesByUser = async () => {
   if (selectedUserId.value) {
     // 获取选中用户拥有的游戏
     try {
-      const response = await fetch(`http://localhost:3000/api/game/user-games/${selectedUserId.value}`, {
+      const response = await fetch(`/api/game/user-games/${selectedUserId.value}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -573,7 +573,7 @@ const viewUserGames = async (user) => {
   selectedUser.value = user;
 
   try {
-    const response = await fetch(`http://localhost:3000/api/game/user-games/${user.id}`, {
+    const response = await fetch(`/api/game/user-games/${user.id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -597,7 +597,7 @@ const viewGameUsers = async (game) => {
   selectedGame.value = game;
 
   try {
-    const response = await fetch(`http://localhost:3000/api/game/${game.id}/users`, {
+    const response = await fetch(`/api/game/${game.id}/users`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -628,7 +628,7 @@ const removeUserGame = async (userGame) => {
   }
 
   try {
-    const response = await fetch(`http://localhost:3000/api/game/remove/${userGame.user_id}/${userGame.game_id}`, {
+    const response = await fetch(`/api/game/remove/${userGame.user_id}/${userGame.game_id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -664,7 +664,7 @@ const deleteGame = async (game) => {
     const token = localStorage.getItem('token');
     console.log('🗑️ 前端删除游戏:', { gameId: game.id, gameName: game.name, token: token ? 'token存在' : 'token不存在' });
 
-    const response = await fetch(`http://localhost:3000/api/game/delete/${game.id}`, {
+    const response = await fetch(`/api/game/delete/${game.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,

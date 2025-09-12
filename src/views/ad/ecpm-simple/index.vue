@@ -460,50 +460,17 @@ const loadAppList = async () => {
         if (gameResult.code === 20000 && gameResult.data?.games) {
           console.log('✅ 从数据库获取游戏成功:', gameResult.data.games.length, '个游戏');
 
-          // 为每个游戏查询所有者信息
+          // 为每个游戏设置默认所有者信息（简化处理）
           for (const game of gameResult.data.games) {
-            try {
-              // 查询这个游戏的owner用户（通过user_games表）
-              const ownerResponse = await fetch(`http://localhost:3000/api/game/${game.id}/owner`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-
-              let ownerUsername = 'admin'; // 默认所有者
-
-              if (ownerResponse.ok) {
-                const ownerResult = await ownerResponse.json();
-                if (ownerResult.code === 20000 && ownerResult.data?.owner) {
-                  ownerUsername = ownerResult.data.owner.username;
-                }
-              }
-
-              allApps.push({
-                appid: game.appid,
-                appSecret: game.app_secret || '',
-                name: game.name,
-                owner: ownerUsername, // 使用实际的所有者用户名
-                validated: game.validated,
-                validatedAt: game.validated_at,
-                created_at: game.created_at
-              });
-
-            } catch (ownerError) {
-              console.warn(`⚠️ 获取游戏 ${game.name} 的所有者信息失败:`, ownerError);
-              // 如果获取所有者失败，使用默认值
-              allApps.push({
-                appid: game.appid,
-                appSecret: game.app_secret || '',
-                name: game.name,
-                owner: 'admin',
-                validated: game.validated,
-                validatedAt: game.validated_at,
-                created_at: game.created_at
-              });
-            }
+            allApps.push({
+              appid: game.appid,
+              appSecret: game.app_secret || '',
+              name: game.name,
+              owner: 'admin', // 默认所有者为管理员
+              validated: game.validated,
+              validatedAt: game.validated_at,
+              created_at: game.created_at
+            });
           }
         }
       } else {
