@@ -14,6 +14,33 @@
       </div>
     </div>
 
+    <!-- 筛选条件 -->
+    <div class="filter-section">
+      <div class="filter-grid">
+        <div class="filter-item">
+          <label>按用户筛选</label>
+          <select v-model="selectedUserId" @change="filterGamesByUser" class="form-input">
+            <option value="">显示所有游戏</option>
+            <option
+              v-for="user in users"
+              :key="user.id"
+              :value="user.id"
+            >
+              {{ user.name || user.username }} ({{ user.username }})
+            </option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>游戏状态</label>
+          <select v-model="gameStatusFilter" @change="filterGames" class="form-input">
+            <option value="">全部状态</option>
+            <option value="active">活跃</option>
+            <option value="inactive">停用</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- 游戏列表 -->
     <div class="games-section">
       <div class="section-header">
@@ -48,33 +75,6 @@
               删除游戏
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 筛选条件 -->
-    <div class="filter-section">
-      <div class="filter-grid">
-        <div class="filter-item">
-          <label>按用户筛选</label>
-          <select v-model="selectedUserId" @change="filterGamesByUser" class="form-input">
-            <option value="">显示所有游戏</option>
-            <option
-              v-for="user in users"
-              :key="user.id"
-              :value="user.id"
-            >
-              {{ user.name || user.username }} ({{ user.username }})
-            </option>
-          </select>
-        </div>
-        <div class="filter-item">
-          <label>游戏状态</label>
-          <select v-model="gameStatusFilter" @change="filterGames" class="form-input">
-            <option value="">全部状态</option>
-            <option value="active">活跃</option>
-            <option value="inactive">停用</option>
-          </select>
         </div>
       </div>
     </div>

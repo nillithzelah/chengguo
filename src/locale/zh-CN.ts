@@ -46,6 +46,8 @@ export default {
   'menu.ad': '广告数据',
   'menu.ad.ecpm.simple': '管理员ECPM数据管理',
   'menu.ad.ecpm.user': '用户ECPM数据查看',
+  'menu.ad.pangle.test': '抖音Open SDK测试',
+  'menu.ad.share.test': '抖音分享功能测试',
   'menu.ad.game.admin': '游戏管理',
   'menu.arcoWebsite': 'Arco Design',
   'menu.faq': '常见问题',

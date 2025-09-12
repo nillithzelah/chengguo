@@ -93,8 +93,8 @@
           <div class="stat-label">总收益</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">¥{{ stats.avgEcpm }}</div>
-          <div class="stat-label">平均eCPM</div>
+          <div class="stat-value">¥{{ stats.totalEcpm }}</div>
+          <div class="stat-label">总eCPM</div>
         </div>
         <div class="stat-card">
           <div class="stat-value">{{ stats.totalUsers }}</div>
@@ -117,34 +117,38 @@
           <thead>
             <tr>
               <th>事件时间</th>
-              <th>事件类型</th>
+              <th>用户名</th>
               <th>用户ID</th>
               <th>广告ID</th>
-              <th>消耗(分)</th>
+              <th>IP</th>
+              <th>城市</th>
+              <th>手机品牌</th>
+              <th>手机型号</th>
               <th>收益(元)</th>
-              <th>eCPM(元)</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="7" class="loading-cell">
+              <td colspan="13" class="loading-cell">
                 <div class="loading-spinner"></div>
                 加载中...
               </td>
             </tr>
             <tr v-else-if="tableData.length === 0">
-              <td colspan="7" class="empty-cell">
+              <td colspan="13" class="empty-cell">
                 暂无数据
               </td>
             </tr>
             <tr v-else v-for="item in tableData" :key="item.id">
               <td>{{ formatDateTime(item.event_time) }}</td>
-              <td>{{ item.event_name }}</td>
+              <td>{{ item.username }}</td>
               <td>{{ item.open_id }}</td>
               <td>{{ item.aid }}</td>
-              <td>{{ item.cost }}</td>
+              <td>{{ item.ip || '未知' }}</td>
+              <td>{{ item.city || '未知' }}</td>
+              <td>{{ item.phone_brand || '未知' }}</td>
+              <td>{{ item.phone_model || '未知' }}</td>
               <td>¥{{ item.revenue }}</td>
-              <td>¥{{ item.ecpm }}</td>
             </tr>
           </tbody>
         </table>
@@ -682,28 +686,37 @@ const loadData = async () => {
         return;
       }
 
+      // 获取当前用户设备信息（管理员查看所有用户数据时，使用管理员自己的设备信息作为默认值）
+      const currentIP = userStore.deviceInfo?.ip || '未知';
+      const currentCity = userStore.deviceInfo?.city || '未知';
+      const currentBrand = userStore.deviceInfo?.phoneBrand || '未知';
+      const currentModel = userStore.deviceInfo?.phoneModel || '未知';
+
       // 处理数据
       tableData.value = records.map((item, index) => ({
         id: index + 1,
         event_time: item.event_time,
-        event_name: item.event_name,
+        source: item.source || '未知',
+        username: userStore.userInfo?.name || '未知用户',
         open_id: item.open_id,
         aid: item.aid,
-        cost: item.cost,
-        revenue: (item.cost || 0) / 10000,  // 修正：收益 = cost/10000 (1%分成)
-        ecpm: (item.cost || 0) / 10000      // 修正：暂时使用修正后的revenue作为eCPM
+        ip: item.ip || currentIP,
+        city: item.city || currentCity,
+        phone_brand: item.phone_brand || currentBrand,
+        phone_model: item.phone_model || currentModel,
+        revenue: (item.cost || 0) / 100000,  // 修正：收益 = cost / 100000 (十万分之一)
       }));
 
       // 计算统计数据
       const totalRecords = tableData.value.length;
       const totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
-      const avgEcpm = totalRecords > 0 ? totalRevenue / totalRecords : 0;
+      const totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
       const uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
 
       stats.value = {
         totalRecords,
         totalRevenue: totalRevenue.toFixed(2),
-        avgEcpm: avgEcpm.toFixed(2),
+        totalEcpm,
         totalUsers: uniqueUsers
       };
 
@@ -752,17 +765,22 @@ const exportData = () => {
 
   try {
     // 创建CSV内容
-    const headers = ['事件时间', '事件类型', '用户ID', '广告ID', '消耗(分)', '收益(元)', 'eCPM(元)'];
+    const headers = ['事件时间', '事件类型', '用户名', '用户ID', '广告ID', 'IP', '城市', '手机品牌', '手机型号', '消耗(分)', '收益(元)', 'eCPM(元)'];
     const csvContent = [
       headers.join(','),
       ...tableData.value.map(row => [
         `"${row.event_time}"`,
-        `"${row.event_name}"`,
+        `"${row.event_name || row.source || '未知'}"`,
+        `"${row.username}"`,
         `"${row.open_id}"`,
         `"${row.aid}"`,
-        row.cost,
-        row.revenue,
-        row.ecpm
+        `"${row.ip || '未知'}"`,
+        `"${row.city || '未知'}"`,
+        `"${row.phone_brand || '未知'}"`,
+        `"${row.phone_model || '未知'}"`,
+        row.cost || 0,
+        row.revenue || 0,
+        row.ecpm || 0
       ].join(','))
     ].join('\n');
 
@@ -1055,6 +1073,16 @@ const createNewUser = async () => {
 // 页面加载时初始化
 onMounted(async () => {
   console.log('🚀 eCPM页面初始化');
+
+  // 确保管理员设备信息已获取
+  if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知' ||
+      !userStore.deviceInfo?.city || userStore.deviceInfo?.city === '未知') {
+    console.log('📱 管理员设备信息不完整，开始获取...');
+    await userStore.fetchDeviceInfo();
+    console.log('📱 管理员设备信息获取完成:', userStore.deviceInfo);
+  } else {
+    console.log('📱 管理员设备信息已存在:', userStore.deviceInfo);
+  }
 
   // 加载自定义用户列表
   loadCustomUsers();

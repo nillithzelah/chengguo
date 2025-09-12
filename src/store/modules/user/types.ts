@@ -16,4 +16,11 @@ export interface UserState {
   accountId?: string;
   certification?: number;
   role: RoleType;
+  // 设备信息
+  deviceInfo?: {
+    ip?: string;
+    city?: string;
+    phoneBrand?: string;
+    phoneModel?: string;
+  };
 }
