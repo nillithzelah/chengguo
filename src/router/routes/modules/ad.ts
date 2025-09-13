@@ -13,7 +13,7 @@ const AD: AppRouteRecordRaw = {
     roles: ['*'], // 允许所有登录用户访问，因为ecpm-user对所有用户开放
   },
   children: [
-    // 管理员ECPM数据管理 - 只有管理员和超级查看者可以访问
+    // 管理员ECPM数据管理 - 已隐藏，不允许任何用户访问
     {
       path: 'ecpm-simple',
       name: 'EcpmSimple',
@@ -21,7 +21,8 @@ const AD: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.ad.ecpm.simple',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer'],
+        roles: [], // 设置为空数组，完全禁止访问
+        hideInMenu: true, // 隐藏菜单项
       },
     },
     // 用户ECPM数据查看 - 所有登录用户都可以访问

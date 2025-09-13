@@ -739,8 +739,9 @@ const saveNewGame = async () => {
 
 // 组件挂载时加载数据
 onMounted(() => {
-  // 检查用户权限
-  if (userStore.userInfo?.role !== 'admin') {
+  // 检查用户权限：允许admin、super_viewer、viewer、moderator访问
+  const allowedRoles = ['admin', 'super_viewer', 'viewer', 'moderator'];
+  if (!allowedRoles.includes(userStore.userInfo?.role || '')) {
     Message.error('您没有权限访问此页面');
     return;
   }

@@ -46,6 +46,13 @@ UserGame.belongsTo(User, {
   as: 'assignedByUser'
 });
 
+// 用户自关联：创建者
+User.belongsTo(User, {
+  foreignKey: 'created_by',
+  as: 'userCreator',
+  targetKey: 'id'
+});
+
 // JWT secret key - In production, use a strong secret key from environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -66,16 +73,21 @@ app.use((req, res, next) => {
 // 认证中间件
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
+  console.log('🔐 authenticateJWT: 开始验证', { url: req.url, method: req.method, hasAuthHeader: !!authHeader });
   if (authHeader) {
     const token = authHeader.split(' ')[1];
+    console.log('🔐 authenticateJWT: 提取token', { tokenLength: token ? token.length : 0 });
     jwt.verify(token, JWT_SECRET, (err, user) => {
       if (err) {
+        console.log('❌ JWT验证失败:', err.message);
         return res.sendStatus(403);
       }
       req.user = user;
+      console.log('✅ JWT验证成功:', { userId: user.userId, username: user.username, role: user.role });
       next();
     });
   } else {
+    console.log('❌ 缺少认证头');
     res.sendStatus(401);
   }
 };
@@ -192,8 +204,9 @@ app.get('/api/user/info', authenticateJWT, handleUserInfo);
 app.post('/api/user/info', authenticateJWT, handleUserInfo);
 
 // 创建新用户
-app.post('/api/user/create', async (req, res) => {
+app.post('/api/user/create', authenticateJWT, async (req, res) => {
   try {
+    const currentUser = req.user;
     const { username, password, name, role } = req.body;
 
     if (!username || !password || !name) {
@@ -212,12 +225,13 @@ app.post('/api/user/create', async (req, res) => {
       });
     }
 
-    // 创建新用户
+    // 创建新用户，记录创建者
     const newUser = await User.createUser({
       username,
       password,
       name,
-      role: role || 'user'
+      role: role || 'user',
+      created_by: currentUser.userId
     });
 
     console.log('✅ 新用户创建成功:', username);
@@ -288,6 +302,87 @@ app.post('/api/user/certification', (req, res) => {
   });
 });
 
+// 更新用户 (仅管理员)
+app.put('/api/user/update/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+    const { name, email, role, is_active, password } = req.body;
+
+    // 检查权限：只有管理员和超级查看者可以更新用户
+    if (currentUser.role !== 'admin' && currentUser.role !== 'super_viewer') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和超级查看者可以更新用户信息'
+      });
+    }
+
+    // 不允许修改自己的角色
+    if (parseInt(id) === currentUser.userId && role && role !== currentUser.role) {
+      return res.status(400).json({
+        code: 400,
+        message: '不能修改自己的角色'
+      });
+    }
+
+    // 查找用户
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        message: '用户不存在'
+      });
+    }
+
+    // 更新用户信息
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (role !== undefined) updateData.role = role;
+    if (is_active !== undefined) updateData.is_active = is_active;
+
+    // 如果提供了密码，则更新密码
+    if (password && password.trim()) {
+      if (password.length < 6) {
+        return res.status(400).json({
+          code: 400,
+          message: '密码长度至少6位'
+        });
+      }
+      // 直接生成密码哈希，避免实例方法问题
+      const bcrypt = require('bcrypt');
+      const saltRounds = 10;
+      updateData.password_hash = await bcrypt.hash(password, saltRounds);
+      updateData.password_plain = password; // 保存明文密码用于显示
+    }
+
+    await user.update(updateData);
+
+    console.log(`管理员 ${currentUser.username} 更新了用户 ${user.username} 的信息`);
+
+    res.json({
+      code: 20000,
+      data: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        is_active: user.is_active,
+        updated_at: user.updated_at
+      },
+      message: '用户信息更新成功'
+    });
+
+  } catch (error) {
+    console.error('更新用户信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
 // 删除用户 (仅管理员)
 app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
   try {
@@ -342,18 +437,53 @@ app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
 app.get('/api/user/list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
+    console.log('📋 用户列表API - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
 
-    // 检查权限：只有管理员可以查看用户列表
-    if (currentUser.role !== 'admin') {
+    // 检查权限：管理员、超级查看者、客服和查看用户可以查看用户列表（排除普通用户）
+    if (!['admin', 'super_viewer', 'moderator', 'viewer'].includes(currentUser.role)) {
+      console.log('❌ 用户列表API - 权限不足:', { role: currentUser.role, allowedRoles: ['admin', 'super_viewer', 'moderator', 'viewer'] });
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以查看用户列表'
+        message: '权限不足，只有管理员、超级查看者和客服可以查看用户列表'
+      });
+    }
+    console.log('✅ 用户列表API - 权限检查通过');
+
+    // 根据用户角色过滤用户数据
+    let whereCondition = {};
+
+    // admin和super_viewer可以看到所有用户
+    if (currentUser.role === 'admin' || currentUser.role === 'super_viewer') {
+      // 不添加任何过滤条件，查看所有用户
+      console.log('✅ 用户列表API - admin/super_viewer权限，查看所有用户');
+    } else if (currentUser.role === 'moderator' || currentUser.role === 'viewer') {
+      // moderator和viewer只能看到自己和自己创建的用户
+      whereCondition = {
+        [sequelize.Sequelize.Op.or]: [
+          { id: currentUser.userId }, // 自己
+          { created_by: currentUser.userId } // 自己创建的用户
+        ]
+      };
+      console.log('✅ 用户列表API - moderator/viewer权限，只查看自己和自己创建的用户');
+    } else {
+      // 其他角色不能查看用户列表（虽然前端已经过滤，但这里再加一层保护）
+      console.log('❌ 用户列表API - 权限不足，拒绝访问');
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足'
       });
     }
 
-    // 获取所有用户
+    // 获取用户列表，包含创建者信息
     const users = await User.findAll({
-      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at', 'password_plain'],
+      where: whereCondition,
+      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at', 'password_plain', 'created_by'],
+      include: [{
+        model: User,
+        as: 'userCreator',
+        attributes: ['username', 'name'],
+        required: false
+      }],
       order: [['created_at', 'DESC']]
     });
 
@@ -369,6 +499,8 @@ app.get('/api/user/list', authenticateJWT, async (req, res) => {
       is_active: user.is_active,
       last_login_at: user.last_login_at,
       created_at: user.created_at,
+      created_by: user.created_by,
+      creator_name: user.userCreator ? (user.userCreator.name || user.userCreator.username) : '系统',
       password: user.password_plain || '******' // 显示明文密码或默认值
     }));
 
@@ -395,9 +527,8 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     const { userId } = req.params;
-
-    // 检查权限：管理员可以查看任何用户的游戏列表，普通用户只能查看自己的
-    if (currentUser.role !== 'admin' && parseInt(userId) !== currentUser.userId) {
+    // 检查权限：管理员、超级查看者和客服可以查看任何用户的游戏列表，普通用户只能查看自己的
+    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role) && parseInt(userId) !== currentUser.userId) {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只能查看自己的游戏列表'
@@ -944,12 +1075,12 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
 app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-
-    // 检查权限：只有管理员可以查看用户列表
-    if (currentUser.role !== 'admin') {
+    console.log('📋 获取用户列表 - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
+    // 检查权限：管理员、超级查看者、客服和查看用户可以查看用户列表（排除普通用户）
+    if (!['admin', 'super_viewer', 'moderator', 'viewer'].includes(currentUser.role)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以查看用户列表'
+        message: '权限不足，只有管理员、超级查看者和客服可以查看用户列表'
       });
     }
 
@@ -1414,6 +1545,7 @@ async function startServer() {
       console.log('   管理员: admin / admin123');
       console.log('   用户: user / user123');
       console.log('   审核员: moderator / mod123');
+      console.log('   查看用户: viewer / viewer123');
     });
 
   } catch (error) {
