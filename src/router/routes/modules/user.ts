@@ -10,29 +10,9 @@ const USER: AppRouteRecordRaw = {
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    hideInMenu: true,
+    roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 与子路由权限一致
   },
   children: [
-    // {
-    //   path: 'info',
-    //   name: 'Info',
-    //   component: () => import('@/views/user/info/index.vue'),
-    //   meta: {
-    //     locale: 'menu.user.info',
-    //     requiresAuth: true,
-    //     roles: ['admin'], // 只有管理员可以访问
-    //   },
-    // },
-    // {
-    //   path: 'setting',
-    //   name: 'Setting',
-    //   component: () => import('@/views/user/setting/index.vue'),
-    //   meta: {
-    //     locale: 'menu.user.setting',
-    //     requiresAuth: true,
-    //     roles: ['admin'], // 只有管理员可以访问
-    //   },
-    // },
     {
       path: 'management',
       name: 'UserManagement',
@@ -40,7 +20,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.management',
         requiresAuth: true,
-        roles: ['admin'], // 只有管理员可以访问
+        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
       },
     },
     {
@@ -50,7 +30,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.user',
         requiresAuth: true,
-        roles: ['admin'], // 只有管理员可以访问
+        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
       },
     },
     {
@@ -60,7 +40,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.admin',
         requiresAuth: true,
-        roles: ['admin'], // 只有管理员可以访问
+        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
       },
     },
   ],
