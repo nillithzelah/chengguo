@@ -27,6 +27,19 @@
       </div>
     </div>
 
+    <!-- 调试信息面板 -->
+    <div class="debug-section" v-if="debugInfo.length > 0">
+      <div class="debug-header">
+        <h3>🔍 城市获取调试信息</h3>
+        <button @click="clearDebugInfo" class="btn btn-small">清除</button>
+      </div>
+      <div class="debug-content">
+        <div v-for="(info, index) in debugInfo" :key="index" class="debug-item">
+          <pre>{{ info }}</pre>
+        </div>
+      </div>
+    </div>
+
     <!-- 查询表单 -->
     <div class="query-section">
       <div class="form-grid">
@@ -76,6 +89,12 @@
           class="btn btn-secondary"
         >
           重置
+        </button>
+        <button
+          @click="triggerCityDebug"
+          class="btn btn-outline"
+        >
+          调试城市获取
         </button>
       </div>
     </div>
@@ -371,6 +390,9 @@ const selectedAppId = ref('');
 
 // 自定义用户列表
 const customUsers = ref([]);
+
+// 调试信息
+const debugInfo = ref([]);
 
 // 新增应用相关
 const showAddAppModal = ref(false);
@@ -953,6 +975,25 @@ const testDeviceInfo = async () => {
   }
 };
 
+// 调试城市获取
+const triggerCityDebug = async () => {
+  console.log('🔍 手动触发城市获取调试...');
+  debugInfo.value = [];
+
+  try {
+    // 手动调用城市获取
+    await userStore.fetchDeviceInfo();
+    debugInfo.value.push(`设备信息: ${JSON.stringify(userStore.deviceInfo, null, 2)}`);
+  } catch (error) {
+    debugInfo.value.push(`错误: ${error.message}`);
+  }
+};
+
+// 清除调试信息
+const clearDebugInfo = () => {
+  debugInfo.value = [];
+};
+
 // 创建新用户
 const createNewUser = async () => {
   if (!newUser.username || !newUser.password || !newUser.name) {
@@ -1096,6 +1137,54 @@ onMounted(async () => {
     flex-direction: column;
     gap: 16px;
   }
+}
+
+/* 调试信息面板 */
+.debug-section {
+  background: #f6f8fa;
+  border: 1px solid #d1d9e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.debug-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #24292f;
+}
+
+.debug-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d1d9e0;
+  border-radius: 4px;
+}
+
+.debug-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f6f8fa;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.debug-item:last-child {
+  border-bottom: none;
+}
+
+.debug-item pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 查询表单 */
@@ -1537,4 +1626,4 @@ onMounted(async () => {
     padding: 12px;
   }
 }
-<!-- </style> -->
+</style>

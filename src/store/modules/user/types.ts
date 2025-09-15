@@ -1,4 +1,4 @@
-export type RoleType = '' | '*' | 'admin' | 'user';
+export type RoleType = '' | '*' | 'admin' | 'user' | 'viewer' | 'super_viewer';
 export interface UserState {
   name?: string;
   avatar?: string;

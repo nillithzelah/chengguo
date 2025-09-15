@@ -43,6 +43,7 @@ export interface CreateUserData {
   name?: string;
   email?: string;
   role?: string;
+  created_by?: number;
 }
 
 export function createUser(data: CreateUserData) {
@@ -59,6 +60,8 @@ export interface UserListItem {
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
+  created_by?: number | null;
+  creator_name?: string;
 }
 
 export interface UserListRes {
@@ -68,6 +71,18 @@ export interface UserListRes {
 
 export function getUserList() {
   return axios.get<UserListRes>('/api/user/list');
+}
+
+// 更新用户 (管理员)
+export interface UpdateUserData {
+  name?: string;
+  email?: string;
+  role?: string;
+  is_active?: boolean;
+}
+
+export function updateUser(userId: number, data: UpdateUserData) {
+  return axios.put(`/api/user/update/${userId}`, data);
 }
 
 // 删除用户 (管理员)

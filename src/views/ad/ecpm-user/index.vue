@@ -9,6 +9,22 @@
       </div>
     </div>
 
+    <!-- 调试信息面板 -->
+    <div class="debug-section" v-if="debugInfo.length > 0">
+      <div class="debug-header">
+        <h3>🔍 城市获取调试信息</h3>
+        <div class="debug-actions">
+          <button @click="clearDeviceCache" class="btn btn-warning btn-small">清除缓存</button>
+          <button @click="clearDebugInfo" class="btn btn-small">清除调试</button>
+        </div>
+      </div>
+      <div class="debug-content">
+        <div v-for="(info, index) in debugInfo" :key="index" class="debug-item">
+          <pre>{{ info }}</pre>
+        </div>
+      </div>
+    </div>
+
     <!-- 查询表单 -->
     <div class="query-section">
       <div class="form-grid">
@@ -47,6 +63,8 @@
         >
           {{ loading ? '加载中...' : '查询数据' }}
         </button>
+        <!-- 隐藏调试相关按钮 -->
+        <!--
         <button
           @click="testDeviceInfo"
           class="btn btn-info"
@@ -59,6 +77,13 @@
         >
           重置
         </button>
+        <button
+          @click="triggerCityDebug"
+          class="btn btn-outline"
+        >
+          调试城市获取
+        </button>
+        -->
       </div>
     </div>
 
@@ -172,6 +197,9 @@ const queryParams = reactive({
 
 // 统计数据
 const stats = ref(null);
+
+// 调试信息
+const debugInfo = ref([]);
 
 
 // 应用列表管理
@@ -470,6 +498,33 @@ const testDeviceInfo = async () => {
   }
 };
 
+// 调试城市获取
+const triggerCityDebug = async () => {
+  console.log('🔍 手动触发城市获取调试...');
+  debugInfo.value = [];
+
+  try {
+    // 手动调用城市获取
+    await userStore.fetchDeviceInfo();
+    debugInfo.value.push(`设备信息: ${JSON.stringify(userStore.deviceInfo, null, 2)}`);
+  } catch (error) {
+    debugInfo.value.push(`错误: ${error.message}`);
+  }
+};
+
+// 清除调试信息
+const clearDebugInfo = () => {
+  debugInfo.value = [];
+};
+
+// 清除设备缓存
+const clearDeviceCache = () => {
+  console.log('🗑️ 清除设备信息缓存...');
+  localStorage.removeItem('deviceInfo');
+  localStorage.removeItem('deviceInfoTime');
+  alert('缓存已清除！请刷新页面重新获取设备信息。');
+};
+
 // 重置查询
 const resetQuery = () => {
   // 重置为默认应用
@@ -562,6 +617,68 @@ onMounted(async () => {
     flex-direction: column;
     gap: 16px;
   }
+}
+
+/* 调试信息面板 */
+.debug-section {
+  background: #f6f8fa;
+  border: 1px solid #d1d9e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.debug-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #24292f;
+}
+
+.debug-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-warning {
+  background: #faad14;
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #d48806;
+}
+
+.debug-content {
+  max-height: 300px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #d1d9e0;
+  border-radius: 4px;
+}
+
+.debug-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f6f8fa;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.debug-item:last-child {
+  border-bottom: none;
+}
+
+.debug-item pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* 查询表单 */

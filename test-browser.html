@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>城市API测试</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>城市API测试</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+
+        async function testAPI(name, url) {
+            const div = document.createElement('div');
+            div.innerHTML = `<h3>测试 ${name}...</h3>`;
+            results.appendChild(div);
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                div.innerHTML += `
+                    <p>✅ 成功</p>
+                    <p>城市: ${data.city || data.regionName || 'N/A'}</p>
+                    <p>IP: ${data.query || data.ip || 'N/A'}</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                div.innerHTML += `<p>❌ 失败: ${error.message}</p>`;
+            }
+        }
+
+        // 测试主要API
+        testAPI('ip-api.com', 'http://ip-api.com/json/');
+        testAPI('ipapi.co', 'https://ipapi.co/json/');
+
+        // 测试备用API
+        setTimeout(() => {
+            testAPI('BigDataCloud', 'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=39.9042&longitude=116.4074&localityLanguage=zh');
+        }, 1000);
+    </script>
+</body>
+</html>

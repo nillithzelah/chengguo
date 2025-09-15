@@ -105,13 +105,13 @@ const useUserStore = defineStore('user', {
 
           if (cacheAge < cacheExpiry) {
             const cachedData = JSON.parse(cachedDeviceInfo);
-            // 如果缓存中的IP不是"未知"，则使用缓存
-            if (cachedData.ip && cachedData.ip !== '未知') {
+            // 如果缓存中的IP不是"未知"且城市也不是"未知"，则使用缓存
+            if (cachedData.ip && cachedData.ip !== '未知' && cachedData.city && cachedData.city !== '未知') {
               console.log('使用缓存的设备信息');
               this.deviceInfo = cachedData;
               return;
             } else {
-              console.log('缓存中的IP无效，重新获取');
+              console.log('缓存中的数据无效，重新获取');
             }
           }
         }
@@ -293,14 +293,24 @@ const useUserStore = defineStore('user', {
         let userCity = '未知';
         const geoServices = [
           {
-            name: 'ipapi.co',
-            url: 'https://ipapi.co/json/',
-            getCity: (data) => data.city || data.region || data.country_name
-          },
-          {
             name: 'ip-api.com',
             url: 'http://ip-api.com/json/',
-            getCity: (data) => data.city || data.regionName
+            getCity: (data) => {
+              console.log('🔍 ip-api.com 原始数据:', data);
+              const city = data.city || data.regionName;
+              console.log('🔍 ip-api.com 解析城市:', city);
+              return city;
+            }
+          },
+          {
+            name: 'ipapi.co',
+            url: 'https://ipapi.co/json/',
+            getCity: (data) => {
+              console.log('🔍 ipapi.co 原始数据:', data);
+              const city = data.city || data.region || data.country_name;
+              console.log('🔍 ipapi.co 解析城市:', city);
+              return city;
+            }
           }
         ];
 

@@ -12,6 +12,7 @@ const localUsers = [
   { username: 'admin', password: 'admin', role: 'admin', token: '12345', name: '管理员' },
   { username: 'user', password: 'user', role: 'user', token: '54321', name: '普通用户' },
   { username: 'user2', password: 'user2', role: 'user', token: '67890', name: '测试用户' },
+  { username: 'viewer', password: 'viewer', role: 'viewer', token: '99999', name: '查看用户' },
 ];
 
 setupMock({
@@ -41,6 +42,25 @@ setupMock({
               phone: '150****0000',
               registrationDate: '2013-05-10 12:10:00',
               accountId: '15012312300',
+              certification: 1,
+              role: user.role,
+            });
+          } else if (user.role === 'viewer') {
+            // 查看用户
+            return successResponseWrap({
+              name: '查看用户',
+              avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=viewer',
+              email: 'viewer@email.com',
+              job: 'viewer',
+              jobName: '查看用户',
+              organization: 'Viewer',
+              organizationName: '查看部门',
+              location: 'beijing',
+              locationName: '北京',
+              introduction: '查看用户账号，只能查看数据，不能修改',
+              phone: '137****0000',
+              registrationDate: '2024-03-01 12:00:00',
+              accountId: '13712312300',
               certification: 1,
               role: user.role,
             });

@@ -32,15 +32,6 @@ const router = createRouter({
       },
     },
     {
-      path: '/douyin-test',
-      name: 'douyinTest',
-      component: () => import('@/views/douyin-test.vue'),
-      meta: {
-        requiresAuth: true,
-        title: '抖音API测试'
-      },
-    },
-    {
       path: '/register',
       name: 'register',
       component: () => import('@/views/login/register-form.vue'),

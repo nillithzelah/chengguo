@@ -6,7 +6,7 @@
           <h1>游戏管理</h1>
           <p>查看和管理所有游戏，支持按用户筛选</p>
         </div>
-        <div class="header-actions">
+        <div class="header-actions" v-if="canModify">
           <button @click="showCreateGameModal = true" class="btn btn-primary">
             创建游戏
           </button>
@@ -63,7 +63,7 @@
             <p><strong>描述:</strong> {{ game.description || '无' }}</p>
             <p><strong>创建时间:</strong> {{ formatDate(game.created_at) }}</p>
           </div>
-          <div class="game-actions">
+          <div class="game-actions" v-if="canModify">
             <!-- 隐藏查看用户按钮 -->
             <!-- <button @click="viewGameUsers(game)" class="btn btn-outline">
               查看用户
@@ -288,7 +288,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useUserStore } from '@/store';
 
 // 响应式数据
 const games = ref([]);
@@ -333,6 +334,13 @@ const creating = ref(false);
 const testing = ref(false);
 const assigning = ref(false);
 const testResult = ref(null);
+
+// 用户权限检查
+const userStore = useUserStore();
+const isAdmin = computed(() => userStore.role === 'admin');
+const isViewer = computed(() => userStore.role === 'viewer');
+const isSuperViewer = computed(() => userStore.role === 'super_viewer');
+const canModify = computed(() => isAdmin.value); // 只有admin可以修改
 
 // 工具函数
 const formatDate = (dateStr) => {

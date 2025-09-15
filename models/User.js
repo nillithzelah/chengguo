@@ -43,7 +43,7 @@ function defineUserModel(sequelize) {
     }
   },
   role: {
-    type: DataTypes.ENUM('admin', 'user', 'moderator'),
+    type: DataTypes.ENUM('admin', 'user', 'moderator', 'viewer', 'super_viewer'),
     defaultValue: 'user',
     allowNull: false
   },
@@ -59,6 +59,15 @@ function defineUserModel(sequelize) {
   last_login_at: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  created_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    },
+    comment: '创建者用户ID'
   },
   created_at: {
     type: DataTypes.DATE,
@@ -86,6 +95,9 @@ function defineUserModel(sequelize) {
     },
     {
       fields: ['is_active']
+    },
+    {
+      fields: ['created_by']
     }
   ]
 });
@@ -155,6 +167,19 @@ User.prototype.toFrontendFormat = function() {
     accountId: this.id.toString()
   };
 };
+
+  // 定义关联关系
+  User.belongsTo(User, {
+    foreignKey: 'created_by',
+    as: 'creator',
+    onDelete: 'SET NULL'
+  });
+
+  User.hasMany(User, {
+    foreignKey: 'created_by',
+    as: 'createdUsers',
+    onDelete: 'SET NULL'
+  });
 
   return User;
 }

@@ -57,7 +57,8 @@ async function initializeDatabase() {
 
     // 2. 同步数据库模型
     console.log('🔄 同步数据库模型...');
-    const isSynced = await syncDatabase(false); // 不强制重建表
+    const forceSync = args.includes('--force');
+    const isSynced = await syncDatabase(forceSync); // 根据参数决定是否强制重建
     if (!isSynced) {
       console.error('❌ 数据库同步失败');
       process.exit(1);
@@ -103,10 +104,26 @@ async function initializeDatabase() {
       {
         username: 'moderator',
         password: 'mod123',
-        name: '审核员',
+        name: '客服',
         email: 'moderator@chengguo.com',
         role: 'moderator',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=moderator'
+      },
+      {
+        username: 'viewer',
+        password: 'viewer123',
+        name: '查看用户',
+        email: 'viewer@chengguo.com',
+        role: 'viewer',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=viewer'
+      },
+      {
+        username: 'boss',
+        password: 'boss123',
+        name: '老板',
+        email: 'boss@chengguo.com',
+        role: 'super_viewer',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=boss'
       }
     ];
 
@@ -186,15 +203,37 @@ async function initializeDatabase() {
       }
     }
 
-    // 7. 显示所有用户和游戏信息
+    // 7. 为现有用户设置created_by字段
+    console.log('👤 设置用户创建者信息...');
+    if (adminUser) {
+      // 为非admin用户设置created_by为admin
+      const usersToUpdate = await User.findAll({
+        where: {
+          id: { [require('sequelize').Op.ne]: adminUser.id },
+          created_by: null
+        }
+      });
+
+      for (const user of usersToUpdate) {
+        await user.update({ created_by: adminUser.id });
+        console.log(`✅ 为用户 ${user.username} 设置创建者为 admin`);
+      }
+    }
+
+    // 8. 显示所有用户和游戏信息
     console.log('📊 当前用户列表:');
     const usersWithGames = await User.findAll({
-      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'created_at'],
+      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'created_by', 'created_at'],
       include: [{
         model: Game,
         as: 'games',
         through: { attributes: ['role'] },
         where: { status: 'active' },
+        required: false
+      }, {
+        model: User,
+        as: 'creator',
+        attributes: ['username', 'name'],
         required: false
       }],
       order: [['created_at', 'ASC']]
@@ -207,6 +246,7 @@ async function initializeDatabase() {
       邮箱: user.email,
       角色: user.role,
       状态: user.is_active ? '活跃' : '禁用',
+      创建者: user.creator ? user.creator.name || user.creator.username : '系统',
       游戏数量: user.games ? user.games.length : 0,
       创建时间: user.created_at.toLocaleString('zh-CN')
     })));
@@ -237,7 +277,9 @@ async function initializeDatabase() {
     console.log('📝 使用说明:');
     console.log('   - 管理员账号: admin / admin123');
     console.log('   - 测试账号: user / user123');
-    console.log('   - 审核员账号: moderator / mod123');
+    console.log('   - 客服账号: moderator / mod123');
+    console.log('   - 查看账号: viewer / viewer123');
+    console.log('   - 老板账号: boss / boss123');
     console.log('');
     console.log('🔧 如需重新初始化数据库，请运行:');
     console.log('   node scripts/init-db.js --force');

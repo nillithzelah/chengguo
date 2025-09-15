@@ -12,9 +12,9 @@
     <div class="action-bar">
       <!-- 隐藏新增用户按钮，只有管理员可见 -->
       <a-button
-        v-if="userStore.userInfo?.role === 'admin'"
+        v-if="canCreateUser"
         type="primary"
-        @click="() => { console.log('新增用户按钮被点击'); showCreateModal = true; }"
+        @click="() => { console.log('新增用户按钮被点击'); openCreateModal(); }"
       >
         <template #icon>
           <icon-plus />
@@ -71,10 +71,10 @@
       <template #action="{ record }">
         <a-space>
           <a-button
+            v-if="checkCanEditUser(record)"
             type="text"
             size="small"
             @click="() => { console.log('编辑按钮被点击，用户ID:', record.id); editUser(record); }"
-            :disabled="!canEditUser(record)"
           >
             <template #icon>
               <icon-edit />
@@ -82,11 +82,11 @@
             编辑
           </a-button>
           <a-button
+            v-if="checkCanDeleteUser(record)"
             type="text"
             size="small"
             danger
             @click="() => { console.log('删除按钮被点击，用户ID:', record.id); confirmDeleteUser(record); }"
-            :disabled="!canDeleteUser(record)"
           >
             <template #icon>
               <icon-delete />
@@ -98,7 +98,7 @@
     </a-table>
 
     <!-- 新增用户模态框 -->
-    <div v-if="showCreateModal && userStore.userInfo?.role === 'admin'" class="modal-overlay" @click="resetCreateForm">
+    <div v-if="showCreateModal && canCreateUser" class="modal-overlay" @click="resetCreateForm">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>新增用户</h3>
@@ -106,40 +106,126 @@
         </div>
 
         <div class="modal-body">
+          <!-- 权限提示 -->
+          <div v-if="availableRoles.length === 0" class="permission-warning">
+            <p>您没有权限创建新用户。</p>
+          </div>
+
+          <!-- 有权限时显示表单 -->
+          <div v-else>
+            <!-- 角色限制提示 -->
+            <div v-if="userStore.userInfo?.role !== 'admin'" class="permission-info">
+              <p>您只能创建普通用户账号。</p>
+            </div>
+
+            <div class="form-item">
+              <label>用户名</label>
+              <input
+                v-model="createForm.username"
+                type="text"
+                placeholder="输入用户名（用于登录）"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-item">
+              <label>密码</label>
+              <input
+                v-model="createForm.password"
+                type="password"
+                placeholder="输入密码"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-item">
+              <label>确认密码</label>
+              <input
+                v-model="createForm.confirmPassword"
+                type="password"
+                placeholder="请再次输入密码"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-item">
+              <label>显示名称</label>
+              <input
+                v-model="createForm.name"
+                type="text"
+                placeholder="输入用户显示名称"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-item">
+              <label>邮箱</label>
+              <input
+                v-model="createForm.email"
+                type="email"
+                placeholder="输入邮箱地址"
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-item">
+              <label>用户角色</label>
+              <select
+                v-model="createForm.role"
+                class="form-input"
+              >
+                <option
+                  v-for="role in availableRoles"
+                  :key="role.value"
+                  :value="role.value"
+                >
+                  {{ role.label }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="resetCreateForm" class="btn btn-secondary" :disabled="createLoading">取消</button>
+          <button
+            v-if="availableRoles.length > 0"
+            @click="() => { console.log('新增用户模态框确认按钮被点击'); handleCreateUser(); }"
+            :disabled="!createForm.username || !createForm.password || !createForm.confirmPassword || !createForm.name || !createForm.email || createForm.password !== createForm.confirmPassword || createForm.password.length < 6 || createLoading"
+            :title="getCreateButtonTooltip()"
+            class="btn btn-primary"
+          >
+            {{ createLoading ? '创建中...' : '创建用户' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑用户模态框 -->
+    <div v-if="showEditModal && editUserInfo" class="modal-overlay" @click="() => { showEditModal = false; editUserInfo = null; }">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>编辑用户</h3>
+          <button @click="() => { showEditModal = false; editUserInfo = null; }" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
           <div class="form-item">
             <label>用户名</label>
             <input
-              v-model="createForm.username"
+              :value="editUserInfo.username"
               type="text"
-              placeholder="输入用户名（用于登录）"
+              disabled
               class="form-input"
+              style="background-color: #f5f5f5; cursor: not-allowed;"
             />
-          </div>
-
-          <div class="form-item">
-            <label>密码</label>
-            <input
-              v-model="createForm.password"
-              type="password"
-              placeholder="输入密码"
-              class="form-input"
-            />
-          </div>
-
-          <div class="form-item">
-            <label>确认密码</label>
-            <input
-              v-model="createForm.confirmPassword"
-              type="password"
-              placeholder="请再次输入密码"
-              class="form-input"
-            />
+            <small style="color: #999; margin-top: 4px;">用户名不可修改</small>
           </div>
 
           <div class="form-item">
             <label>显示名称</label>
             <input
-              v-model="createForm.name"
+              v-model="editForm.name"
               type="text"
               placeholder="输入用户显示名称"
               class="form-input"
@@ -149,7 +235,7 @@
           <div class="form-item">
             <label>邮箱</label>
             <input
-              v-model="createForm.email"
+              v-model="editForm.email"
               type="email"
               placeholder="输入邮箱地址"
               class="form-input"
@@ -157,25 +243,67 @@
           </div>
 
           <div class="form-item">
+            <label>新密码（可选）</label>
+            <input
+              v-model="editForm.password"
+              type="password"
+              placeholder="留空表示不修改密码"
+              class="form-input"
+            />
+            <small style="color: #666; margin-top: 4px;">
+              密码长度至少6位，留空表示不修改密码
+            </small>
+          </div>
+
+          <div class="form-item">
+            <label>确认新密码</label>
+            <input
+              v-model="editForm.confirmPassword"
+              type="password"
+              placeholder="再次输入新密码"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
             <label>用户角色</label>
             <select
-              v-model="createForm.role"
+              v-model="editForm.role"
               class="form-input"
             >
-              <option value="user">普通用户</option>
-              <option value="admin">管理员</option>
+              <option
+                v-for="role in getEditableRoles()"
+                :key="role.value"
+                :value="role.value"
+              >
+                {{ role.label }}
+              </option>
             </select>
+          </div>
+
+          <div class="form-item">
+            <label>
+              <input
+                v-model="editForm.is_active"
+                type="checkbox"
+                style="margin-right: 8px;"
+              />
+              账号激活状态
+            </label>
+            <small style="color: #666; margin-top: 4px;">
+              {{ editForm.is_active ? '账号已激活，用户可以正常登录' : '账号已禁用，用户无法登录' }}
+            </small>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button @click="resetCreateForm" class="btn btn-secondary" :disabled="createLoading">取消</button>
+          <button @click="() => { showEditModal = false; editUserInfo = null; }" class="btn btn-secondary" :disabled="editLoading">取消</button>
           <button
-            @click="() => { console.log('新增用户模态框确认按钮被点击'); handleCreateUser(); }"
-            :disabled="!createForm.username || !createForm.password || !createForm.name || createLoading"
+            @click="() => { console.log('编辑用户模态框确认按钮被点击'); handleEditUser(); }"
+            :disabled="!editForm.name || !editForm.email || editLoading"
             class="btn btn-primary"
           >
-            {{ createLoading ? '创建中...' : '创建用户' }}
+            {{ editLoading ? '保存中...' : '保存修改' }}
           </button>
         </div>
       </div>
@@ -199,7 +327,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import {
   IconPlus,
@@ -207,20 +335,97 @@ import {
   IconEdit,
   IconDelete
 } from '@arco-design/web-vue/es/icon';
-import { getUserList, deleteUser, createUser, type UserListItem } from '@/api/user';
+import { getUserList, deleteUser, createUser, updateUser, type UserListItem } from '@/api/user';
 import useUserStore from '@/store/modules/user';
 
 // 响应式数据
 const loading = ref(false);
 const createLoading = ref(false);
 const deleteLoading = ref(false);
+const editLoading = ref(false);
 const showCreateModal = ref(false);
+const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const userList = ref<UserListItem[]>([]);
 const deleteUserInfo = ref<UserListItem | null>(null);
+const editUserInfo = ref<UserListItem | null>(null);
+
 
 // 用户Store
 const userStore = useUserStore();
+
+// 权限检查
+const canCreateUser = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'viewer', 'moderator'].includes(role || '');
+});
+const canViewUsers = computed(() => ['admin', 'super_viewer', 'viewer', 'moderator'].includes(userStore.userInfo?.role || ''));
+
+// 可创建的用户角色（根据当前用户角色限制）
+const availableRoles = computed(() => {
+  const currentRole = userStore.userInfo?.role;
+  if (currentRole === 'admin') {
+    // admin可以创建所有角色
+    return [
+      { value: 'user', label: '普通用户' },
+      { value: 'viewer', label: '查看用户' },
+      { value: 'moderator', label: '客服' },
+      { value: 'super_viewer', label: '老板' },
+      { value: 'admin', label: '管理员' }
+    ];
+  } else if (['viewer', 'moderator'].includes(currentRole || '')) {
+    // viewer和moderator只能创建普通用户
+    return [
+      { value: 'user', label: '普通用户' }
+    ];
+  }
+  // super_viewer和其他角色不能创建用户
+  return [];
+});
+
+// 可编辑的用户角色（根据当前用户角色限制）
+const getEditableRoles = () => {
+  const currentRole = userStore.userInfo?.role;
+  if (currentRole === 'admin') {
+    // admin可以编辑所有角色
+    return [
+      { value: 'user', label: '普通用户' },
+      { value: 'viewer', label: '查看用户' },
+      { value: 'moderator', label: '客服' },
+      { value: 'super_viewer', label: '老板' },
+      { value: 'admin', label: '管理员' }
+    ];
+  } else if (['viewer', 'moderator'].includes(currentRole || '')) {
+    // viewer和moderator只能将用户角色改为user
+    return [
+      { value: 'user', label: '普通用户' }
+    ];
+  }
+  // 其他角色不能编辑角色
+  return [];
+};
+
+// 获取创建按钮的提示信息
+const getCreateButtonTooltip = () => {
+  if (createLoading.value) {
+    return '正在创建用户...';
+  }
+
+  const errors = [];
+  if (!createForm.username) errors.push('用户名');
+  if (!createForm.password) errors.push('密码');
+  if (!createForm.confirmPassword) errors.push('密码确认');
+  if (!createForm.name) errors.push('姓名');
+  if (!createForm.email) errors.push('邮箱');
+  if (createForm.password && createForm.password.length < 6) errors.push('密码长度至少6位');
+  if (createForm.password && createForm.confirmPassword && createForm.password !== createForm.confirmPassword) errors.push('密码不匹配');
+
+  if (errors.length > 0) {
+    return `请填写: ${errors.join(', ')}`;
+  }
+
+  return '创建用户';
+};
 
 // 表单数据
 const createForm = reactive({
@@ -230,6 +435,15 @@ const createForm = reactive({
   name: '',
   email: '',
   role: 'user'
+});
+
+const editForm = reactive({
+  name: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  role: 'user',
+  is_active: true
 });
 
 // 移除表单验证规则，使用自定义验证
@@ -269,6 +483,11 @@ const columns = [
     width: 100
   },
   {
+    title: '创建者',
+    dataIndex: 'creator_name',
+    width: 120
+  },
+  {
     title: '状态',
     dataIndex: 'is_active',
     slotName: 'status',
@@ -303,22 +522,65 @@ const pagination = reactive({
 });
 
 // 权限检查
-const canEditUser = (user: UserListItem) => {
-  console.log('canEditUser: 当前用户信息', userStore.userInfo);
-  console.log('canEditUser: 用户角色', userStore.userInfo?.role);
-  return userStore.userInfo?.role === 'admin';
+const checkCanEditUser = (user: UserListItem) => {
+  console.log('checkCanEditUser: 当前用户信息', userStore.userInfo);
+  console.log('checkCanEditUser: 用户角色', userStore.userInfo?.role);
+  console.log('checkCanEditUser: 目标用户ID', user.id);
+  console.log('checkCanEditUser: 目标用户角色', user.role);
+  console.log('checkCanEditUser: 当前用户ID', userStore.userInfo?.accountId);
+
+  const currentUserRole = userStore.userInfo?.role;
+  const targetUserRole = user.role;
+  const currentUserId = Number(userStore.userInfo?.accountId);
+  const targetUserId = user.id;
+
+  // 不能编辑自己
+  if (targetUserId === currentUserId) {
+    console.log('checkCanEditUser: 不能编辑自己');
+    return false;
+  }
+
+  // admin可以编辑所有用户
+  if (currentUserRole === 'admin') {
+    console.log('checkCanEditUser: admin可以编辑所有用户');
+    return true;
+  }
+
+  // super_viewer只能查看，不能编辑任何用户
+  if (currentUserRole === 'super_viewer') {
+    console.log('checkCanEditUser: super_viewer只能查看，不能编辑用户');
+    return false;
+  }
+
+  // viewer和moderator可以创建和编辑user角色的用户
+  if (['viewer', 'moderator'].includes(currentUserRole || '')) {
+    const canEdit = targetUserRole === 'user';
+    console.log('checkCanEditUser: viewer/moderator只能编辑user角色的用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  // 其他角色不能编辑用户
+  console.log('checkCanEditUser: 其他角色不能编辑用户');
+  return false;
 };
 
-const canDeleteUser = (user: UserListItem) => {
-  // 管理员可以删除其他用户，但不能删除自己
-  console.log('canDeleteUser: 当前用户信息', userStore.userInfo);
-  console.log('canDeleteUser: 当前用户ID', userStore.userInfo?.accountId);
-  console.log('canDeleteUser: 目标用户ID', user.id);
-  console.log('canDeleteUser: 是否为管理员', userStore.userInfo?.role === 'admin');
-  console.log('canDeleteUser: 是否不是自己', user.id !== Number(userStore.userInfo?.accountId));
-  const result = userStore.userInfo?.role === 'admin' &&
-                 user.id !== Number(userStore.userInfo?.accountId);
-  console.log('canDeleteUser: 最终结果', result);
+const checkCanDeleteUser = (user: UserListItem) => {
+  console.log('checkCanDeleteUser: 当前用户信息', userStore.userInfo);
+  console.log('checkCanDeleteUser: 当前用户ID', userStore.userInfo?.accountId);
+  console.log('checkCanDeleteUser: 目标用户ID', user.id);
+  console.log('checkCanDeleteUser: 当前用户角色', userStore.userInfo?.role);
+
+  // 只有admin可以删除用户，且不能删除自己
+  const isAdmin = userStore.userInfo?.role === 'admin';
+  const isNotSelf = user.id !== Number(userStore.userInfo?.accountId);
+
+  console.log('checkCanDeleteUser: 是否为管理员', isAdmin);
+  console.log('checkCanDeleteUser: 是否不是自己', isNotSelf);
+  const result = isAdmin && isNotSelf;
+  console.log('checkCanDeleteUser: 最终结果', result);
   return result;
 };
 
@@ -327,7 +589,9 @@ const getRoleColor = (role: string) => {
   const colors = {
     admin: 'red',
     moderator: 'orange',
-    user: 'blue'
+    user: 'blue',
+    viewer: 'green',
+    super_viewer: 'purple'
   };
   return colors[role] || 'default';
 };
@@ -336,8 +600,10 @@ const getRoleColor = (role: string) => {
 const getRoleText = (role: string) => {
   const texts = {
     admin: '管理员',
-    moderator: '审核员',
-    user: '普通用户'
+    moderator: '客服',
+    user: '普通用户',
+    viewer: '查看用户',
+    super_viewer: '老板'
   };
   return texts[role] || role;
 };
@@ -375,8 +641,17 @@ const handleTableChange = (pagination: any) => {
 
 // 编辑用户
 const editUser = (user: UserListItem) => {
-  Message.info('编辑功能开发中...');
-  // TODO: 实现编辑用户功能
+  editUserInfo.value = user;
+
+  // 填充编辑表单
+  editForm.name = user.name || '';
+  editForm.email = user.email || '';
+  editForm.password = '';
+  editForm.confirmPassword = '';
+  editForm.role = user.role;
+  editForm.is_active = user.is_active;
+
+  showEditModal.value = true;
 };
 
 // 确认删除用户
@@ -459,6 +734,26 @@ const handleDeleteUser = async () => {
 
 // 移除表单引用，不再需要
 
+// 打开创建用户模态框
+const openCreateModal = () => {
+  console.log('openCreateModal: 打开创建用户模态框');
+  console.log('openCreateModal: 当前用户角色:', userStore.userInfo?.role);
+  console.log('openCreateModal: availableRoles:', availableRoles.value);
+  console.log('openCreateModal: availableRoles.length:', availableRoles.value.length);
+
+  // 重置表单
+  createForm.username = '';
+  createForm.password = '';
+  createForm.confirmPassword = '';
+  createForm.name = '';
+  createForm.email = '';
+  // 设置默认角色为第一个可用的角色
+  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
+  console.log('openCreateModal: 设置默认角色为:', createForm.role);
+  showCreateModal.value = true;
+  console.log('openCreateModal: 模态框已打开');
+};
+
 // 重置创建表单
 const resetCreateForm = () => {
   console.log('resetCreateForm: 重置创建表单');
@@ -467,18 +762,119 @@ const resetCreateForm = () => {
   createForm.confirmPassword = '';
   createForm.name = '';
   createForm.email = '';
-  createForm.role = 'user';
+  // 设置默认角色为第一个可用的角色
+  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
   showCreateModal.value = false;
   console.log('resetCreateForm: 表单重置完成');
+};
+
+// 处理编辑用户
+const handleEditUser = async () => {
+  console.log('handleEditUser: 开始编辑用户');
+
+  if (!editUserInfo.value) {
+    console.log('handleEditUser: editUserInfo为空');
+    return;
+  }
+
+  const currentRole = userStore.userInfo?.role;
+
+  try {
+    // 基础表单验证
+    if (!editForm.name.trim()) {
+      Message.error('请输入用户姓名');
+      return;
+    }
+
+    if (!editForm.email.trim()) {
+      Message.error('请输入邮箱地址');
+      return;
+    }
+
+    // 邮箱格式验证
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editForm.email)) {
+      Message.error('请输入有效的邮箱地址');
+      return;
+    }
+
+    // 权限验证：viewer和moderator只能将用户角色改为user
+    if (['viewer', 'moderator'].includes(currentRole || '') && editForm.role !== 'user') {
+      Message.error('您只能将用户角色设置为普通用户');
+      return;
+    }
+
+    // 密码验证（如果提供了密码）
+    if (editForm.password.trim()) {
+      if (editForm.password.length < 6) {
+        Message.error('密码长度至少6位');
+        return;
+      }
+
+      if (editForm.password !== editForm.confirmPassword) {
+        Message.error('两次输入的密码不一致');
+        return;
+      }
+    }
+
+    editLoading.value = true;
+
+    const updateData: any = {
+      name: editForm.name.trim(),
+      email: editForm.email.trim(),
+      role: editForm.role,
+      is_active: editForm.is_active
+    };
+
+    // 如果提供了密码，则包含在更新数据中
+    if (editForm.password.trim()) {
+      updateData.password = editForm.password;
+    }
+
+    console.log('handleEditUser: 调用updateUser API', editUserInfo.value.id, updateData);
+    await updateUser(editUserInfo.value.id, updateData);
+
+    console.log('handleEditUser: 用户编辑成功');
+
+    Message.success(`用户"${editForm.name}"信息更新成功！`);
+
+    showEditModal.value = false;
+    editUserInfo.value = null;
+
+    // 重新加载用户列表
+    loadUserList();
+  } catch (error) {
+    console.error('handleEditUser: 编辑用户失败:', error);
+
+    // 处理不同的错误类型
+    if (error.response?.data?.message) {
+      Message.error(error.response.data.message);
+    } else if (error.message) {
+      Message.error(error.message);
+    } else {
+      Message.error('编辑用户失败，请稍后重试');
+    }
+  } finally {
+    console.log('handleEditUser: 设置loading为false');
+    editLoading.value = false;
+  }
 };
 
 // 处理创建用户
 const handleCreateUser = async () => {
   console.log('handleCreateUser: 开始创建用户');
 
-  // 检查管理员权限
-  if (userStore.userInfo?.role !== 'admin') {
+  const currentRole = userStore.userInfo?.role;
+
+  // 检查权限：admin、viewer、moderator可以创建用户
+  if (!['admin', 'viewer', 'moderator'].includes(currentRole || '')) {
     Message.error('您没有权限执行此操作');
+    return;
+  }
+
+  // 检查viewer和moderator只能创建user角色
+  if (['viewer', 'moderator'].includes(currentRole || '') && createForm.role !== 'user') {
+    Message.error('您只能创建普通用户账号');
     return;
   }
 
@@ -510,8 +906,15 @@ const handleCreateUser = async () => {
     createLoading.value = true;
     const { confirmPassword, ...userData } = createForm;
 
-    console.log('handleCreateUser: 调用createUser API');
-    await createUser(userData);
+    // 添加创建者信息
+    const currentUser = userStore.userInfo;
+    const userDataWithCreator = {
+      ...userData,
+      created_by: currentUser?.accountId ? Number(currentUser.accountId) : undefined
+    };
+
+    console.log('handleCreateUser: 调用createUser API', userDataWithCreator);
+    await createUser(userDataWithCreator);
 
     console.log('handleCreateUser: 用户创建成功');
 
@@ -542,7 +945,7 @@ const handleCreateUser = async () => {
 // 组件挂载时加载数据
 onMounted(() => {
   // 检查用户权限
-  if (userStore.userInfo?.role !== 'admin') {
+  if (!canViewUsers.value) {
     Message.error('您没有权限访问此页面');
     // 这里可以重定向到其他页面
     return;
@@ -583,6 +986,36 @@ onMounted(() => {
     color: var(--color-warning-6);
     margin: 8px 0 0 0;
     font-size: 14px;
+  }
+}
+
+.permission-warning {
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+
+  p {
+    margin: 0;
+    color: #d46b08;
+    font-size: 14px;
+    text-align: center;
+  }
+}
+
+.permission-info {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 16px;
+
+  p {
+    margin: 0;
+    color: #52c41a;
+    font-size: 14px;
+    text-align: center;
   }
 }
 

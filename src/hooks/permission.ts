@@ -13,6 +13,18 @@ export default function usePermission() {
       );
     },
     findFirstPermissionRoute(_routers: any, role = 'admin') {
+      // 优先跳转到ECPM用户数据查看页面
+      const preferredRoutes = ['EcpmUser'];
+
+      // 首先尝试跳转到首选路由
+      for (const preferredRoute of preferredRoutes) {
+        const route = this.findRouteByName(_routers, preferredRoute);
+        if (route && this.accessRouter(route)) {
+          return { name: route.name };
+        }
+      }
+
+      // 如果首选路由不可访问，则使用原来的逻辑
       const cloneRouters = [..._routers];
       while (cloneRouters.length) {
         const firstElement = cloneRouters.shift();
@@ -24,6 +36,20 @@ export default function usePermission() {
           return { name: firstElement.name };
         if (firstElement?.children) {
           cloneRouters.push(...firstElement.children);
+        }
+      }
+      return null;
+    },
+
+    // 辅助函数：根据路由名称查找路由
+    findRouteByName(routers: any[], name: string): any {
+      for (const router of routers) {
+        if (router.name === name) {
+          return router;
+        }
+        if (router.children) {
+          const found = this.findRouteByName(router.children, name);
+          if (found) return found;
         }
       }
       return null;
