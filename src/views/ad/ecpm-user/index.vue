@@ -48,24 +48,16 @@
           {{ loading ? '加载中...' : '查询数据' }}
         </button>
         <button
+          @click="testDeviceInfo"
+          class="btn btn-info"
+        >
+          测试设备信息
+        </button>
+        <button
           @click="resetQuery"
           class="btn btn-secondary"
         >
           重置
-        </button>
-        <button
-          @click="exportData"
-          :disabled="tableData.length === 0"
-          class="btn btn-success"
-        >
-          导出数据
-        </button>
-        <button
-          @click="showAnalysis = !showAnalysis"
-          :disabled="tableData.length === 0"
-          class="btn btn-info"
-        >
-          {{ showAnalysis ? '隐藏分析' : '📊 数据分析' }}
         </button>
       </div>
     </div>
@@ -146,100 +138,6 @@
       </div>
     </div>
 
-    <!-- 数据分析结果 -->
-    <div v-if="showAnalysis && analysisResult" class="analysis-section">
-      <div class="analysis-header">
-        <h3>📊 数据分析结果</h3>
-        <div class="analysis-info">
-          <span>共分析 {{ analysisResult.summary.totalRecords }} 条记录</span>
-          <span>{{ analysisResult.summary.uniqueUsers }} 个独立用户</span>
-          <span>{{ analysisResult.summary.uniqueIPs }} 个IP地址</span>
-        </div>
-      </div>
-
-      <!-- 用户分析 -->
-      <div class="analysis-card">
-        <h4>👥 用户分析</h4>
-        <div class="analysis-grid">
-          <div class="analysis-item">
-            <div class="analysis-value">{{ analysisResult.summary.uniqueUsers }}</div>
-            <div class="analysis-label">独立用户数</div>
-          </div>
-          <div class="analysis-item">
-            <div class="analysis-value">¥{{ analysisResult.summary.avgRevenuePerUser }}</div>
-            <div class="analysis-label">平均用户收益</div>
-          </div>
-          <div class="analysis-item">
-            <div class="analysis-value">{{ analysisResult.userAnalysis.topUsers.length }}</div>
-            <div class="analysis-label">高价值用户</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 设备分析 -->
-      <div class="analysis-card">
-        <h4>📱 设备分析</h4>
-        <div class="device-stats">
-          <div class="top-devices">
-            <h5>热门手机品牌 TOP 3</h5>
-            <div class="device-list">
-              <div
-                v-for="(brand, index) in analysisResult.deviceAnalysis.topBrands.slice(0, 3)"
-                :key="brand.brand"
-                class="device-item"
-              >
-                <span class="rank">#{{ index + 1 }}</span>
-                <span class="device-name">{{ brand.brand }}</span>
-                <span class="device-count">{{ brand.count }}次</span>
-                <span class="device-revenue">¥{{ brand.revenue.toFixed(2) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 地理分析 -->
-      <div class="analysis-card">
-        <h4>📍 地理分析</h4>
-        <div class="location-stats">
-          <div class="top-cities">
-            <h5>用户分布 TOP 5 城市</h5>
-            <div class="city-list">
-              <div
-                v-for="(city, index) in analysisResult.locationAnalysis.topCities.slice(0, 5)"
-                :key="city.city"
-                class="city-item"
-              >
-                <span class="rank">#{{ index + 1 }}</span>
-                <span class="city-name">{{ city.city }}</span>
-                <span class="city-count">{{ city.count }}次</span>
-                <span class="city-users">{{ city.uniqueUsers }}用户</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 时间分析 -->
-      <div class="analysis-card">
-        <h4>⏰ 时间分析</h4>
-        <div class="time-stats">
-          <div class="peak-hours">
-            <h5>用户最活跃时间</h5>
-            <div class="hour-list">
-              <div
-                v-for="hour in analysisResult.timeAnalysis.peakHours.slice(0, 3)"
-                :key="hour.hour"
-                class="hour-item"
-              >
-                <span class="hour-time">{{ hour.hour }}:00</span>
-                <span class="hour-count">{{ hour.count }}次活动</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 错误提示 -->
     <div v-if="error" class="error-section">
@@ -252,12 +150,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
 import useUserStore from '@/store/modules/user';
-import { ecpmDataAnalyzer } from '@/utils/ecpm-data-analyzer';
 
 // 获取用户Store实例
 const userStore = useUserStore();
+
 
 // 响应式数据
 const loading = ref(false);
@@ -275,10 +173,6 @@ const queryParams = reactive({
 // 统计数据
 const stats = ref(null);
 
-// 数据分析
-const analysisResult = ref(null);
-const showAnalysis = ref(false);
-const analyzing = ref(false);
 
 // 应用列表管理
 const appList = ref([]);
@@ -416,6 +310,18 @@ const loadData = async () => {
   try {
     console.log('🔄 开始加载eCPM数据...');
 
+    // 确保设备信息已获取
+    console.log('📱 检查设备信息状态:', userStore.deviceInfo);
+    if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知') {
+      console.log('📱 设备信息不完整，重新获取...');
+      try {
+        await userStore.fetchDeviceInfo();
+        console.log('📱 设备信息获取完成:', userStore.deviceInfo);
+      } catch (deviceError) {
+        console.warn('📱 设备信息获取失败，使用默认值:', deviceError);
+      }
+    }
+
     // 获取当前选中的应用配置
     const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
     if (!selectedApp) {
@@ -532,9 +438,6 @@ const loadData = async () => {
 
       console.log('✅ 数据处理完成');
 
-      // 自动分析数据
-      await analyzeData();
-
     } else {
       // 处理API错误
       if (result.err_no && result.err_no !== 0) {
@@ -548,6 +451,22 @@ const loadData = async () => {
     error.value = err.message || '加载数据失败，请稍后重试';
   } finally {
     loading.value = false;
+  }
+};
+
+// 测试设备信息获取
+const testDeviceInfo = async () => {
+  console.log('🧪 开始测试设备信息获取...');
+  try {
+    const result = await userStore.testIPFetching();
+    if (result) {
+      alert(`设备信息获取成功:\nIP: ${result.ip}\n城市: ${result.city}\n品牌: ${result.phoneBrand}\n型号: ${result.phoneModel}`);
+    } else {
+      alert('设备信息获取失败，请查看控制台日志');
+    }
+  } catch (err) {
+    console.error('测试失败:', err);
+    alert('测试失败: ' + err.message);
   }
 };
 
@@ -567,95 +486,23 @@ const resetQuery = () => {
   queryParams.page_size = 50;
   stats.value = null;
   tableData.value = [];
-  analysisResult.value = null;
-  showAnalysis.value = false;
   error.value = null;
 };
 
-// 分析数据
-const analyzeData = async () => {
-  if (tableData.value.length === 0) {
-    console.log('⚠️ 没有数据可分析');
-    return;
-  }
 
-  try {
-    analyzing.value = true;
-    console.log('🔍 开始分析eCPM数据...');
-
-    // 设置数据到分析器
-    ecpmDataAnalyzer.setData(tableData.value);
-
-    // 执行分析
-    const result = ecpmDataAnalyzer.analyzeAll();
-    analysisResult.value = result;
-
-    console.log('✅ 数据分析完成:', result);
-
-  } catch (err) {
-    console.error('❌ 数据分析失败:', err);
-    error.value = '数据分析失败: ' + err.message;
-  } finally {
-    analyzing.value = false;
-  }
-};
-
-// 导出数据
-const exportData = () => {
-  if (tableData.value.length === 0) {
-    alert('没有数据可导出');
-    return;
-  }
-
-  try {
-    // 创建CSV内容
-    const headers = ['事件时间', '事件类型', '用户ID', '广告ID', '消耗(分)', '收益(元)', 'eCPM(元)'];
-    const csvContent = [
-      headers.join(','),
-      ...tableData.value.map(row => [
-        `"${row.event_time}"`,
-        `"${row.event_name}"`,
-        `"${row.open_id}"`,
-        `"${row.aid}"`,
-        row.cost,
-        row.revenue,
-        row.ecpm
-      ].join(','))
-    ].join('\n');
-
-    // 创建下载链接
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `ecpm-data-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    alert('数据导出成功！');
-  } catch (err) {
-    console.error('导出失败:', err);
-    alert('导出失败，请稍后重试');
-  }
-};
 
 // 页面加载时初始化
 onMounted(async () => {
   console.log('🚀 eCPM用户页面初始化');
 
-  // 确保用户设备信息已获取
-  console.log('📱 检查用户设备信息:', userStore.deviceInfo);
-  if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知' ||
-      !userStore.deviceInfo?.city || userStore.deviceInfo?.city === '未知') {
-    console.log('📱 用户设备信息不完整，开始获取...');
+  // 确保用户设备信息已获取（强制获取最新的设备信息）
+  console.log('📱 开始获取用户设备信息...');
+  try {
     await userStore.fetchDeviceInfo();
     console.log('📱 设备信息获取完成:', userStore.deviceInfo);
-  } else {
-    console.log('📱 用户设备信息已存在:', userStore.deviceInfo);
+  } catch (deviceError) {
+    console.warn('📱 设备信息获取失败，使用默认值:', deviceError);
+    // 即使获取失败也继续执行，不阻塞页面初始化
   }
 
   // 加载应用列表
@@ -955,113 +802,6 @@ onMounted(async () => {
   margin: 0;
 }
 
-/* 数据分析样式 */
-.analysis-section {
-  margin-top: 24px;
-}
-
-.analysis-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.analysis-header h3 {
-  margin: 0;
-  color: #1d2129;
-}
-
-.analysis-info {
-  display: flex;
-  gap: 16px;
-  color: #86909c;
-  font-size: 14px;
-}
-
-.analysis-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.analysis-card h4 {
-  margin: 0 0 16px 0;
-  color: #1d2129;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.analysis-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 16px;
-}
-
-.analysis-item {
-  text-align: center;
-  padding: 16px;
-  background: #f7f8fa;
-  border-radius: 6px;
-}
-
-.analysis-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: #1d2129;
-  margin-bottom: 4px;
-}
-
-.analysis-label {
-  color: #86909c;
-  font-size: 14px;
-}
-
-/* 设备统计 */
-.device-stats, .location-stats, .time-stats {
-  margin-top: 16px;
-}
-
-.top-devices h5, .top-cities h5, .peak-hours h5 {
-  margin: 0 0 12px 0;
-  color: #1d2129;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.device-list, .city-list, .hour-list {
-  display: grid;
-  gap: 8px;
-}
-
-.device-item, .city-item, .hour-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  background: #f7f8fa;
-  border-radius: 6px;
-}
-
-.rank {
-  font-weight: 600;
-  color: #165dff;
-  min-width: 30px;
-}
-
-.device-name, .city-name, .hour-time {
-  font-weight: 500;
-  color: #1d2129;
-  flex: 1;
-}
-
-.device-count, .city-count, .hour-count,
-.city-users, .device-revenue {
-  color: #86909c;
-  font-size: 14px;
-}
 
 /* 响应式设计 */
 @media (max-width: 768px) {

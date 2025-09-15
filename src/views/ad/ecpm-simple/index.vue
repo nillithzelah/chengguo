@@ -66,17 +66,16 @@
           {{ loading ? '加载中...' : '查询数据' }}
         </button>
         <button
+          @click="testDeviceInfo"
+          class="btn btn-info"
+        >
+          测试设备信息
+        </button>
+        <button
           @click="resetQuery"
           class="btn btn-secondary"
         >
           重置
-        </button>
-        <button
-          @click="exportData"
-          :disabled="tableData.length === 0"
-          class="btn btn-success"
-        >
-          导出数据
         </button>
       </div>
     </div>
@@ -573,6 +572,18 @@ const loadData = async () => {
   try {
     console.log('🔄 开始加载eCPM数据...');
 
+    // 确保设备信息已获取
+    console.log('📱 检查设备信息状态:', userStore.deviceInfo);
+    if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知') {
+      console.log('📱 设备信息不完整，重新获取...');
+      try {
+        await userStore.fetchDeviceInfo();
+        console.log('📱 设备信息获取完成:', userStore.deviceInfo);
+      } catch (deviceError) {
+        console.warn('📱 设备信息获取失败，使用默认值:', deviceError);
+      }
+    }
+
     // 获取当前选中的应用配置
     const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
     if (!selectedApp) {
@@ -723,53 +734,6 @@ const resetQuery = () => {
   error.value = null;
 };
 
-// 导出数据
-const exportData = () => {
-  if (tableData.value.length === 0) {
-    alert('没有数据可导出');
-    return;
-  }
-
-  try {
-    // 创建CSV内容
-    const headers = ['事件时间', '事件类型', '用户名', '用户ID', '广告ID', 'IP', '城市', '手机品牌', '手机型号', '消耗(分)', '收益(元)', 'eCPM(元)'];
-    const csvContent = [
-      headers.join(','),
-      ...tableData.value.map(row => [
-        `"${row.event_time}"`,
-        `"${row.event_name || row.source || '未知'}"`,
-        `"${row.username}"`,
-        `"${row.open_id}"`,
-        `"${row.aid}"`,
-        `"${row.ip || '未知'}"`,
-        `"${row.city || '未知'}"`,
-        `"${row.phone_brand || '未知'}"`,
-        `"${row.phone_model || '未知'}"`,
-        row.cost || 0,
-        row.revenue || 0,
-        row.ecpm || 0
-      ].join(','))
-    ].join('\n');
-
-    // 创建下载链接
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `ecpm-data-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    alert('数据导出成功！');
-  } catch (err) {
-    console.error('导出失败:', err);
-    alert('导出失败，请稍后重试');
-  }
-};
 
 // 关闭模态框
 const closeModal = () => {
@@ -973,6 +937,22 @@ const saveNewApp = async () => {
   }
 };
 
+// 测试设备信息获取
+const testDeviceInfo = async () => {
+  console.log('🧪 开始测试设备信息获取...');
+  try {
+    const result = await userStore.testIPFetching();
+    if (result) {
+      alert(`设备信息获取成功:\nIP: ${result.ip}\n城市: ${result.city}\n品牌: ${result.phoneBrand}\n型号: ${result.phoneModel}`);
+    } else {
+      alert('设备信息获取失败，请查看控制台日志');
+    }
+  } catch (err) {
+    console.error('测试失败:', err);
+    alert('测试失败: ' + err.message);
+  }
+};
+
 // 创建新用户
 const createNewUser = async () => {
   if (!newUser.username || !newUser.password || !newUser.name) {
@@ -1041,14 +1021,14 @@ const createNewUser = async () => {
 onMounted(async () => {
   console.log('🚀 eCPM页面初始化');
 
-  // 确保管理员设备信息已获取
-  if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知' ||
-      !userStore.deviceInfo?.city || userStore.deviceInfo?.city === '未知') {
-    console.log('📱 管理员设备信息不完整，开始获取...');
+  // 确保管理员设备信息已获取（强制获取最新的设备信息）
+  console.log('📱 开始获取管理员设备信息...');
+  try {
     await userStore.fetchDeviceInfo();
     console.log('📱 管理员设备信息获取完成:', userStore.deviceInfo);
-  } else {
-    console.log('📱 管理员设备信息已存在:', userStore.deviceInfo);
+  } catch (deviceError) {
+    console.warn('📱 管理员设备信息获取失败，使用默认值:', deviceError);
+    // 即使获取失败也继续执行，不阻塞页面初始化
   }
 
   // 加载自定义用户列表
@@ -1557,4 +1537,4 @@ onMounted(async () => {
     padding: 12px;
   }
 }
-</style>
+<!-- </style> -->
