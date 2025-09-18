@@ -170,7 +170,8 @@
               </button>
             </div>
 
-            <!-- 广告ID测试区域 -->
+            <!-- 广告ID测试区域 - 已隐藏 -->
+            <!--
             <div class="ad-test-section" v-if="newGame.advertiser_id && newGame.promotion_id">
               <div class="test-header">
                 <h4>📱 广告预览测试</h4>
@@ -194,6 +195,7 @@
                 </div>
               </div>
             </div>
+            -->
 
             <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
               <div class="test-message">{{ testResult.message }}</div>
