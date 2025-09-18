@@ -274,6 +274,33 @@ export const proxyConfig = {
   },
 
 
+  // 广告预览二维码API代理
+  '/api/douyin/ad-preview-qrcode': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('广告预览二维码API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '广告预览二维码服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理广告预览二维码API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理广告预览二维码API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
   // eCPM数据API代理到后端服务器（使用后端处理逻辑）
   '/api/douyin/ecpm': {
     target: 'http://localhost:3000',

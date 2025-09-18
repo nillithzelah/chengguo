@@ -1,5 +1,6 @@
 // 抖音小程序真实SDK集成示例
 // 用于在真实的抖音小游戏环境中获取设备信息
+import { deviceBrandMapper } from './device-brand-mapper';
 
 export class DouyinRealSDK {
 
@@ -44,10 +45,15 @@ export class DouyinRealSDK {
       const res = tt.getSystemInfoSync();
       console.log('📱 获取到设备信息:', res);
 
+      // 解析设备品牌信息
+      const deviceBrandInfo = deviceBrandMapper.parseDeviceInfo(res.model);
+
       const deviceInfo = {
         // 基础设备信息
         deviceId: this.generateDeviceId(),
         deviceModel: res.model,
+        deviceBrand: deviceBrandInfo.brand,
+        friendlyModel: deviceBrandInfo.friendlyModel,
         platform: res.platform,
         systemVersion: res.system,
         version: res.version,
@@ -255,7 +261,13 @@ export class DouyinRealSDK {
         userInfo: userInfo,
         location: location,
         collectedAt: new Date().toISOString(),
-        environment: 'douyin_mini_program'
+        environment: 'douyin_mini_program',
+        // 添加品牌识别信息
+        brandRecognition: {
+          originalModel: res?.model || 'unknown',
+          recognizedBrand: completeDeviceInfo.deviceBrand,
+          isRecognized: completeDeviceInfo.deviceBrand !== '未知品牌'
+        }
       };
 
       console.log('✅ 信息收集完成');

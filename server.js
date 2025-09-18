@@ -10,11 +10,16 @@ const { testConnection, sequelize } = require('./config/database');
 const defineUserModel = require('./models/User');
 const defineGameModel = require('./models/Game');
 const defineUserGameModel = require('./models/UserGame');
+const defineUserDeviceModel = require('./models/UserDevice');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
 const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
+const UserDevice = defineUserDeviceModel(sequelize);
+
+// 设备信息解析器
+const deviceParser = require('./utils/server-device-parser');
 
 // 定义模型关联关系
 User.belongsToMany(Game, {
@@ -51,6 +56,19 @@ User.belongsTo(User, {
   foreignKey: 'created_by',
   as: 'userCreator',
   targetKey: 'id'
+});
+
+// 用户设备关联
+User.hasMany(UserDevice, {
+  foreignKey: 'user_id',
+  as: 'devices',
+  onDelete: 'CASCADE'
+});
+
+UserDevice.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user',
+  onDelete: 'CASCADE'
 });
 
 // JWT secret key - In production, use a strong secret key from environment variables
@@ -95,7 +113,7 @@ const authenticateJWT = (req, res, next) => {
 // 用户登录
 app.post('/api/user/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, deviceInfo: clientDeviceInfo } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({
@@ -135,6 +153,48 @@ app.post('/api/user/login', async (req, res) => {
     // 更新最后登录时间
     await User.updateLastLogin(user.id);
 
+    // 在服务器端解析设备信息
+    let deviceRecord = null;
+    try {
+      // 从请求中提取设备信息（服务器端解析）
+      const serverParsedDeviceInfo = deviceParser.extractFromRequest(req);
+
+      // 如果客户端也提供了设备信息，可以合并
+      const finalDeviceInfo = {
+        ...serverParsedDeviceInfo,
+        ...(clientDeviceInfo || {}),
+        // 服务器端解析的优先级更高
+        deviceBrand: serverParsedDeviceInfo.deviceBrand,
+        deviceModel: serverParsedDeviceInfo.deviceModel,
+        friendlyModel: serverParsedDeviceInfo.friendlyModel
+      };
+
+      console.log('📱 用户设备信息解析结果:', {
+        username: user.username,
+        deviceId: finalDeviceInfo.deviceId,
+        deviceBrand: finalDeviceInfo.deviceBrand,
+        deviceModel: finalDeviceInfo.deviceModel,
+        browser: finalDeviceInfo.browserName,
+        os: finalDeviceInfo.osName,
+        deviceType: finalDeviceInfo.deviceType,
+        isMobile: finalDeviceInfo.isMobile,
+        ipAddress: finalDeviceInfo.ipAddress
+      });
+
+      // 保存设备信息到数据库
+      deviceRecord = await UserDevice.findOrCreateDevice(user.id, finalDeviceInfo);
+
+      // 设置当前设备
+      await UserDevice.setCurrentDevice(user.id, finalDeviceInfo.deviceId);
+
+      // 清理旧设备记录（保留最近10个）
+      await UserDevice.cleanupOldDevices(user.id, 10);
+
+    } catch (deviceError) {
+      console.error('设备信息处理失败:', deviceError);
+      // 设备信息处理失败不影响登录
+    }
+
     // 生成token
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
@@ -152,7 +212,14 @@ app.post('/api/user/login', async (req, res) => {
           name: user.name,
           role: user.role,
           avatar: user.avatar
-        }
+        },
+        deviceInfo: deviceRecord ? {
+          deviceId: deviceRecord.device_id,
+          deviceBrand: deviceRecord.device_brand,
+          deviceModel: deviceRecord.device_model,
+          deviceType: deviceRecord.device_type,
+          lastLoginAt: deviceRecord.last_login_at
+        } : null
       },
       message: '登录成功'
     });
@@ -1013,7 +1080,7 @@ app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
 app.post('/api/game/create', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { name, appid, appSecret, description } = req.body;
+    const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
 
     // 检查权限：只有管理员可以创建游戏
     if (currentUser.role !== 'admin') {
@@ -1046,6 +1113,8 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
       appid,
       appSecret,
       description: description || '',
+      advertiser_id: advertiser_id || null, // 可选参数
+      promotion_id: promotion_id || null,   // 可选参数
       status: 'active',
       validated: true, // 前端已经验证过
       validatedAt: new Date()
@@ -1064,6 +1133,71 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
 
   } catch (error) {
     console.error('创建游戏错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 更新游戏 (仅管理员)
+app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+    const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
+
+    // 检查权限：只有管理员可以更新游戏
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以更新游戏'
+      });
+    }
+
+    // 查找游戏
+    const game = await Game.findByPk(id);
+    if (!game) {
+      return res.status(404).json({
+        code: 404,
+        message: '游戏不存在'
+      });
+    }
+
+    // 如果App ID改变，检查是否与其他游戏冲突
+    if (appid && appid !== game.appid) {
+      const existingGame = await Game.findByAppId(appid);
+      if (existingGame && existingGame.id !== parseInt(id)) {
+        return res.status(400).json({
+          code: 400,
+          message: '该App ID已存在，请使用不同的App ID'
+        });
+      }
+    }
+
+    // 更新游戏信息
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (appid !== undefined) updateData.appid = appid;
+    if (appSecret !== undefined) updateData.appSecret = appSecret;
+    if (description !== undefined) updateData.description = description;
+    if (advertiser_id !== undefined) updateData.advertiser_id = advertiser_id || null;
+    if (promotion_id !== undefined) updateData.promotion_id = promotion_id || null;
+
+    await game.update(updateData);
+
+    console.log(`管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      data: {
+        game: game.toFrontendFormat()
+      },
+      message: '游戏更新成功'
+    });
+
+  } catch (error) {
+    console.error('更新游戏错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'
@@ -1353,6 +1487,106 @@ app.post('/api/douyin/test-connection', async (req, res) => {
         error: error.message || '未知错误'
       });
     }
+  }
+});
+
+// 广告预览二维码获取API
+app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
+  console.log('🚀 ===== 开始广告预览二维码获取流程 =====');
+
+  try {
+    const { advertiser_id, id_type, promotion_id } = req.query;
+
+    // 验证必填参数
+    if (!advertiser_id || !id_type || !promotion_id) {
+      return res.status(400).json({
+        error: '缺少参数',
+        message: '请提供 advertiser_id, id_type, promotion_id 参数'
+      });
+    }
+
+    console.log('📋 请求参数:', { advertiser_id, id_type, promotion_id });
+
+    // 步骤1: 使用已知的有效access_token
+    console.log('📍 步骤1: 使用已知的有效access_token');
+
+    // 使用之前测试时有效的token
+    const accessToken = '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15';
+    console.log('✅ 使用预配置的access_token');
+
+    // 步骤2: 调用广告预览二维码API
+    console.log('📍 步骤2: 获取广告预览二维码');
+    console.log('🔗 请求URL: https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/');
+
+    const qrParams = {
+      advertiser_id: advertiser_id,
+      id_type: id_type,
+      promotion_id: promotion_id
+    };
+
+    console.log('📤 二维码请求参数:', JSON.stringify(qrParams, null, 2));
+
+    console.log('📤 发送请求Headers:', {
+      'Access-Token': accessToken.substring(0, 10) + '...',
+      'Content-Type': 'application/json'
+    });
+
+    const qrResponse = await axios.get('https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/', {
+      params: qrParams,
+      headers: {
+        'Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    console.log('📥 二维码响应:', JSON.stringify(qrResponse.data, null, 2));
+
+    if (qrResponse.data.code !== 0) {
+      console.error('❌ 二维码获取失败:', qrResponse.data.message);
+      return res.status(500).json({
+        error: '二维码获取失败',
+        message: qrResponse.data.message,
+        details: qrResponse.data
+      });
+    }
+
+    console.log('✅ 二维码获取成功');
+    console.log('🎉 ===== 广告预览二维码获取流程完成 =====');
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: qrResponse.data.data,
+      token_info: {
+        access_token: accessToken.substring(0, 20) + '...',
+        expires_in: '未知', // 使用预配置token，过期时间未知
+        note: '使用预配置的access_token'
+      },
+      request_log: {
+        qr_request: {
+          url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
+          params: qrParams,
+          response: qrResponse.data
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 广告预览二维码流程失败:', error.message);
+
+    if (error.response) {
+      console.error('📄 API响应错误:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      error: '获取广告预览二维码失败',
+      message: error.message || '网络请求失败',
+      code: error.response?.status || 'API_ERROR'
+    });
   }
 });
 

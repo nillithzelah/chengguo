@@ -41,7 +41,7 @@
               :key="app.appid"
               :value="app.appid"
             >
-              {{ app.name }} ({{ app.appid }})
+              {{ app.name }}
             </option>
           </select>
         </div>
@@ -52,6 +52,15 @@
             type="date"
             class="form-input"
           />
+        </div>
+        <div class="form-item">
+          <label>广告预览二维码</label>
+          <button
+            @click="showQrPreviewModalFunc"
+            class="btn btn-outline btn-qr-preview"
+          >
+            📱 查看广告预览二维码
+          </button>
         </div>
       </div>
 
@@ -127,6 +136,7 @@
               <th>用户名</th>
               <th>用户ID</th>
               <th>广告ID</th>
+              <!-- <th>二维码</th> -->
               <th>IP</th>
               <th>城市</th>
               <th>手机品牌</th>
@@ -152,6 +162,24 @@
               <td>{{ item.username }}</td>
               <td>{{ item.open_id }}</td>
               <td>{{ item.aid }}</td>
+              <!-- <td>
+                <div class="qr-code-cell">
+                  <img
+                    v-if="item.qrCode"
+                    :src="item.qrCode"
+                    alt="广告二维码"
+                    class="qr-code-image"
+                    @click="showQrModalFunc(item)"
+                  />
+                  <button
+                    v-else
+                    @click="generateQrCode(item)"
+                    class="btn btn-small btn-outline"
+                  >
+                    生成二维码
+                  </button>
+                </div>
+              </td> -->
               <td>{{ item.ip || '未知' }}</td>
               <td>{{ item.city || '未知' }}</td>
               <td>{{ item.phone_brand || '未知' }}</td>
@@ -163,6 +191,80 @@
       </div>
     </div>
 
+    <!-- 二维码显示模态框 -->
+    <div v-if="showQrModal" class="modal-overlay" @click="closeQrModal">
+      <div class="modal-content qr-modal" @click.stop>
+        <div class="modal-header">
+          <h3>广告二维码</h3>
+          <button @click="closeQrModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body" v-if="currentQrItem">
+          <div class="qr-info">
+            <div class="qr-details">
+              <p><strong>广告ID:</strong> {{ currentQrItem.aid }}</p>
+              <p><strong>用户名:</strong> {{ currentQrItem.username }}</p>
+              <p><strong>收益:</strong> ¥{{ currentQrItem.revenue }}</p>
+              <div v-if="currentQrItem.materialInfo">
+                <p v-if="currentQrItem.materialInfo.title"><strong>标题:</strong> {{ currentQrItem.materialInfo.title }}</p>
+                <p v-if="currentQrItem.materialInfo.description"><strong>描述:</strong> {{ currentQrItem.materialInfo.description }}</p>
+                <p v-if="currentQrItem.materialInfo.material_type"><strong>素材类型:</strong> {{ currentQrItem.materialInfo.material_type }}</p>
+                <p v-if="currentQrItem.materialInfo.image_mode"><strong>图片模式:</strong> {{ currentQrItem.materialInfo.image_mode }}</p>
+                <p v-if="currentQrItem.materialInfo.creative_material_mode"><strong>创意模式:</strong> {{ currentQrItem.materialInfo.creative_material_mode }}</p>
+              </div>
+            </div>
+            <div class="qr-code-large">
+              <img
+                v-if="currentQrItem.qrCode"
+                :src="currentQrItem.qrCode"
+                alt="广告二维码"
+                class="qr-code-large-image"
+              />
+              <div v-else class="qr-loading">二维码生成中...</div>
+            </div>
+          </div>
+          <div class="qr-actions">
+            <button @click="downloadQrCode" class="btn btn-primary" :disabled="!currentQrItem.qrCode">下载二维码</button>
+            <button @click="copyQrUrl" class="btn btn-secondary">复制链接</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 预览二维码模态框 -->
+    <div v-if="showQrPreviewModal" class="modal-overlay" @click="closeQrPreviewModal">
+      <div class="modal-content qr-modal" @click.stop>
+        <div class="modal-header">
+          <h3>广告预览二维码</h3>
+          <button @click="closeQrPreviewModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="qr-info">
+            <div class="qr-details">
+              <p><strong>用途:</strong> 抖音广告预览</p>
+              <p><strong>说明:</strong> 扫描二维码可预览广告效果</p>
+              <p><strong>广告主ID:</strong> 1843320456982026</p>
+              <p><strong>广告ID:</strong> 7550558554752532523</p>
+              <p><strong>生成时间:</strong> {{ new Date().toLocaleString() }}</p>
+            </div>
+            <div class="qr-code-large">
+              <img
+                v-if="currentPreviewQrImage"
+                :src="currentPreviewQrImage"
+                alt="广告预览二维码"
+                class="qr-code-large-image"
+              />
+              <div v-else class="qr-loading">正在生成二维码...</div>
+            </div>
+          </div>
+          <div class="qr-actions">
+            <button @click="downloadPreviewQrCode" class="btn btn-primary" :disabled="!currentPreviewQrImage">下载二维码</button>
+            <button @click="copyPreviewQrUrl" class="btn btn-secondary" :disabled="!currentPreviewQrUrl">复制链接</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 错误提示 -->
     <div v-if="error" class="error-section">
@@ -177,6 +279,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import useUserStore from '@/store/modules/user';
+import QRCode from 'qrcode';
 
 // 获取用户Store实例
 const userStore = useUserStore();
@@ -200,6 +303,17 @@ const stats = ref(null);
 
 // 调试信息
 const debugInfo = ref([]);
+
+// 二维码相关
+const showQrModal = ref(false);
+const currentQrItem = ref(null);
+
+// 预览二维码模态框
+const showQrPreviewModal = ref(false);
+
+// 当前预览二维码URL和图片
+const currentPreviewQrUrl = ref('');
+const currentPreviewQrImage = ref('');
 
 
 // 应用列表管理
@@ -466,6 +580,19 @@ const loadData = async () => {
 
       console.log('✅ 数据处理完成');
 
+      // 为指定广告ID自动生成二维码
+      const targetAdId = '7550558554752532523';
+      const targetItems = tableData.value.filter(item => item.aid === targetAdId);
+      if (targetItems.length > 0) {
+        console.log(`🔄 为广告ID ${targetAdId} 生成二维码...`);
+        for (const item of targetItems) {
+          if (!item.qrCode) {
+            await generateQrCode(item);
+          }
+        }
+        console.log(`✅ 已为广告ID ${targetAdId} 生成 ${targetItems.length} 个二维码`);
+      }
+
     } else {
       // 处理API错误
       if (result.err_no && result.err_no !== 0) {
@@ -525,6 +652,227 @@ const clearDeviceCache = () => {
   alert('缓存已清除！请刷新页面重新获取设备信息。');
 };
 
+// 生成二维码
+const generateQrCode = async (item) => {
+  try {
+    console.log('🔄 开始获取广告素材二维码:', item.aid);
+
+    // 获取当前选中的应用配置来获取advertiser_id
+    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+    if (!selectedApp) {
+      throw new Error('未找到应用配置信息');
+    }
+
+    // 直接使用降级方案生成基于广告ID的二维码
+    try {
+      const adUrl = `https://ad.oceanengine.com/material/${item.aid}`;
+      const qrCodeDataURL = await QRCode.toDataURL(adUrl, {
+        width: 128,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+
+      item.qrCode = qrCodeDataURL;
+      console.log('✅ 使用降级方案生成二维码');
+    } catch (error) {
+      console.error('❌ 生成二维码失败:', error);
+      throw error;
+    }
+
+  } catch (err) {
+    console.error('❌ 生成二维码失败:', err);
+    alert('生成二维码失败: ' + err.message);
+  }
+};
+
+// 显示二维码模态框
+const showQrModalFunc = (item) => {
+  currentQrItem.value = item;
+  showQrModal.value = true;
+};
+
+// 显示预览二维码模态框
+const showQrPreviewModalFunc = async () => {
+  try {
+    console.log('🔄 获取最新的广告预览二维码...');
+    const qrUrl = await fetchRealAdPreviewQrCode();
+    currentPreviewQrUrl.value = qrUrl;
+
+    // 生成二维码图片用于显示
+    const qrCodeDataURL = await QRCode.toDataURL(qrUrl, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    currentPreviewQrImage.value = qrCodeDataURL;
+    showQrPreviewModal.value = true;
+  } catch (error) {
+    console.error('❌ 显示预览二维码失败:', error);
+    alert('获取二维码失败，请稍后重试');
+  }
+};
+
+// 关闭二维码模态框
+const closeQrModal = () => {
+  showQrModal.value = false;
+  currentQrItem.value = null;
+};
+
+// 关闭预览二维码模态框
+const closeQrPreviewModal = () => {
+  showQrPreviewModal.value = false;
+  currentPreviewQrUrl.value = '';
+  currentPreviewQrImage.value = '';
+};
+
+// 下载二维码
+const downloadQrCode = () => {
+  if (!currentQrItem.value?.qrCode) return;
+
+  const link = document.createElement('a');
+  link.href = currentQrItem.value.qrCode;
+  link.download = `ad-qr-${currentQrItem.value.aid}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// 复制二维码链接
+const copyQrUrl = async () => {
+  if (!currentQrItem.value) return;
+
+  // 如果有真实的二维码URL，直接复制
+  if (currentQrItem.value.qrCode && currentQrItem.value.qrCode.startsWith('http')) {
+    try {
+      await navigator.clipboard.writeText(currentQrItem.value.qrCode);
+      alert('二维码链接已复制到剪贴板');
+    } catch (err) {
+      // 降级方案
+      const textArea = document.createElement('textarea');
+      textArea.value = currentQrItem.value.qrCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('二维码链接已复制到剪贴板');
+    }
+  } else {
+    // 生成广告素材链接
+    const adUrl = `https://ad.oceanengine.com/material/${currentQrItem.value.aid}`;
+
+    try {
+      await navigator.clipboard.writeText(adUrl);
+      alert('广告素材链接已复制到剪贴板');
+    } catch (err) {
+      // 降级方案
+      const textArea = document.createElement('textarea');
+      textArea.value = adUrl;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('广告素材链接已复制到剪贴板');
+    }
+  }
+};
+
+// 获取真实的广告预览二维码
+const fetchRealAdPreviewQrCode = async () => {
+  try {
+    console.log('🔄 开始获取真实的广告预览二维码...');
+
+    // 使用测试参数（需要根据实际需求配置）
+    const params = new URLSearchParams({
+      advertiser_id: '1843320456982026', // 测试广告主ID
+      id_type: 'ID_TYPE_PROMOTION',
+      promotion_id: '7550558554752532523' // 测试广告ID
+    });
+
+    const response = await fetch(`/api/douyin/ad-preview-qrcode?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP错误: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ 广告预览二维码获取成功:', result);
+
+    if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
+      return result.data.data.qrcode_msg_url;
+    } else {
+      throw new Error(result.message || '获取二维码失败');
+    }
+
+  } catch (error) {
+    console.error('❌ 获取广告预览二维码失败:', error);
+    // 返回默认的预览URL作为降级方案
+    return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
+  }
+};
+
+// 下载预览二维码
+const downloadPreviewQrCode = async () => {
+  try {
+    // 获取最新的二维码URL
+    const qrUrl = await fetchRealAdPreviewQrCode();
+
+    // 生成二维码图片并下载
+    const qrCodeDataURL = await QRCode.toDataURL(qrUrl, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+
+    const link = document.createElement('a');
+    link.href = qrCodeDataURL;
+    link.download = 'ad-preview-qr.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    console.log('✅ 二维码下载成功');
+  } catch (error) {
+    console.error('❌ 下载二维码失败:', error);
+    alert('下载二维码失败: ' + error.message);
+  }
+};
+
+// 复制预览二维码链接
+const copyPreviewQrUrl = async () => {
+  try {
+    // 获取最新的二维码URL
+    const previewUrl = await fetchRealAdPreviewQrCode();
+
+    await navigator.clipboard.writeText(previewUrl);
+    alert('广告预览链接已复制到剪贴板');
+  } catch (err) {
+    console.error('❌ 复制链接失败:', err);
+    // 降级方案
+    const textArea = document.createElement('textarea');
+    textArea.value = 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    alert('广告预览链接已复制到剪贴板');
+  }
+};
+
 // 重置查询
 const resetQuery = () => {
   // 重置为默认应用
@@ -568,12 +916,9 @@ onMounted(async () => {
     selectedAppId.value = appList.value[0].appid;
     queryParams.mp_id = appList.value[0].appid;
 
-    // 设置默认日期
+    // 设置默认日期为当天
     const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    queryParams.date_hour = yesterday.toISOString().split('T')[0];
+    queryParams.date_hour = today.toISOString().split('T')[0];
 
     // 自动加载数据
     loadData();
@@ -789,6 +1134,25 @@ onMounted(async () => {
   font-size: 12px;
 }
 
+.btn-qr-preview {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-qr-preview:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
 /* 统计卡片 */
 .stats-section {
   margin-bottom: 24px;
@@ -974,5 +1338,140 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 4px;
   }
+}
+
+/* 二维码样式 */
+.qr-code-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-code-image {
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: transform 0.2s;
+}
+
+.qr-code-image:hover {
+  transform: scale(1.1);
+}
+
+
+/* 二维码模态框 */
+.qr-modal .modal-content {
+  max-width: 400px;
+}
+
+.qr-info {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.qr-details {
+  flex: 1;
+}
+
+.qr-details p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.qr-code-large {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 150px;
+}
+
+.qr-code-large-image {
+  width: 150px;
+  height: 150px;
+  border: 2px solid #e5e6eb;
+  border-radius: 8px;
+}
+
+.qr-loading {
+  color: #86909c;
+  font-size: 14px;
+}
+
+.qr-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #86909c;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: #1d2129;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style>

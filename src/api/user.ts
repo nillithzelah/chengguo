@@ -5,6 +5,7 @@ import { UserState } from '@/store/modules/user/types';
 export interface LoginData {
   username: string;
   password: string;
+  deviceInfo?: any; // 设备信息（可选）
 }
 
 export interface LoginRes {
@@ -16,9 +17,15 @@ export function login(data: LoginData) {
   // 确保发送的是普通对象而不是Proxy对象
   const requestData = {
     username: data.username,
-    password: data.password
+    password: data.password,
+    deviceInfo: data.deviceInfo // 添加设备信息
   };
-  console.log('api.user.login: 请求数据', requestData);
+  console.log('api.user.login: 请求数据', {
+    username: requestData.username,
+    deviceBrand: requestData.deviceInfo?.deviceBrand,
+    deviceModel: requestData.deviceInfo?.deviceModel,
+    browser: requestData.deviceInfo?.browserName
+  });
 
   // 使用相对路径，让Vite代理处理
   return axios.post<LoginRes>('/api/user/login', requestData);
@@ -187,6 +194,8 @@ export interface CreateGameData {
   appid: string;
   appSecret: string;
   description?: string;
+  advertiser_id?: string;
+  promotion_id?: string;
 }
 
 export interface CreateGameRes {

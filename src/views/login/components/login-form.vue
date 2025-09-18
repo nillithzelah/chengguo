@@ -60,7 +60,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive } from 'vue';
+  import { ref, reactive, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { Message } from '@arco-design/web-vue';
   import { ValidatedError } from '@arco-design/web-vue/es/form/interface';
@@ -69,6 +69,7 @@
   import { useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
   import type { LoginData } from '@/api/user';
+  import { webDeviceInfoCollector } from '@/utils/web-device-info';
 
   const router = useRouter();
   const { t } = useI18n();
@@ -86,6 +87,24 @@
     password: loginConfig.value.password,
   });
 
+  // 设备信息
+  const deviceInfo = ref(null);
+
+  // 组件挂载时收集设备信息
+  onMounted(() => {
+    try {
+      deviceInfo.value = webDeviceInfoCollector.initialize();
+      console.log('📱 登录页面设备信息收集成功:', {
+        brand: deviceInfo.value?.deviceBrand,
+        model: deviceInfo.value?.deviceModel,
+        browser: deviceInfo.value?.browserName,
+        os: deviceInfo.value?.osName
+      });
+    } catch (error) {
+      console.error('❌ 设备信息收集失败:', error);
+    }
+  });
+
   const handleSubmit = async ({
     errors,
     values,
@@ -98,14 +117,29 @@
       setLoading(true);
       try {
         console.log('开始登录...', values);
-        await userStore.login(values as LoginData);
+
+        // 准备登录数据，包含设备信息
+        const loginData = {
+          ...(values as LoginData),
+          deviceInfo: deviceInfo.value
+        };
+
+        console.log('登录数据（包含设备信息）:', {
+          username: loginData.username,
+          deviceBrand: loginData.deviceInfo?.deviceBrand,
+          deviceModel: loginData.deviceInfo?.deviceModel,
+          browser: loginData.deviceInfo?.browserName,
+          os: loginData.deviceInfo?.osName
+        });
+
+        await userStore.login(loginData);
         console.log('登录成功，准备跳转...');
 
         const { redirect, ...othersQuery } = router.currentRoute.value.query;
         console.log('跳转目标:', redirect || 'EcpmSimple');
 
         router.push({
-          name: (redirect as string) || 'EcpmSimple',
+          name: (redirect as string) || 'UserGameManagement',
           query: {
             ...othersQuery,
           },

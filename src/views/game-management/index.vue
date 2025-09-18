@@ -68,6 +68,9 @@
             <!-- <button @click="viewGameUsers(game)" class="btn btn-outline">
               查看用户
             </button> -->
+            <button @click="editGame(game)" class="btn btn-outline">
+              编辑游戏
+            </button>
             <button @click="openAssignModal(game)" class="btn btn-primary">
               分配用户
             </button>
@@ -128,6 +131,32 @@
             ></textarea>
           </div>
 
+          <div class="form-item">
+            <label>广告主ID</label>
+            <input
+              v-model="newGame.advertiser_id"
+              type="text"
+              placeholder="输入广告主ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告主ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label>广告ID</label>
+            <input
+              v-model="newGame.promotion_id"
+              type="text"
+              placeholder="输入广告ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
           <!-- 测试连接区域 -->
           <div class="test-section" v-if="newGame.appid && newGame.appSecret">
             <div class="test-header">
@@ -139,6 +168,31 @@
               >
                 {{ testing ? '测试中...' : '测试连接' }}
               </button>
+            </div>
+
+            <!-- 广告ID测试区域 -->
+            <div class="ad-test-section" v-if="newGame.advertiser_id && newGame.promotion_id">
+              <div class="test-header">
+                <h4>📱 广告预览测试</h4>
+                <button
+                  @click="testAdPreview"
+                  :disabled="adTesting"
+                  class="btn btn-outline btn-ad-test"
+                >
+                  {{ adTesting ? '测试中...' : '测试广告ID' }}
+                </button>
+              </div>
+
+              <!-- 广告测试结果显示 -->
+              <div v-if="adTestResult" class="test-result" :class="{ 'success': adTestResult.success, 'error': !adTestResult.success }">
+                <div class="test-message">{{ adTestResult.message }}</div>
+                <div v-if="adTestResult.success" class="test-details">
+                  <small>✅ 广告ID验证成功，可以生成预览二维码</small>
+                </div>
+                <div v-if="!adTestResult.success && adTestResult.suggestion" class="test-suggestion">
+                  <small>💡 {{ adTestResult.suggestion }}</small>
+                </div>
+              </div>
             </div>
 
             <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
@@ -159,6 +213,142 @@
             class="btn btn-primary"
           >
             {{ creating ? '创建中...' : '创建游戏' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑游戏模态框 -->
+    <div v-if="showEditGameModal" class="modal-overlay" @click="closeEditGameModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>编辑游戏</h3>
+          <button @click="closeEditGameModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-item">
+            <label>游戏名称</label>
+            <input
+              v-model="editGameData.name"
+              type="text"
+              placeholder="输入游戏名称"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App ID</label>
+            <input
+              v-model="editGameData.appid"
+              type="text"
+              placeholder="输入抖音应用的App ID"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App Secret</label>
+            <input
+              v-model="editGameData.appSecret"
+              type="password"
+              placeholder="输入抖音应用的App Secret"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>描述</label>
+            <textarea
+              v-model="editGameData.description"
+              placeholder="输入游戏描述（可选）"
+              class="form-input"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="form-item">
+            <label>广告主ID</label>
+            <input
+              v-model="editGameData.advertiser_id"
+              type="text"
+              placeholder="输入广告主ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告主ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label>广告ID</label>
+            <input
+              v-model="editGameData.promotion_id"
+              type="text"
+              placeholder="输入广告ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
+          <!-- 测试连接区域 -->
+          <div class="test-section" v-if="editGameData.appid && editGameData.appSecret">
+            <div class="test-header">
+              <h4>🔗 连接测试</h4>
+              <button
+                @click="testEditGameConnection"
+                :disabled="testing"
+                class="btn btn-outline"
+              >
+                {{ testing ? '测试中...' : '测试连接' }}
+              </button>
+            </div>
+
+            <!-- 广告ID测试区域 -->
+            <div class="ad-test-section" v-if="editGameData.advertiser_id && editGameData.promotion_id">
+              <div class="test-header">
+                <h4>📱 广告预览测试</h4>
+                <button
+                  @click="testEditAdPreview"
+                  :disabled="adTesting"
+                  class="btn btn-outline btn-ad-test"
+                >
+                  {{ adTesting ? '测试中...' : '测试广告ID' }}
+                </button>
+              </div>
+
+              <!-- 广告测试结果显示 -->
+              <div v-if="adTestResult" class="test-result" :class="{ 'success': adTestResult.success, 'error': !adTestResult.success }">
+                <div class="test-message">{{ adTestResult.message }}</div>
+                <div v-if="adTestResult.success" class="test-details">
+                  <small>✅ 广告ID验证成功，可以生成预览二维码</small>
+                </div>
+                <div v-if="!adTestResult.success && adTestResult.suggestion" class="test-suggestion">
+                  <small>💡 {{ adTestResult.suggestion }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
+              <div class="test-message">{{ testResult.message }}</div>
+              <div v-if="testResult.success" class="test-details">
+                <small>Token: {{ testResult.token }}</small><br>
+                <small>有效期: {{ testResult.expiresIn }}秒</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="closeEditGameModal" class="btn btn-secondary" :disabled="editing">取消</button>
+          <button
+            @click="updateGame"
+            :disabled="!editGameData.name || !editGameData.appid || !editGameData.appSecret || editing"
+            class="btn btn-primary"
+          >
+            {{ editing ? '保存中...' : '保存修改' }}
           </button>
         </div>
       </div>
@@ -303,6 +493,7 @@ const filteredGames = ref([]);
 
 // 模态框状态
 const showCreateGameModal = ref(false);
+const showEditGameModal = ref(false);
 const showAssignUserModal = ref(false);
 const showUserGamesModal = ref(false);
 const showGameUsersModal = ref(false);
@@ -320,7 +511,20 @@ const newGame = reactive({
   name: '',
   appid: '',
   appSecret: '',
-  description: ''
+  description: '',
+  advertiser_id: '',
+  promotion_id: ''
+});
+
+// 编辑游戏数据
+const editGameData = reactive({
+  id: null,
+  name: '',
+  appid: '',
+  appSecret: '',
+  description: '',
+  advertiser_id: '',
+  promotion_id: ''
 });
 
 // 分配数据
@@ -331,9 +535,14 @@ const assignData = reactive({
 
 // 状态
 const creating = ref(false);
+const editing = ref(false);
 const testing = ref(false);
 const assigning = ref(false);
 const testResult = ref(null);
+
+// 广告测试相关
+const adTesting = ref(false);
+const adTestResult = ref(null);
 
 // 用户权限检查
 const userStore = useUserStore();
@@ -494,6 +703,81 @@ const testGameConnection = async () => {
   }
 };
 
+// 测试广告预览
+const testAdPreview = async () => {
+  if (!newGame.advertiser_id || !newGame.promotion_id) {
+    alert('请先填写广告主ID和广告ID');
+    return;
+  }
+
+  adTesting.value = true;
+  adTestResult.value = null;
+
+  try {
+    console.log('📱 开始测试广告预览...');
+
+    // 构建查询参数
+    const params = new URLSearchParams({
+      advertiser_id: newGame.advertiser_id,
+      id_type: 'ID_TYPE_PROMOTION',
+      promotion_id: newGame.promotion_id
+    });
+
+    // 直接调用抖音广告预览二维码API
+    const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+    console.log('📥 广告预览测试响应:', result);
+
+    if (response.ok && result.code === 0) {
+      console.log('✅ 广告预览测试成功');
+
+      adTestResult.value = {
+        success: true,
+        message: '✅ 广告ID验证成功！可以生成预览二维码',
+      };
+    } else {
+      console.log('❌ 广告预览测试失败:', result.message || result.err_tips);
+
+      // 处理不同的错误格式和提供解决建议
+      let errorMessage = '广告ID验证失败';
+      let suggestion = '';
+
+      if (result.message) {
+        errorMessage = result.message;
+        if (result.message.includes('无效') || result.message.includes('不存在')) {
+          suggestion = '请检查广告主ID和广告ID是否正确。从抖音广告平台获取有效的ID。';
+        }
+      } else if (result.err_tips) {
+        errorMessage = result.err_tips;
+      }
+
+      adTestResult.value = {
+        success: false,
+        message: `❌ ${errorMessage}`,
+        error: errorMessage,
+        suggestion: suggestion || '请检查广告ID是否有效，或联系技术支持。'
+      };
+    }
+
+  } catch (err) {
+    console.error('❌ 测试广告预览时出错:', err);
+    adTestResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${err.message}`,
+      error: err.message
+    };
+  } finally {
+    adTesting.value = false;
+  }
+};
+
 const createGame = async () => {
   if (!newGame.name || !newGame.appid || !newGame.appSecret) {
     alert('请填写完整的游戏信息');
@@ -513,7 +797,9 @@ const createGame = async () => {
         name: newGame.name,
         appid: newGame.appid,
         appSecret: newGame.appSecret,
-        description: newGame.description
+        description: newGame.description,
+        advertiser_id: newGame.advertiser_id || undefined,
+        promotion_id: newGame.promotion_id || undefined
       })
     });
 
@@ -530,6 +816,185 @@ const createGame = async () => {
     alert(`创建失败: ${error.message}`);
   } finally {
     creating.value = false;
+  }
+};
+
+// 编辑游戏
+const editGame = (game) => {
+  editGameData.id = game.id;
+  editGameData.name = game.name;
+  editGameData.appid = game.appid;
+  editGameData.appSecret = game.app_secret || '';
+  editGameData.description = game.description || '';
+  editGameData.advertiser_id = game.advertiser_id || '';
+  editGameData.promotion_id = game.promotion_id || '';
+  showEditGameModal.value = true;
+  // 重置测试结果
+  testResult.value = null;
+  adTestResult.value = null;
+};
+
+// 测试编辑游戏连接
+const testEditGameConnection = async () => {
+  if (!editGameData.appid || !editGameData.appSecret) {
+    alert('请先填写App ID和App Secret');
+    return;
+  }
+
+  testing.value = true;
+  testResult.value = null;
+
+  try {
+    const response = await fetch('/api/douyin/test-connection', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appid: editGameData.appid,
+        secret: editGameData.appSecret
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && (result.code === 0 || result.err_no === 0)) {
+      testResult.value = {
+        success: true,
+        message: '✅ 连接成功！应用配置有效',
+        token: result.data?.access_token || 'token_received',
+        expiresIn: result.data?.expires_in || 7200
+      };
+    } else {
+      testResult.value = {
+        success: false,
+        message: `❌ 连接失败: ${result.err_tips || result.message || '未知错误'}`
+      };
+    }
+  } catch (error) {
+    testResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${error.message}`
+    };
+  } finally {
+    testing.value = false;
+  }
+};
+
+// 测试编辑广告预览
+const testEditAdPreview = async () => {
+  if (!editGameData.advertiser_id || !editGameData.promotion_id) {
+    alert('请先填写广告主ID和广告ID');
+    return;
+  }
+
+  adTesting.value = true;
+  adTestResult.value = null;
+
+  try {
+    console.log('📱 开始测试编辑游戏的广告预览...');
+
+    // 构建查询参数
+    const params = new URLSearchParams({
+      advertiser_id: editGameData.advertiser_id,
+      id_type: 'ID_TYPE_PROMOTION',
+      promotion_id: editGameData.promotion_id
+    });
+
+    // 直接调用抖音广告预览二维码API
+    const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+    console.log('📥 编辑游戏广告预览测试响应:', result);
+
+    if (response.ok && result.code === 0) {
+      console.log('✅ 编辑游戏广告预览测试成功');
+
+      adTestResult.value = {
+        success: true,
+        message: '✅ 广告ID验证成功！可以生成预览二维码',
+      };
+    } else {
+      console.log('❌ 编辑游戏广告预览测试失败:', result.message || result.err_tips);
+
+      // 处理不同的错误格式和提供解决建议
+      let errorMessage = '广告ID验证失败';
+      let suggestion = '';
+
+      if (result.message) {
+        errorMessage = result.message;
+        if (result.message.includes('无效') || result.message.includes('不存在')) {
+          suggestion = '请检查广告主ID和广告ID是否正确。从抖音广告平台获取有效的ID。';
+        }
+      } else if (result.err_tips) {
+        errorMessage = result.err_tips;
+      }
+
+      adTestResult.value = {
+        success: false,
+        message: `❌ ${errorMessage}`,
+        error: errorMessage,
+        suggestion: suggestion || '请检查广告ID是否有效，或联系技术支持。'
+      };
+    }
+
+  } catch (err) {
+    console.error('❌ 测试编辑游戏广告预览时出错:', err);
+    adTestResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${err.message}`,
+      error: err.message
+    };
+  } finally {
+    adTesting.value = false;
+  }
+};
+
+// 更新游戏
+const updateGame = async () => {
+  if (!editGameData.name || !editGameData.appid || !editGameData.appSecret) {
+    alert('请填写完整的游戏信息');
+    return;
+  }
+
+  editing.value = true;
+
+  try {
+    const response = await fetch(`/api/game/update/${editGameData.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: editGameData.name,
+        appid: editGameData.appid,
+        appSecret: editGameData.appSecret,
+        description: editGameData.description,
+        advertiser_id: editGameData.advertiser_id || undefined,
+        promotion_id: editGameData.promotion_id || undefined
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.code === 20000) {
+      alert('游戏更新成功！');
+      closeEditGameModal();
+      await loadGames(); // 重新加载游戏列表
+    } else {
+      alert(`更新失败: ${result.message || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`更新失败: ${error.message}`);
+  } finally {
+    editing.value = false;
   }
 };
 
@@ -703,7 +1168,25 @@ const closeCreateGameModal = () => {
   newGame.appid = '';
   newGame.appSecret = '';
   newGame.description = '';
+  newGame.advertiser_id = '';
+  newGame.promotion_id = '';
   testResult.value = null;
+  adTestResult.value = null;
+  adTesting.value = false;
+};
+
+const closeEditGameModal = () => {
+  showEditGameModal.value = false;
+  editGameData.id = null;
+  editGameData.name = '';
+  editGameData.appid = '';
+  editGameData.appSecret = '';
+  editGameData.description = '';
+  editGameData.advertiser_id = '';
+  editGameData.promotion_id = '';
+  testResult.value = null;
+  adTestResult.value = null;
+  adTesting.value = false;
 };
 
 const closeAssignModal = () => {
@@ -979,6 +1462,16 @@ onMounted(async () => {
   color: white;
 }
 
+.btn-ad-test {
+  background: linear-gradient(135deg, #ff9a56 0%, #ff6b35 100%);
+  color: white;
+  border: 1px solid #ff6b35;
+}
+
+.btn-ad-test:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff7a36 0%, #ff4d15 100%);
+}
+
 .btn-danger {
   background: #ff4d4f;
   color: white;
@@ -1026,6 +1519,17 @@ onMounted(async () => {
 .form-input textarea {
   resize: vertical;
   min-height: 80px;
+}
+
+.form-hint {
+  margin-top: 4px;
+  color: #86909c;
+  font-size: 12px;
+}
+
+.form-hint small {
+  display: block;
+  line-height: 1.4;
 }
 
 /* 模态框样式 */
@@ -1151,6 +1655,17 @@ onMounted(async () => {
 .test-details small {
   display: block;
   margin-bottom: 2px;
+}
+
+.test-suggestion {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.test-suggestion small {
+  color: #ff7875;
+  font-weight: 500;
 }
 
 /* 游戏信息区域 */

@@ -134,22 +134,22 @@
 
           <template #actions="{ record }">
             <a-popconfirm
-              title="确定要删除此游戏吗？"
-              ok-text="确定删除"
+              title="确定要移除此游戏权限吗？"
+              ok-text="确定移除"
               cancel-text="取消"
               @ok="handleDeleteGame(record)"
             >
               <template #content>
                 <div style="color: #ff4d4f; font-weight: 500;">
-                  此操作不可恢复！<br>
-                  将删除游戏及其所有用户权限记录。
+                  此操作将移除用户对该游戏的访问权限。<br>
+                  游戏本身不会被删除，其他用户仍可正常使用。
                 </div>
               </template>
               <a-button type="text" size="small" style="color: #ff4d4f;">
                 <template #icon>
                   <icon-delete />
                 </template>
-                删除游戏
+                移除权限
               </a-button>
             </a-popconfirm>
           </template>
@@ -223,6 +223,32 @@
             ></textarea>
           </div>
 
+          <div class="form-item">
+            <label>广告主ID</label>
+            <input
+              v-model="newGame.advertiser_id"
+              type="text"
+              placeholder="输入广告主ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告主ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
+          <div class="form-item">
+            <label>广告ID</label>
+            <input
+              v-model="newGame.promotion_id"
+              type="text"
+              placeholder="输入广告ID（可选，用于广告预览）"
+              class="form-input"
+            />
+            <div class="form-hint">
+              <small>💡 广告ID用于生成广告预览二维码，从抖音广告平台获取</small>
+            </div>
+          </div>
+
           <!-- 测试连接区域 -->
           <div class="test-section" v-if="newGame.appid && newGame.appSecret">
             <div class="test-header">
@@ -241,6 +267,31 @@
                 >
                   {{ testing ? '测试中...' : '测试连接' }}
                 </button>
+              </div>
+            </div>
+
+            <!-- 广告ID测试区域 -->
+            <div class="ad-test-section" v-if="newGame.advertiser_id && newGame.promotion_id">
+              <div class="test-header">
+                <h4>📱 广告预览测试</h4>
+                <button
+                  @click="testAdPreview"
+                  :disabled="adTesting"
+                  class="btn btn-outline btn-ad-test"
+                >
+                  {{ adTesting ? '测试中...' : '测试广告ID' }}
+                </button>
+              </div>
+
+              <!-- 广告测试结果显示 -->
+              <div v-if="adTestResult" class="test-result" :class="{ 'success': adTestResult.success, 'error': !adTestResult.success }">
+                <div class="test-message">{{ adTestResult.message }}</div>
+                <div v-if="adTestResult.success" class="test-details">
+                  <small>✅ 广告ID验证成功，可以生成预览二维码</small>
+                </div>
+                <div v-if="!adTestResult.success && adTestResult.suggestion" class="test-suggestion">
+                  <small>💡 {{ adTestResult.suggestion }}</small>
+                </div>
               </div>
             </div>
 
@@ -278,7 +329,7 @@ import { ref, reactive, onMounted, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { IconRefresh, IconDelete } from '@arco-design/web-vue/es/icon';
 import useUserStore from '@/store/modules/user';
-import { getUserBasicList, getUserGames, assignGameToUser, createGame, deleteGame, type UserBasicItem, type UserGameListRes } from '@/api/user';
+import { getUserBasicList, getUserGames, assignGameToUser, createGame, deleteGame, removeUserGame, type UserBasicItem, type UserGameListRes } from '@/api/user';
 
 // 响应式数据
 const userLoading = ref(false);
@@ -294,11 +345,18 @@ const showAddGameModal = ref(false);
 const saving = ref(false);
 const testing = ref(false);
 const testResult = ref(null);
+
+// 广告测试相关
+const adTesting = ref(false);
+const adTestResult = ref(null);
+
 const newGame = reactive({
   name: '',
   appid: '',
   appSecret: '',
-  description: ''
+  description: '',
+  advertiser_id: '',
+  promotion_id: ''
 });
 
 // 用户Store
@@ -447,22 +505,22 @@ const refreshGames = () => {
 
 
 
-// 处理删除游戏
+// 处理删除游戏权限
 const handleDeleteGame = async (record: any) => {
   try {
-    console.log('🗑️ 开始删除游戏:', record.game.name);
+    console.log('🗑️ 开始移除用户游戏权限:', record.game.name);
 
-    await deleteGame(record.game.id);
-    Message.success(`游戏 "${record.game.name}" 删除成功`);
+    const userId = parseInt(selectedUserId.value);
+    await removeUserGame(userId, record.game.id);
+    Message.success(`游戏 "${record.game.name}" 权限移除成功`);
 
     // 刷新游戏列表
     if (selectedUserId.value) {
-      const userId = parseInt(selectedUserId.value);
       await loadUserGames(userId);
     }
   } catch (error) {
-    console.error('删除游戏失败:', error);
-    Message.error('删除游戏失败');
+    console.error('移除游戏权限失败:', error);
+    Message.error('移除游戏权限失败');
   }
 };
 
@@ -484,6 +542,8 @@ const openAddGameModal = () => {
   newGame.appid = '';
   newGame.appSecret = '';
   newGame.description = '';
+  newGame.advertiser_id = '';
+  newGame.promotion_id = '';
   testResult.value = null;
   testing.value = false;
 };
@@ -504,8 +564,12 @@ const closeGameModal = () => {
   newGame.appid = '';
   newGame.appSecret = '';
   newGame.description = '';
+  newGame.advertiser_id = '';
+  newGame.promotion_id = '';
   testResult.value = null;
   testing.value = false;
+  adTestResult.value = null;
+  adTesting.value = false;
 };
 
 // 测试游戏连接
@@ -580,6 +644,81 @@ const testGameConnection = async () => {
     };
   } finally {
     testing.value = false;
+  }
+};
+
+// 测试广告预览
+const testAdPreview = async () => {
+  if (!newGame.advertiser_id || !newGame.promotion_id) {
+    alert('请先填写广告主ID和广告ID');
+    return;
+  }
+
+  adTesting.value = true;
+  adTestResult.value = null;
+
+  try {
+    console.log('📱 开始测试广告预览...');
+
+    // 构建查询参数
+    const params = new URLSearchParams({
+      advertiser_id: newGame.advertiser_id,
+      id_type: 'ID_TYPE_PROMOTION',
+      promotion_id: newGame.promotion_id
+    });
+
+    // 直接调用抖音广告预览二维码API
+    const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await response.json();
+    console.log('📥 广告预览测试响应:', result);
+
+    if (response.ok && result.code === 0) {
+      console.log('✅ 广告预览测试成功');
+
+      adTestResult.value = {
+        success: true,
+        message: '✅ 广告ID验证成功！可以生成预览二维码',
+      };
+    } else {
+      console.log('❌ 广告预览测试失败:', result.message || result.err_tips);
+
+      // 处理不同的错误格式和提供解决建议
+      let errorMessage = '广告ID验证失败';
+      let suggestion = '';
+
+      if (result.message) {
+        errorMessage = result.message;
+        if (result.message.includes('无效') || result.message.includes('不存在')) {
+          suggestion = '请检查广告主ID和广告ID是否正确。从抖音广告平台获取有效的ID。';
+        }
+      } else if (result.err_tips) {
+        errorMessage = result.err_tips;
+      }
+
+      adTestResult.value = {
+        success: false,
+        message: `❌ ${errorMessage}`,
+        error: errorMessage,
+        suggestion: suggestion || '请检查广告ID是否有效，或联系技术支持。'
+      };
+    }
+
+  } catch (err) {
+    console.error('❌ 测试广告预览时出错:', err);
+    adTestResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${err.message}`,
+      error: err.message
+    };
+  } finally {
+    adTesting.value = false;
   }
 };
 
@@ -678,7 +817,9 @@ const saveNewGame = async () => {
         name: newGame.name,
         appid: newGame.appid,
         appSecret: newGame.appSecret,
-        description: newGame.description
+        description: newGame.description,
+        advertiser_id: newGame.advertiser_id || undefined,
+        promotion_id: newGame.promotion_id || undefined
       };
       console.log('📤 发送游戏保存请求:', gameData);
 
@@ -1117,6 +1258,16 @@ onMounted(() => {
 .btn-outline:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-ad-test {
+  background: linear-gradient(135deg, #ff9a56 0%, #ff6b35 100%);
+  color: white;
+  border: 1px solid #ff6b35;
+}
+
+.btn-ad-test:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff7a36 0%, #ff4d15 100%);
 }
 
 .test-result {

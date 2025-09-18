@@ -15,7 +15,7 @@ const generateRecord = (index) => {
     username: '用户' + Random.integer(1000, 9999),
     ip: Random.ip(),
     city: Random.city(true),
-    phone_brand: Random.pick(['Apple', 'Samsung', 'Huawei', 'Xiaomi', 'OPPO', 'vivo']),
+    phone_brand: Random.pick(['Apple', 'Samsung', '华为', '荣耀', '小米', 'OPPO', 'vivo']),
     phone_model: Random.pick(['iPhone 14', 'Galaxy S22', 'Mate 40', 'Mi 12', 'Find X5', 'Y75'])
   };
 };
