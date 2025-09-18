@@ -368,7 +368,9 @@ const loadAppList = async () => {
               owner: currentUser?.name || 'unknown',
               validated: game.validated,
               validatedAt: game.validated_at,
-              created_at: game.created_at
+              created_at: game.created_at,
+              advertiser_id: game.advertiser_id,
+              promotion_id: game.promotion_id
             });
           }
         }
@@ -715,7 +717,12 @@ const showQrPreviewModalFunc = async () => {
     showQrPreviewModal.value = true;
   } catch (error) {
     console.error('❌ 显示预览二维码失败:', error);
-    alert('获取二维码失败，请稍后重试');
+    // 如果是配置错误，给出具体的提示
+    if (error.message.includes('未配置广告ID')) {
+      alert(error.message);
+    } else {
+      alert('获取二维码失败，请稍后重试');
+    }
   }
 };
 
@@ -788,11 +795,28 @@ const fetchRealAdPreviewQrCode = async () => {
   try {
     console.log('🔄 开始获取真实的广告预览二维码...');
 
-    // 使用测试参数（需要根据实际需求配置）
+    // 获取当前选中的应用配置
+    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+    if (!selectedApp) {
+      throw new Error('未选择有效的应用');
+    }
+
+    // 检查应用是否有广告ID配置
+    if (!selectedApp.advertiser_id || !selectedApp.promotion_id) {
+      throw new Error(`应用 "${selectedApp.name}" 未配置广告ID。请在游戏管理页面为该应用设置广告主ID和广告ID。`);
+    }
+
+    console.log('📋 使用应用配置:', {
+      appName: selectedApp.name,
+      advertiser_id: selectedApp.advertiser_id,
+      promotion_id: selectedApp.promotion_id
+    });
+
+    // 使用应用配置的参数
     const params = new URLSearchParams({
-      advertiser_id: '1843320456982026', // 测试广告主ID
+      advertiser_id: selectedApp.advertiser_id,
       id_type: 'ID_TYPE_PROMOTION',
-      promotion_id: '7550558554752532523' // 测试广告ID
+      promotion_id: selectedApp.promotion_id
     });
 
     const response = await fetch(`/api/douyin/ad-preview-qrcode?${params.toString()}`, {
@@ -817,7 +841,11 @@ const fetchRealAdPreviewQrCode = async () => {
 
   } catch (error) {
     console.error('❌ 获取广告预览二维码失败:', error);
-    // 返回默认的预览URL作为降级方案
+    // 如果是配置错误，直接抛出错误提示用户
+    if (error.message.includes('未配置广告ID')) {
+      throw error;
+    }
+    // 其他错误返回默认的预览URL作为降级方案
     return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
   }
 };

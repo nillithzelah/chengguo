@@ -963,7 +963,7 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
       // 管理员可以看到所有活跃游戏
       const games = await Game.findAll({
         where: { status: 'active' },
-        attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret'],
+        attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret', 'advertiser_id', 'promotion_id'],
         order: [['created_at', 'DESC']]
       });
 

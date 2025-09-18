@@ -112,7 +112,7 @@ async function queryGames(Game) {
   console.log('='.repeat(50));
 
   const games = await Game.findAll({
-    attributes: ['id', 'appid', 'name', 'status', 'validated', 'validated_at', 'created_at'],
+    attributes: ['id', 'appid', 'name', 'status', 'validated', 'validated_at', 'advertiser_id', 'promotion_id', 'created_at'],
     order: [['created_at', 'ASC']]
   });
 
@@ -126,6 +126,8 @@ async function queryGames(Game) {
       状态: game.status === 'active' ? '✅ 活跃' : game.status === 'inactive' ? '⏸️ 非活跃' : '🚫 暂停',
       已验证: game.validated ? '✅ 是' : '❌ 否',
       验证时间: game.validated_at ? game.validated_at.toLocaleString('zh-CN') : '未验证',
+      广告主ID: game.advertiser_id || '未设置',
+      广告ID: game.promotion_id || '未设置',
       创建时间: game.created_at.toLocaleString('zh-CN')
     })));
   }
