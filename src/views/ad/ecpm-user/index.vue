@@ -244,8 +244,8 @@
             <div class="qr-details">
               <p><strong>用途:</strong> 抖音广告预览</p>
               <p><strong>说明:</strong> 扫描二维码可预览广告效果</p>
-              <p><strong>广告主ID:</strong> 1843320456982026</p>
-              <p><strong>广告ID:</strong> 7550558554752532523</p>
+              <!-- <p><strong>广告主ID:</strong> 1843320456982026</p>
+              <p><strong>广告ID:</strong> 7550558554752532523</p> -->
               <p><strong>生成时间:</strong> {{ new Date().toLocaleString() }}</p>
             </div>
             <div class="qr-code-large">
