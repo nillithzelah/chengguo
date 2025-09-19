@@ -123,6 +123,22 @@
             <div v-else class="text-muted">系统分配</div>
           </template>
 
+          <template #ad_info="{ record }">
+            <div class="ad-info">
+              <div v-if="record.game.advertiser_id" class="ad-item">
+                <span class="ad-label">广告主ID:</span>
+                <span class="ad-value">{{ record.game.advertiser_id }}</span>
+              </div>
+              <div v-if="record.game.promotion_id" class="ad-item">
+                <span class="ad-label">广告ID:</span>
+                <span class="ad-value">{{ record.game.promotion_id }}</span>
+              </div>
+              <div v-if="!record.game.advertiser_id && !record.game.promotion_id" class="no-ad">
+                未设置
+              </div>
+            </div>
+          </template>
+
           <template #status="{ record }">
             <a-tag
               :color="record.game.validated ? 'green' : 'orange'"
@@ -374,6 +390,11 @@ const gameColumns = [
     dataIndex: 'role',
     slotName: 'role',
     width: 120
+  },
+  {
+    title: '广告信息',
+    slotName: 'ad_info',
+    width: 200
   },
   {
     title: '分配时间',
@@ -1045,6 +1066,34 @@ onMounted(() => {
     }
 
     .text-muted {
+      color: var(--color-text-3);
+      font-style: italic;
+    }
+
+    .ad-info {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .ad-item {
+      margin-bottom: 2px;
+    }
+
+    .ad-label {
+      color: var(--color-text-3);
+      margin-right: 4px;
+    }
+
+    .ad-value {
+      color: var(--color-text-1);
+      font-family: monospace;
+      background: #f5f5f5;
+      padding: 1px 4px;
+      border-radius: 2px;
+      font-size: 11px;
+    }
+
+    .no-ad {
       color: var(--color-text-3);
       font-style: italic;
     }

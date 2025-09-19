@@ -718,11 +718,11 @@ const showQrPreviewModalFunc = async () => {
   } catch (error) {
     console.error('❌ 显示预览二维码失败:', error);
     // 如果是配置错误，给出具体的提示
-    if (error.message.includes('未配置广告ID')) {
-      alert(error.message);
-    } else {
-      alert('获取二维码失败，请稍后重试');
-    }
+    // if (error.message.includes('未配置广告ID')) {
+    //   alert(error.message);
+    // } else {
+    //   alert('获取二维码失败，请稍后重试');
+    // }
   }
 };
 
@@ -803,7 +803,8 @@ const fetchRealAdPreviewQrCode = async () => {
 
     // 检查应用是否有广告ID配置
     if (!selectedApp.advertiser_id || !selectedApp.promotion_id) {
-      throw new Error(`应用 "${selectedApp.name}" 未配置广告ID。请在游戏管理页面为该应用设置广告主ID和广告ID。`);
+      alert(`应用 "${selectedApp.name}" 未配置广告预览二维码`);
+      return;
     }
 
     console.log('📋 使用应用配置:', {
@@ -822,7 +823,8 @@ const fetchRealAdPreviewQrCode = async () => {
     const response = await fetch(`/api/douyin/ad-preview-qrcode?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Access-Token': `958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15`
       }
     });
 

@@ -14,6 +14,7 @@ async function initializeDatabase() {
   const defineUserModel = require('../models/User');
   const defineGameModel = require('../models/Game');
   const defineUserGameModel = require('../models/UserGame');
+  const defineUserDeviceModel = require('../models/UserDevice');
 
   // 获取sequelize实例
   const { sequelize } = require('../config/database');
@@ -22,6 +23,7 @@ async function initializeDatabase() {
   const User = defineUserModel(sequelize);
   const Game = defineGameModel(sequelize);
   const UserGame = defineUserGameModel(sequelize);
+  const UserDevice = defineUserDeviceModel(sequelize);
 
   // 定义模型关联关系
   User.belongsToMany(Game, {
@@ -53,7 +55,13 @@ async function initializeDatabase() {
     as: 'assignedByUser'
   });
 
-  return { User, Game, UserGame };
+  // UserDevice关联关系
+  UserDevice.belongsTo(User, {
+    foreignKey: 'user_id',
+    as: 'user'
+  });
+
+  return { User, Game, UserGame, UserDevice };
 }
 
 async function showDatabaseData() {
@@ -63,7 +71,7 @@ async function showDatabaseData() {
   try {
     // 1. 初始化数据库连接和模型
     console.log('📡 初始化数据库连接...');
-    const { User, Game, UserGame } = await initializeDatabase();
+    const { User, Game, UserGame, UserDevice } = await initializeDatabase();
 
     // 2. 显示用户表数据
     console.log('\n👥 用户表 (users) 数据:');
@@ -92,7 +100,7 @@ async function showDatabaseData() {
     console.log('\n🎮 游戏表 (games) 数据:');
     console.log('-'.repeat(30));
     const games = await Game.findAll({
-      attributes: ['id', 'appid', 'name', 'status', 'validated', 'validated_at', 'created_at'],
+      attributes: ['id', 'appid', 'name', 'status', 'validated', 'validated_at', 'advertiser_id', 'promotion_id', 'created_at'],
       order: [['created_at', 'ASC']]
     });
 
@@ -106,6 +114,8 @@ async function showDatabaseData() {
         状态: game.status === 'active' ? '✅ 活跃' : game.status === 'inactive' ? '⏸️ 非活跃' : '🚫 暂停',
         已验证: game.validated ? '✅ 是' : '❌ 否',
         验证时间: game.validated_at ? game.validated_at.toLocaleString('zh-CN') : '未验证',
+        广告主ID: game.advertiser_id || '未设置',
+        广告ID: game.promotion_id || '未设置',
         创建时间: game.created_at.toLocaleString('zh-CN')
       })));
     }
@@ -148,18 +158,55 @@ async function showDatabaseData() {
       })));
     }
 
-    // 5. 显示数据统计
+    // 4. 显示用户设备表数据
+    console.log('\n📱 用户设备表 (user_devices) 数据:');
+    console.log('-'.repeat(50));
+    const userDevices = await UserDevice.findAll({
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['username', 'name']
+        }
+      ],
+      order: [['last_login_at', 'DESC']]
+    });
+
+    if (userDevices.length === 0) {
+      console.log('📝 用户设备表为空');
+    } else {
+      console.table(userDevices.map(ud => ({
+        ID: ud.id,
+        用户: ud.user ? `${ud.user.name}(${ud.user.username})` : '未知用户',
+        设备ID: ud.device_id,
+        设备品牌: ud.device_brand || '未知',
+        设备型号: ud.device_model || '未知',
+        平台: ud.platform || '未知',
+        浏览器: ud.browser_name ? `${ud.browser_name} ${ud.browser_version || ''}`.trim() : '未知',
+        操作系统: ud.os_name ? `${ud.os_name} ${ud.os_version || ''}`.trim() : '未知',
+        设备类型: ud.device_type || '未知',
+        当前设备: ud.is_current_device ? '✅ 是' : '❌ 否',
+        最后登录: ud.last_login_at ? ud.last_login_at.toLocaleString('zh-CN') : '未登录',
+        登录次数: ud.login_count,
+        创建时间: ud.created_at.toLocaleString('zh-CN')
+      })));
+    }
+
+    // 6. 显示数据统计
     console.log('\n📈 数据统计:');
     console.log('-'.repeat(20));
     console.log(`👥 总用户数: ${users.length}`);
     console.log(`🎮 总游戏数: ${games.length}`);
     console.log(`🔗 用户游戏关联数: ${userGames.length}`);
+    console.log(`📱 用户设备记录数: ${userDevices.length}`);
 
     const activeUsers = users.filter(u => u.is_active).length;
     const activeGames = games.filter(g => g.status === 'active').length;
+    const currentDevices = userDevices.filter(d => d.is_current_device).length;
 
     console.log(`✅ 活跃用户数: ${activeUsers}`);
     console.log(`✅ 活跃游戏数: ${activeGames}`);
+    console.log(`📱 当前设备数: ${currentDevices}`);
 
     // 6. 显示eCPM数据说明
     console.log('\n💡 eCPM数据说明:');

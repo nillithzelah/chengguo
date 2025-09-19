@@ -61,6 +61,8 @@
           <div class="game-info">
             <p><strong>App ID:</strong> {{ game.appid }}</p>
             <p><strong>描述:</strong> {{ game.description || '无' }}</p>
+            <p><strong>广告主ID:</strong> {{ game.advertiser_id || '未设置' }}</p>
+            <p><strong>广告ID:</strong> {{ game.promotion_id || '未设置' }}</p>
             <p><strong>创建时间:</strong> {{ formatDate(game.created_at) }}</p>
           </div>
           <div class="game-actions" v-if="canModify">
@@ -170,32 +172,6 @@
               </button>
             </div>
 
-            <!-- 广告ID测试区域 - 已隐藏 -->
-            <!--
-            <div class="ad-test-section" v-if="newGame.advertiser_id && newGame.promotion_id">
-              <div class="test-header">
-                <h4>📱 广告预览测试</h4>
-                <button
-                  @click="testAdPreview"
-                  :disabled="adTesting"
-                  class="btn btn-outline btn-ad-test"
-                >
-                  {{ adTesting ? '测试中...' : '测试广告ID' }}
-                </button>
-              </div>
-
-              <!-- 广告测试结果显示 -->
-              <div v-if="adTestResult" class="test-result" :class="{ 'success': adTestResult.success, 'error': !adTestResult.success }">
-                <div class="test-message">{{ adTestResult.message }}</div>
-                <div v-if="adTestResult.success" class="test-details">
-                  <small>✅ 广告ID验证成功，可以生成预览二维码</small>
-                </div>
-                <div v-if="!adTestResult.success && adTestResult.suggestion" class="test-suggestion">
-                  <small>💡 {{ adTestResult.suggestion }}</small>
-                </div>
-              </div>
-            </div>
-            -->
 
             <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
               <div class="test-message">{{ testResult.message }}</div>
@@ -308,32 +284,6 @@
               </button>
             </div>
 
-            <!-- 广告预览测试区域 - 已隐藏 -->
-            <!--
-            <div class="ad-test-section" v-if="editGameData.advertiser_id && editGameData.promotion_id">
-              <div class="test-header">
-                <h4>📱 广告预览测试</h4>
-                <button
-                  @click="testEditAdPreview"
-                  :disabled="adTesting"
-                  class="btn btn-outline btn-ad-test"
-                >
-                  {{ adTesting ? '测试中...' : '测试广告ID' }}
-                </button>
-              </div>
-
-              <!-- 广告测试结果显示 -->
-              <div v-if="adTestResult" class="test-result" :class="{ 'success': adTestResult.success, 'error': !adTestResult.success }">
-                <div class="test-message">{{ adTestResult.message }}</div>
-                <div v-if="adTestResult.success" class="test-details">
-                  <small>✅ 广告ID验证成功，可以生成预览二维码</small>
-                </div>
-                <div v-if="!adTestResult.success && adTestResult.suggestion" class="test-suggestion">
-                  <small>💡 {{ adTestResult.suggestion }}</small>
-                </div>
-              </div>
-            </div>
-            -->
 
             <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
               <div class="test-message">{{ testResult.message }}</div>
@@ -478,6 +428,7 @@
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">

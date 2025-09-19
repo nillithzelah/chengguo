@@ -620,6 +620,7 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
         g.id as "game.id", g.appid as "game.appid", g.name as "game.name",
         g.app_secret as "game.appSecret", g.description as "game.description",
         g.status as "game.status", g.validated as "game.validated",
+        g.advertiser_id as "game.advertiser_id", g.promotion_id as "game.promotion_id",
         g.created_at as "game.created_at",
         u.username as "assignedByUser.username", u.name as "assignedByUser.name"
       FROM user_games ug
@@ -643,6 +644,8 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
         description: item['game.description'],
         status: item['game.status'],
         validated: item['game.validated'],
+        advertiser_id: item['game.advertiser_id'],
+        promotion_id: item['game.promotion_id'],
         created_at: item['game.created_at']
       },
       role: item.role,
@@ -869,7 +872,9 @@ app.get('/api/game/:id/users', authenticateJWT, async (req, res) => {
         game: {
           id: game.id,
           name: game.name,
-          appid: game.appid
+          appid: game.appid,
+          advertiser_id: game.advertiser_id,
+          promotion_id: game.promotion_id
         },
         users: formattedUsers,
         total: formattedUsers.length
@@ -983,7 +988,8 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
           model: Game,
           as: 'game',
           where: { status: 'active' },
-          required: true
+          required: true,
+          attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret', 'advertiser_id', 'promotion_id']
         }],
         order: [['assigned_at', 'DESC']]
       });

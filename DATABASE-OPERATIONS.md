@@ -58,6 +58,35 @@ node scripts/test-db-connection.js
 - assigned_at: 分配时间
 - assigned_by: 分配人ID
 
+### user_devices表
+- id: 主键
+- user_id: 用户ID
+- device_id: 设备唯一标识
+- device_brand: 设备品牌
+- device_model: 设备型号
+- friendly_model: 友好型号名称
+- platform: 平台
+- browser_name: 浏览器名称
+- browser_version: 浏览器版本
+- os_name: 操作系统名称
+- os_version: 操作系统版本
+- device_type: 设备类型
+- screen_width: 屏幕宽度
+- screen_height: 屏幕高度
+- screen_pixel_ratio: 屏幕像素比
+- viewport_width: 视窗宽度
+- viewport_height: 视窗高度
+- language: 语言
+- timezone: 时区
+- user_agent: User-Agent字符串
+- ip_address: IP地址
+- is_current_device: 是否为当前使用的设备
+- last_login_at: 最后登录时间
+- login_count: 登录次数
+- environment: 运行环境
+- created_at: 创建时间
+- updated_at: 更新时间
+
 ## 🚀 常用脚本
 
 ### 数据库初始化
@@ -158,6 +187,28 @@ const gameUsers = await UserGame.findAll({
 });
 ```
 
+### 查看用户设备信息
+```javascript
+// 获取用户的所有设备
+const userDevices = await UserDevice.findAll({
+  where: { user_id: userId },
+  order: [['last_login_at', 'DESC']]
+});
+
+// 获取用户的当前设备
+const currentDevice = await UserDevice.findOne({
+  where: {
+    user_id: userId,
+    is_current_device: true
+  }
+});
+
+// 根据设备ID查找设备
+const device = await UserDevice.findOne({
+  where: { device_id: 'device123' }
+});
+```
+
 ## ✏️ 数据修改操作
 
 ### 创建用户
@@ -190,6 +241,29 @@ const userGame = await UserGame.create({
   role: 'viewer',
   assigned_by: adminId
 });
+```
+
+### 创建设备记录
+```javascript
+const deviceInfo = {
+  device_id: 'device123',
+  device_brand: 'Apple',
+  device_model: 'iPhone 12',
+  platform: 'iOS',
+  browser_name: 'Safari',
+  os_name: 'iOS',
+  device_type: 'mobile',
+  screen_width: 375,
+  screen_height: 812,
+  ip_address: '192.168.1.1'
+};
+
+const device = await UserDevice.findOrCreateDevice(userId, deviceInfo);
+```
+
+### 设置当前设备
+```javascript
+await UserDevice.setCurrentDevice(userId, 'device123');
 ```
 
 ### 更新数据
@@ -278,6 +352,36 @@ const validatedGames = await Game.count({
 });
 ```
 
+### 设备统计
+```javascript
+// 用户设备总数
+const totalDevices = await UserDevice.count();
+
+// 某用户的设备数
+const userDeviceCount = await UserDevice.count({
+  where: { user_id: userId }
+});
+
+// 按设备品牌统计
+const brandStats = await UserDevice.findAll({
+  attributes: [
+    'device_brand',
+    [sequelize.fn('COUNT', sequelize.col('device_brand')), 'count']
+  ],
+  group: 'device_brand',
+  order: [[sequelize.fn('COUNT', sequelize.col('device_brand')), 'DESC']]
+});
+
+// 按设备类型统计
+const typeStats = await UserDevice.findAll({
+  attributes: [
+    'device_type',
+    [sequelize.fn('COUNT', sequelize.col('device_type')), 'count']
+  ],
+  group: 'device_type'
+});
+```
+
 ## 🔗 关联查询
 
 ### 获取用户及其游戏
@@ -327,15 +431,26 @@ await User.destroy({
     }
   }
 });
+
+// 清理用户的旧设备记录（保留最近10个）
+await UserDevice.cleanupOldDevices(userId, 10);
+
+// 清理所有用户的旧设备记录
+const users = await User.findAll({ attributes: ['id'] });
+for (const user of users) {
+  await UserDevice.cleanupOldDevices(user.id, 10);
+}
 ```
 
 ## ⚠️ 注意事项
 
 1. **密码安全**: 密码必须通过bcrypt哈希后存储
-2. **外键约束**: 删除用户时会自动删除关联的user_games记录
+2. **外键约束**: 删除用户时会自动删除关联的user_games和user_devices记录
 3. **事务**: 重要操作建议使用事务保证数据一致性
 4. **权限检查**: 修改操作前检查用户权限
 5. **数据验证**: 插入数据前进行必要的验证
+6. **设备信息**: 用户设备信息应定期更新，保留最近的设备记录以节省存储空间
+7. **隐私保护**: 设备信息包含敏感数据，需遵守隐私政策和数据保护法规
 
 ## 🐛 常见问题
 

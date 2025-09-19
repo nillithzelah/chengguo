@@ -122,6 +122,8 @@ export interface GameInfo {
   description: string;
   status: string;
   validated: boolean;
+  advertiser_id?: string;
+  promotion_id?: string;
   created_at: string;
 }
 
