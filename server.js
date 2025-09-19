@@ -1516,9 +1516,12 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     // 步骤1: 使用已知的有效access_token
     console.log('📍 步骤1: 使用已知的有效access_token');
 
-    // 使用之前测试时有效的token
+    // 使用有效的测试token（需要定期更新）
     const accessToken = '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15';
     console.log('✅ 使用预配置的access_token');
+
+    // 如果token过期，可以在这里添加动态获取逻辑
+    // TODO: 实现token刷新机制
 
     // 步骤2: 调用广告预览二维码API
     console.log('📍 步骤2: 获取广告预览二维码');

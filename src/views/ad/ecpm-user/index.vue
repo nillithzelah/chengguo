@@ -824,7 +824,7 @@ const fetchRealAdPreviewQrCode = async () => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Access-Token': `958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15`
+        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15'
       }
     });
 
@@ -837,6 +837,8 @@ const fetchRealAdPreviewQrCode = async () => {
 
     if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
       return result.data.data.qrcode_msg_url;
+    } else if (result.code === 40102 || result.message?.includes('access_token已过期')) {
+      throw new Error('访问令牌已过期，请联系管理员更新令牌');
     } else {
       throw new Error(result.message || '获取二维码失败');
     }
