@@ -104,3 +104,10 @@ temp/
 
 # PM2
 ecosystem.config.js
+
+# Large deployment files
+chengguo-deploy.tar.gz
+chengguo-deploy.zip
+douyin-admin.tar.gz
+dist-final-clean.zip
+ad-preview-qr.png

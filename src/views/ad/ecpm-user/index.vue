@@ -838,7 +838,8 @@ const fetchRealAdPreviewQrCode = async () => {
     if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
       return result.data.data.qrcode_msg_url;
     } else if (result.code === 40102 || result.message?.includes('access_token已过期')) {
-      throw new Error('访问令牌已过期，请联系管理员更新令牌');
+      // 如果token过期，返回指定的预览URL作为降级方案
+      return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
     } else {
       throw new Error(result.message || '获取二维码失败');
     }
@@ -850,7 +851,7 @@ const fetchRealAdPreviewQrCode = async () => {
       throw error;
     }
     // 其他错误返回默认的预览URL作为降级方案
-    return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
+    return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl3tsFmV2ZFom18zZ98xKelk=&type=preview';
   }
 };
 
@@ -896,7 +897,7 @@ const copyPreviewQrUrl = async () => {
     console.error('❌ 复制链接失败:', err);
     // 降级方案
     const textArea = document.createElement('textarea');
-    textArea.value = 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
+    textArea.value = 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl3tsFmV2ZFom18zZ98xKelk=&type=preview';
     document.body.appendChild(textArea);
     textArea.select();
     document.execCommand('copy');
