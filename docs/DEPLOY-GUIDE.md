@@ -14,6 +14,9 @@ npm run build
 ```bash
 # 在服务器上备份
 cp database.sqlite database.sqlite.backup.$(date +%Y%m%d_%H%M%S)
+
+# 如果使用 PostgreSQL，也备份数据库
+# pg_dump -h localhost -U postgres -d chengguo_db > postgres_backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 ## 🔧 服务器部署步骤
@@ -23,8 +26,11 @@ cp database.sqlite database.sqlite.backup.$(date +%Y%m%d_%H%M%S)
 # 上传构建文件
 scp -r dist/* user@your-server:/var/www/html/
 
+# 上传数据库文件（SQLite）
+scp database.sqlite user@your-server:/path/to/your/app/database.sqlite
+
 # 上传数据库迁移脚本
-scp scripts/add-ad-fields-to-server.js user@your-server:/path/to/your/app/scripts/
+scp scripts/add-ad-fields.js user@your-server:/path/to/your/app/scripts/
 ```
 
 ### 步骤2: 在服务器上运行数据库迁移
@@ -35,8 +41,12 @@ ssh user@your-server
 # 进入项目目录
 cd /path/to/your/app
 
+# 设置数据库文件权限
+chown www-data:www-data database.sqlite
+chmod 664 database.sqlite
+
 # 运行数据库迁移脚本
-node scripts/add-ad-fields-to-server.js
+node scripts/add-ad-fields.js
 ```
 
 ### 步骤3: 重启服务
@@ -72,8 +82,11 @@ curl -I http://your-server.com
 
 ### 2. 检查数据库字段
 ```bash
-# 在服务器上检查
+# SQLite 检查
 sqlite3 database.sqlite "PRAGMA table_info(games);"
+
+# PostgreSQL 检查（如果使用）
+# psql -h localhost -U postgres -d chengguo_db -c "\d games"
 ```
 
 ### 3. 验证功能
@@ -91,9 +104,13 @@ ls -la database.sqlite
 # 检查Node.js版本
 node --version
 
-# 手动执行SQL
-sqlite3 database.sqlite "ALTER TABLE games ADD advertiser_id VARCHAR(50) NULL;"
-sqlite3 database.sqlite "ALTER TABLE games ADD promotion_id VARCHAR(50) NULL;"
+# SQLite 手动执行SQL
+sqlite3 database.sqlite "ALTER TABLE games ADD advertiser_id VARCHAR(50);"
+sqlite3 database.sqlite "ALTER TABLE games ADD promotion_id VARCHAR(50);"
+
+# PostgreSQL 手动执行SQL（如果使用）
+# psql -h localhost -U postgres -d chengguo_db -c "ALTER TABLE games ADD COLUMN IF NOT EXISTS advertiser_id VARCHAR(50);"
+# psql -h localhost -U postgres -d chengguo_db -c "ALTER TABLE games ADD COLUMN IF NOT EXISTS promotion_id VARCHAR(50);"
 ```
 
 ### 如果网站无法访问

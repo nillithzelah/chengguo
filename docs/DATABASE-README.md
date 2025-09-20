@@ -1,21 +1,24 @@
-# PostgreSQL 用户数据存储实现
+# 数据库用户数据存储实现
 
 ## 📋 概述
 
-本项目已成功实现基于PostgreSQL的用户数据存储系统，替代了原有的硬编码用户数据和IndexedDB存储方案。
+本项目默认使用 SQLite 数据库（开发环境），支持切换到 PostgreSQL（生产环境），通过 Sequelize ORM 实现用户数据持久化存储，替代了原有的硬编码用户数据和 IndexedDB 存储方案。
 
 ## 🏗️ 架构设计
 
 ### 1. 数据库配置
 - **文件**: `config/database.js`
-- **功能**: Sequelize ORM配置，数据库连接管理
-- **特性**: 连接池、事务支持、环境变量配置
+- **功能**: Sequelize ORM 配置，数据库连接管理
+- **特性**:
+  - 默认 SQLite（开发环境，零配置）
+  - 可切换 PostgreSQL（生产环境，高可用）
+  - 连接池、事务支持、环境变量配置
 
 ### 2. 用户模型
 - **文件**: `models/User.js`
 - **功能**: 用户数据模型定义
 - **特性**:
-  - 密码bcrypt加密
+  - 密码 bcrypt 加密
   - 数据验证
   - 便捷查询方法
   - 前端数据格式转换
@@ -23,7 +26,7 @@
 ### 3. 数据库初始化
 - **文件**: `scripts/init-db.js`
 - **功能**: 数据库表创建和初始数据填充
-- **特性**: 自动创建管理员和测试用户
+- **特性**: 自动创建管理员和测试用户，支持 SQLite 和 PostgreSQL
 
 ### 4. API接口
 - **文件**: `server.js`
@@ -77,7 +80,11 @@
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑数据库配置
+# SQLite 配置（默认推荐）
+# 无需额外配置，database.sqlite 文件自动创建
+
+# PostgreSQL 配置（生产环境可选）
+# DB_TYPE=postgres
 # DB_HOST=localhost
 # DB_PORT=5432
 # DB_NAME=chengguo_db
@@ -125,59 +132,109 @@ npm run dev
 
 ### 动态创建用户
 通过前端界面可以创建新用户，所有新用户都会：
-- 密码通过bcrypt加密存储
-- 保存到PostgreSQL数据库
+- 密码通过 bcrypt 加密存储
+- 保存到数据库（SQLite 或 PostgreSQL）
 - 支持角色分配
 
 ## 📊 数据表结构
 
 ### users表
 ```sql
+-- SQLite 语法
 CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   username VARCHAR(50) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(100),
   email VARCHAR(100) UNIQUE,
-  role ENUM('admin', 'user', 'moderator') DEFAULT 'user',
+  role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user', 'moderator', 'viewer', 'super_viewer')),
   avatar TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  last_login_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  is_active BOOLEAN DEFAULT 1,
+  last_login_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- PostgreSQL 语法（如果切换）
+-- CREATE TABLE users (
+--   id SERIAL PRIMARY KEY,
+--   username VARCHAR(50) UNIQUE NOT NULL,
+--   password_hash VARCHAR(255) NOT NULL,
+--   name VARCHAR(100),
+--   email VARCHAR(100) UNIQUE,
+--   role ENUM('admin', 'user', 'moderator', 'viewer', 'super_viewer') DEFAULT 'user',
+--   avatar TEXT,
+--   is_active BOOLEAN DEFAULT TRUE,
+--   last_login_at TIMESTAMP,
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
 ```
 
 ### games表
 ```sql
+-- SQLite 语法
 CREATE TABLE games (
-  id SERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   appid VARCHAR(100) UNIQUE NOT NULL,
   name VARCHAR(200) NOT NULL,
   app_secret TEXT NOT NULL,
   description TEXT,
-  status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
-  validated BOOLEAN DEFAULT FALSE,
-  validated_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'suspended')),
+  validated BOOLEAN DEFAULT 0,
+  validated_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  advertiser_id VARCHAR(50),
+  promotion_id VARCHAR(50)
 );
+
+-- PostgreSQL 语法（如果切换）
+-- CREATE TABLE games (
+--   id SERIAL PRIMARY KEY,
+--   appid VARCHAR(100) UNIQUE NOT NULL,
+--   name VARCHAR(200) NOT NULL,
+--   app_secret TEXT NOT NULL,
+--   description TEXT,
+--   status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+--   validated BOOLEAN DEFAULT FALSE,
+--   validated_at TIMESTAMP,
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   advertiser_id VARCHAR(50),
+--   promotion_id VARCHAR(50)
+-- );
 ```
 
 ### user_games表 (用户-游戏关联表)
 ```sql
+-- SQLite 语法
 CREATE TABLE user_games (
-  id SERIAL PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  role ENUM('owner', 'viewer', 'editor') DEFAULT 'viewer',
-  permissions JSON DEFAULT '{}',
-  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  role TEXT DEFAULT 'viewer' CHECK(role IN ('owner', 'viewer', 'editor')),
+  permissions TEXT DEFAULT '{}',
+  assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   assigned_by INTEGER NOT NULL REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, game_id)
 );
+
+-- PostgreSQL 语法（如果切换）
+-- CREATE TABLE user_games (
+--   id SERIAL PRIMARY KEY,
+--   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--   game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+--   role ENUM('owner', 'viewer', 'editor') DEFAULT 'viewer',
+--   permissions JSONB DEFAULT '{}',
+--   assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   assigned_by INTEGER NOT NULL REFERENCES users(id),
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   UNIQUE(user_id, game_id)
+-- );
 ```
 
 ## 📝 eCPM数据存储策略
@@ -322,11 +379,13 @@ const getEcpmData = async (gameId, date) => {
 
 ### 数据库连接问题
 ```bash
-# 检查PostgreSQL服务状态
-sudo systemctl status postgresql
+# SQLite 检查
+ls -la database.sqlite
+node scripts/test-db-connection.js
 
-# 测试数据库连接
-npm run db:test
+# PostgreSQL 检查（如果使用）
+# sudo systemctl status postgresql
+# psql -h localhost -U postgres -d chengguo_db -c "SELECT 1;"
 ```
 
 ### 用户登录问题
@@ -398,18 +457,18 @@ node -e "require('./config/database').sequelize.getQueryInterface().showAllTable
 
 ## ✅ 实现状态
 
-- ✅ PostgreSQL数据库配置
+- ✅ 数据库配置（SQLite 默认，支持 PostgreSQL）
 - ✅ 用户模型和验证
 - ✅ 密码加密存储
-- ✅ JWT认证系统
+- ✅ JWT 认证系统
 - ✅ 角色权限控制
 - ✅ 游戏模型和关联表
 - ✅ 用户-游戏多对多关系
 - ✅ 游戏权限管理
-- ✅ eCPM数据实时查询策略（不存储）
+- ✅ eCPM 数据实时查询策略（不存储）
 - ✅ 前后端数据同步
 - ✅ 数据库初始化脚本
-- ✅ API接口实现
+- ✅ API 接口实现
 - ✅ 错误处理和日志
 - ✅ 安全配置和验证
 
@@ -430,4 +489,4 @@ node -e "require('./config/database').sequelize.getQueryInterface().showAllTable
 - **响应速度** - 减少数据库查询开销
 - **可扩展性** - 支持未来功能扩展
 
- **PostgreSQL用户数据存储系统已优化完成，采用更高效的数据处理策略！**
+ **数据库用户数据存储系统已优化完成，默认使用 SQLite，生产环境可切换 PostgreSQL！**

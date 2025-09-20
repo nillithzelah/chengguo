@@ -1,58 +1,52 @@
 #!/usr/bin/env node
 
-// PostgreSQL版本的广告字段添加脚本
-const { sequelize } = require('../config/database');
+// 广告字段添加脚本（支持 SQLite 和 PostgreSQL）
+const { sequelize, dbConfig } = require('../config/database');
 
-async function addAdFieldsPostgres() {
+async function addAdFields() {
   try {
-    console.log('🏗️ 添加广告字段到games表 (PostgreSQL)...');
+    console.log(`🏗️ 添加广告字段到games表 (${dbConfig.dialect} 数据库)...`);
 
     await sequelize.authenticate();
     console.log('✅ 数据库连接成功');
 
-    // 检查games表是否存在
-    const [tables] = await sequelize.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'games'
-    `);
-    if (tables.length === 0) {
-      console.log('❌ games表不存在');
-      process.exit(1);
-    }
+    // 使用 Sequelize 的模型方式检查和添加字段（跨数据库兼容）
+    const { Game } = require('../config/database');
+    
+    // 检查是否需要添加字段
+    const needsAdvertiserId = !Game.rawAttributes.advertiser_id;
+    const needsPromotionId = !Game.rawAttributes.promotion_id;
 
-    // 获取当前表结构
-    const [columns] = await sequelize.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'games'
-    `);
-    const columnNames = columns.map(col => col.column_name);
-    const hasAdvertiserId = columnNames.includes('advertiser_id');
-    const hasPromotionId = columnNames.includes('promotion_id');
-
-    // 添加advertiser_id字段
-    if (!hasAdvertiserId) {
-      console.log('📝 添加advertiser_id字段...');
-      await sequelize.query(`ALTER TABLE games ADD COLUMN advertiser_id VARCHAR(50) NULL`);
-      console.log('✅ advertiser_id字段添加成功');
+    if (needsAdvertiserId || needsPromotionId) {
+      console.log('🔄 同步数据库模型以添加新字段...');
+      await sequelize.sync({ alter: true });
+      console.log('✅ 数据库结构已更新');
     } else {
-      console.log('ℹ️ advertiser_id字段已存在');
+      console.log('ℹ️ 广告字段已存在，无需修改');
     }
 
-    // 添加promotion_id字段
-    if (!hasPromotionId) {
-      console.log('📝 添加promotion_id字段...');
-      await sequelize.query(`ALTER TABLE games ADD COLUMN promotion_id VARCHAR(50) NULL`);
-      console.log('✅ promotion_id字段添加成功');
+    // 验证字段已添加
+    const updatedGameModel = require('../models/Game')(sequelize);
+    const hasAdvertiserId = !!updatedGameModel.rawAttributes.advertiser_id;
+    const hasPromotionId = !!updatedGameModel.rawAttributes.promotion_id;
+
+    console.log('📊 字段检查结果:');
+    console.log(`  advertiser_id: ${hasAdvertiserId ? '✅ 存在' : '❌ 缺失'}`);
+    console.log(`  promotion_id: ${hasPromotionId ? '✅ 存在' : '❌ 缺失'}`);
+
+    if (hasAdvertiserId && hasPromotionId) {
+      console.log('🎉 广告字段添加完成！');
     } else {
-      console.log('ℹ️ promotion_id字段已存在');
+      console.log('⚠️  部分字段添加失败，请检查数据库权限');
     }
-
-    console.log('🎉 广告字段添加完成！');
 
   } catch (error) {
     console.error('❌ 添加字段失败:', error.message);
+    
+    if (error.name === 'SequelizeDatabaseError') {
+      console.log('💡 可能需要数据库管理员权限或手动执行 ALTER TABLE 语句');
+    }
+    
     process.exit(1);
   } finally {
     await sequelize.close();
@@ -60,7 +54,7 @@ async function addAdFieldsPostgres() {
 }
 
 if (require.main === module) {
-  addAdFieldsPostgres();
+  addAdFields();
 }
 
-module.exports = addAdFieldsPostgres;
+module.exports = addAdFields;

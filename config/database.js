@@ -37,10 +37,10 @@ const sequelize = new Sequelize(dbConfig);
 const testConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ PostgreSQL数据库连接成功');
+    console.log('✅ 数据库连接成功');
     return true;
   } catch (error) {
-    console.error('❌ PostgreSQL数据库连接失败:', error.message);
+    console.error('❌ 数据库连接失败:', error.message);
     return false;
   }
 };

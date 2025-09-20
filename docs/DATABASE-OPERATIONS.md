@@ -2,7 +2,7 @@
 
 ## 📋 概述
 
-本项目使用PostgreSQL数据库，通过Sequelize ORM进行数据操作。本文档提供常用的数据库操作命令和脚本使用指南。
+本项目默认使用 SQLite 数据库（开发环境），支持切换到 PostgreSQL（生产环境），通过 Sequelize ORM 进行数据操作。本文档提供常用的数据库操作命令和脚本使用指南。
 
 ## 🔧 数据库配置
 
@@ -11,12 +11,16 @@
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑数据库配置
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=chengguo_db
-DB_USER=postgres
-DB_PASSWORD=your_password
+# SQLite 配置（默认，开发环境推荐）
+# DB_TYPE=sqlite  # 默认值，无需设置
+
+# PostgreSQL 配置（生产环境可选）
+# DB_TYPE=postgres
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_NAME=chengguo_db
+# DB_USER=postgres
+# DB_PASSWORD=your_password
 ```
 
 ### 测试连接
@@ -410,14 +414,20 @@ const gameWithUsers = await Game.findOne({
 
 ### 数据库备份
 ```bash
-# 使用pg_dump备份
-pg_dump -h localhost -U postgres -d chengguo_db > backup.sql
+# SQLite 备份（推荐，简单快速）
+cp database.sqlite database_backup_$(date +%Y%m%d_%H%M%S).sqlite
+
+# PostgreSQL 备份（如果使用 PostgreSQL）
+# pg_dump -h localhost -U postgres -d chengguo_db > backup.sql
 ```
 
 ### 数据库恢复
 ```bash
-# 从备份恢复
-psql -h localhost -U postgres -d chengguo_db < backup.sql
+# SQLite 恢复
+cp database_backup_YYYYMMDD_HHMMSS.sqlite database.sqlite
+
+# PostgreSQL 恢复（如果使用 PostgreSQL）
+# psql -h localhost -U postgres -d chengguo_db < backup.sql
 ```
 
 ### 清理过期数据
@@ -455,9 +465,10 @@ for (const user of users) {
 ## 🐛 常见问题
 
 ### 连接失败
-- 检查PostgreSQL服务是否启动
-- 验证环境变量配置
-- 确认数据库存在
+- **SQLite**: 检查 `database.sqlite` 文件是否存在和权限
+- **PostgreSQL**: 检查服务是否启动（`systemctl status postgresql`）
+- 验证环境变量配置（`cat .env | grep DB_`）
+- 运行测试命令：`node scripts/test-db-connection.js`
 
 ### 权限错误
 - 检查用户角色设置

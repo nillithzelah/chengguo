@@ -1496,6 +1496,218 @@ app.post('/api/douyin/test-connection', async (req, res) => {
   }
 });
 
+// Token刷新函数
+async function refreshAccessToken() {
+  try {
+    console.log('🔄 开始刷新access_token...');
+
+    const refreshRequestData = {
+      app_id: '1843500894701081', // 应用ID
+      appid: 'tt8c62fadf136c334702', // 小游戏App ID (保持字符串格式)
+      secret: '56808246ee49c052ecc7be8be79551859837409e', // App Secret
+      refresh_token: 'ff66bfc4e0566b489f49b84f6581f61319257e79', // 刷新token
+      grant_type: 'refresh_token'
+    };
+
+    console.log('📤 刷新token请求参数:', JSON.stringify(refreshRequestData, null, 2));
+
+    const refreshResponse = await axios.post('https://api.oceanengine.com/open_api/oauth2/refresh_token/', refreshRequestData, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    console.log('📥 刷新token响应:', JSON.stringify(refreshResponse.data, null, 2));
+
+    if (refreshResponse.data.code === 0 && refreshResponse.data.data) {
+      const newAccessToken = refreshResponse.data.data.access_token;
+      const newRefreshToken = refreshResponse.data.data.refresh_token;
+
+      console.log('✅ Token刷新成功');
+      return {
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken,
+        expires_in: refreshResponse.data.data.expires_in
+      };
+    } else {
+      console.error('❌ Token刷新失败:', refreshResponse.data.message);
+      throw new Error(refreshResponse.data.message || 'Token刷新失败');
+    }
+  } catch (error) {
+    console.error('❌ Token刷新异常:', error.message);
+    throw error;
+  }
+}
+
+// Token刷新API
+// app.post('/api/douyin/refresh-token', async (req, res) => {
+//   console.log('🔄 Token刷新API请求');
+
+//   try {
+//     const { refresh_token } = req.body;
+
+//     if (!refresh_token) {
+//       return res.status(400).json({
+//         error: '缺少参数',
+//         message: '请提供refresh_token参数'
+//       });
+//     }
+
+//     console.log('📋 刷新token参数验证通过');
+
+//     // 调用抖音token刷新API
+//     const refreshRequestData = {
+//       app_id: '1843500894701081', // 应用ID
+//       appid: 'tt8c62fadf136c334702', // 小游戏App ID
+//       secret: '56808246ee49c052ecc7be8be79551859837409e', // App Secret
+//       refresh_token: refresh_token,
+//       grant_type: 'refresh_token'
+//     };
+
+//     console.log('📤 发送刷新请求到抖音API...');
+
+//     const refreshResponse = await axios.post('https://api.oceanengine.com/open_api/oauth2/refresh_token/', refreshRequestData, {
+//       headers: {
+//         'Content-Type': 'application/json'
+//       },
+//       timeout: 15000
+//     });
+
+//     console.log('📥 抖音API响应:', JSON.stringify(refreshResponse.data, null, 2));
+
+//     if (refreshResponse.data.code === 0 && refreshResponse.data.data) {
+//       console.log('✅ Token刷新成功');
+
+//       res.json({
+//         code: 0,
+//         message: 'Token刷新成功',
+//         data: {
+//           access_token: refreshResponse.data.data.access_token,
+//           refresh_token: refreshResponse.data.data.refresh_token,
+//           expires_in: refreshResponse.data.data.expires_in
+//         }
+//       });
+//     } else {
+//       console.error('❌ Token刷新失败:', refreshResponse.data.message);
+
+//       res.status(400).json({
+//         code: 400,
+//         message: refreshResponse.data.message || 'Token刷新失败',
+//         details: refreshResponse.data
+//       });
+//     }
+
+//   } catch (error) {
+//     console.error('❌ Token刷新API异常:', error.message);
+
+//     if (error.response) {
+//       console.error('📄 抖音API错误响应:', {
+//         status: error.response.status,
+//         data: error.response.data
+//       });
+//     }
+
+//     res.status(500).json({
+//       error: 'Token刷新失败',
+//       message: error.message || '网络请求失败',
+//       code: error.response?.status || 'API_ERROR'
+//     });
+//   }
+// });
+
+// 测试直接API调用
+app.get('/api/douyin/test-direct-api', async (req, res) => {
+  console.log('🧪 测试直接API调用请求');
+
+  try {
+    const { advertiser_id, id_type, promotion_id } = req.query;
+
+    if (!advertiser_id || !id_type || !promotion_id) {
+      return res.status(400).json({
+        error: '缺少参数',
+        message: '请提供 advertiser_id, id_type, promotion_id 参数'
+      });
+    }
+
+    console.log('📋 测试参数:', { advertiser_id, id_type, promotion_id });
+
+    // 从请求头获取access_token
+    const accessToken = req.headers['access-token'] || req.headers['Access-Token'];
+    if (!accessToken) {
+      return res.status(400).json({
+        error: '缺少认证',
+        message: '请提供 Access-Token 请求头'
+      });
+    }
+
+    console.log('🔑 使用access_token进行测试');
+
+    // 构建直接API URL
+    const directUrl = `https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/`;
+    const params = {
+      advertiser_id: advertiser_id,
+      id_type: id_type,
+      promotion_id: promotion_id
+    };
+
+    console.log('📤 直接调用抖音API:', directUrl);
+    console.log('📤 请求参数:', JSON.stringify(params, null, 2));
+
+    // 直接调用抖音API
+    const response = await axios.get(directUrl, {
+      params: params,
+      headers: {
+        'Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    console.log('📥 抖音API原始响应:', JSON.stringify(response.data, null, 2));
+
+    res.json({
+      code: 0,
+      message: '直接API测试成功',
+      originalResponse: response.data,
+      requestInfo: {
+        url: directUrl,
+        params: params,
+        accessToken: accessToken.substring(0, 20) + '...'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 直接API测试失败:', error.message);
+
+    if (error.response) {
+      console.error('📄 抖音API错误响应:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+
+      res.status(error.response.status).json({
+        error: '抖音API调用失败',
+        message: error.response.data?.message || error.message,
+        details: error.response.data,
+        requestInfo: {
+          url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
+          params: req.query
+        }
+      });
+    } else {
+      res.status(500).json({
+        error: '网络请求失败',
+        message: error.message || '无法连接到抖音API',
+        requestInfo: {
+          url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
+          params: req.query
+        }
+      });
+    }
+  }
+});
+
 // 广告预览二维码获取API
 app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
   console.log('🚀 ===== 开始广告预览二维码获取流程 =====');
@@ -1514,11 +1726,12 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     console.log('📋 请求参数:', { advertiser_id, id_type, promotion_id });
 
     // 步骤1: 使用已知的有效access_token
-    console.log('📍 步骤1: 使用已知的有效access_token');
+    console.log('📍 步骤1: 获取有效的access_token');
 
-    // 使用有效的测试token（需要定期更新）
-    const accessToken = '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15';
-    console.log('✅ 使用预配置的access_token');
+    // 使用有效的token配置
+    let accessToken = 'd0294ed262b6ad013ad84003a4b51b575905fd85';
+    const refreshToken = 'ff66bfc4e0566b489f49b84f6581f61319257e79';
+    console.log('✅ 使用有效的access_token');
 
     // 如果token过期，可以在这里添加动态获取逻辑
     // TODO: 实现token刷新机制
@@ -1553,6 +1766,52 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
 
     if (qrResponse.data.code !== 0) {
       console.error('❌ 二维码获取失败:', qrResponse.data.message);
+
+      // 如果是token过期错误，尝试刷新token
+      if (qrResponse.data.code === 40102 || qrResponse.data.message?.includes('access_token已过期')) {
+        console.log('🔄 检测到token过期，尝试刷新token...');
+
+        try {
+          const newTokenData = await refreshAccessToken();
+          accessToken = newTokenData.access_token;
+
+          console.log('✅ Token刷新成功，重试二维码获取...');
+
+          // 使用新token重试请求
+          const retryResponse = await axios.get('https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/', {
+            params: qrParams,
+            headers: {
+              'Access-Token': accessToken,
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000
+          });
+
+          if (retryResponse.data.code === 0) {
+            console.log('✅ 重试成功，二维码获取成功');
+            return res.json({
+              code: 0,
+              message: 'success',
+              data: retryResponse.data.data,
+              token_info: {
+                access_token: accessToken.substring(0, 20) + '...',
+                expires_in: newTokenData.expires_in,
+                note: '使用刷新后的access_token'
+              },
+              request_log: {
+                qr_request: {
+                  url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
+                  params: qrParams,
+                  response: retryResponse.data
+                }
+              }
+            });
+          }
+        } catch (refreshError) {
+          console.error('❌ Token刷新失败:', refreshError.message);
+        }
+      }
+
       return res.status(500).json({
         error: '二维码获取失败',
         message: qrResponse.data.message,
@@ -1733,6 +1992,186 @@ app.get('/api/douyin/ecpm', async (req, res) => {
   }
 });
 
+// 通用API代理端点 - 用于解决前端跨域问题
+app.post('/api/douyin/proxy', async (req, res) => {
+  console.log('🔗 通用API代理请求');
+
+  try {
+    const { url, method = 'GET', headers = {}, body, params } = req.body;
+
+    if (!url) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必要的参数：url'
+      });
+    }
+
+    console.log('📡 代理请求:', { url, method, hasBody: !!body, hasParams: !!params });
+
+    // 构建请求配置
+    const requestConfig = {
+      method: method.toUpperCase(),
+      url: url,
+      timeout: 15000,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'DouyinGameAds-Proxy/1.0',
+        ...headers
+      }
+    };
+
+    // 添加查询参数
+    if (params && Object.keys(params).length > 0) {
+      requestConfig.params = params;
+    }
+
+    // 添加请求体
+    if (body && (method.toUpperCase() === 'POST' || method.toUpperCase() === 'PUT')) {
+      requestConfig.data = body;
+    }
+
+    console.log('📤 发送代理请求到:', url);
+
+    const response = await axios(requestConfig);
+
+    console.log('📥 代理响应状态:', response.status);
+
+    res.json({
+      code: 0,
+      message: '代理请求成功',
+      data: {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: response.data
+      },
+      request: {
+        url: url,
+        method: method,
+        headers: headers,
+        params: params,
+        hasBody: !!body
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 代理请求失败:', error.message);
+
+    if (error.response) {
+      console.error('📄 目标API错误响应:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+
+      res.status(error.response.status).json({
+        code: error.response.status,
+        message: '目标API返回错误',
+        error: error.response.data,
+        request: {
+          url: req.body.url,
+          method: req.body.method
+        }
+      });
+    } else {
+      res.status(500).json({
+        code: 500,
+        message: '代理请求失败',
+        error: error.message,
+        request: {
+          url: req.body.url,
+          method: req.body.method
+        }
+      });
+    }
+  }
+});
+
+// 巨量广告第三方监测链接端点
+app.get('/openid/report', async (req, res) => {
+  console.log('📊 收到巨量广告监测请求:', req.query);
+  console.log('📊 请求头信息:', {
+    'user-agent': req.headers['user-agent'],
+    'x-forwarded-for': req.headers['x-forwarded-for'],
+    'x-real-ip': req.headers['x-real-ip'],
+    'referer': req.headers.referer
+  });
+
+  try {
+    // 提取监测参数
+    const {
+      promotionid,
+      mid1,
+      imei,
+      oaid,
+      androidid,
+      os,
+      TIMESTAMP: timestamp,
+      callback
+    } = req.query;
+
+    // 构建监测数据对象
+    const monitorData = {
+      promotion_id: promotionid,
+      mid1: mid1,
+      imei: imei,
+      oaid: oaid,
+      android_id: androidid,
+      os: os,
+      timestamp: timestamp,
+      callback_param: callback,
+      user_agent: req.headers['user-agent'],
+      ip_address: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.ip,
+      received_at: new Date().toISOString(),
+      source: 'oceanengine_monitor'
+    };
+
+    console.log('📝 解析的监测数据:', monitorData);
+
+    // TODO: 将数据保存到数据库
+    // 这里可以根据需要保存到专门的广告监测表中
+    // 例如：await saveAdMonitorData(monitorData);
+
+    // 返回成功响应
+    const response = {
+      code: 0,
+      message: 'success',
+      received: true,
+      timestamp: new Date().toISOString(),
+      data: {
+        promotion_id: promotionid,
+        processed: true
+      }
+    };
+
+    // 如果有回调参数，使用JSONP格式返回
+    if (callback) {
+      console.log('📞 使用JSONP回调响应:', callback);
+      res.type('application/javascript');
+      return res.send(`${callback}(${JSON.stringify(response)})`);
+    } else {
+      // 普通JSON响应
+      res.json(response);
+    }
+
+  } catch (error) {
+    console.error('❌ 处理广告监测数据时出错:', error);
+
+    const errorResponse = {
+      code: -1,
+      message: '处理失败',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+
+    if (req.query.callback) {
+      res.type('application/javascript');
+      res.send(`${req.query.callback}(${JSON.stringify(errorResponse)})`);
+    } else {
+      res.status(500).json(errorResponse);
+    }
+  }
+});
+
 // 健康检查端点
 app.get('/api/health', (req, res) => {
   res.json({
@@ -1770,10 +2209,17 @@ async function startServer() {
     if (!isConnected) {
       console.error('❌ 数据库连接失败，请检查配置');
       console.log('💡 请确保：');
-      console.log('   1. PostgreSQL服务正在运行');
-      console.log('   2. .env文件配置正确');
-      console.log('   3. 数据库和用户已创建');
-      console.log('   4. 运行: node scripts/init-db.js');
+      const { dbConfig } = require('./config/database');
+      if (dbConfig.dialect === 'sqlite') {
+        console.log('   1. 项目目录可写（database.sqlite 文件）');
+        console.log('   2. sequelize 和 sqlite3 依赖已安装');
+        console.log('   3. 运行: node scripts/init-db.js');
+      } else {
+        console.log('   1. PostgreSQL服务正在运行');
+        console.log('   2. .env文件配置正确');
+        console.log('   3. 数据库和用户已创建');
+        console.log('   4. 运行: node scripts/init-db.js');
+      }
       process.exit(1);
     }
 

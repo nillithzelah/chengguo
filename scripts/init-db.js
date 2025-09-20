@@ -44,7 +44,7 @@ UserGame.belongsTo(User, {
 // 这样可以减少存储成本，提高数据实时性
 
 async function initializeDatabase() {
-  console.log('🚀 开始初始化PostgreSQL数据库...');
+  console.log('🚀 开始初始化数据库...');
 
   try {
     // 1. 测试数据库连接

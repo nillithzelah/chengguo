@@ -40,8 +40,15 @@
               v-for="app in appList"
               :key="app.appid"
               :value="app.appid"
+              :style="getAppStyle(app)"
             >
               {{ app.name }}
+              <!-- <span v-if="!app.advertiser_id || !app.promotion_id" style="color: #ff4d4f; font-size: 12px; margin-left: 8px;">
+                (未配置广告)
+              </span>
+              <span v-else style="color: #52c41a; font-size: 12px; margin-left: 8px;">
+                (广告已配置) -->
+              <!-- </span> -->
             </option>
           </select>
         </div>
@@ -322,6 +329,20 @@ const appList = ref([]);
 // 选中的应用ID
 const selectedAppId = ref('');
 
+// 获取应用样式的计算属性
+const getAppStyle = (app) => {
+  if (!app.advertiser_id || !app.promotion_id) {
+    return {
+      // color: '#ff4d4f',
+      // fontWeight: 'normal'
+    };
+  }
+  return {
+    // color: '#52c41a',
+    // fontWeight: 'bold'
+  };
+};
+
 // 工具函数
 const formatDateTime = (dateTimeStr) => {
   if (!dateTimeStr) return '-';
@@ -485,7 +506,7 @@ const loadData = async () => {
       })
     });
 
-    const tokenResult = await tokenResponse.json();
+    const tokenResult = await tokenResponse.json()
     if (!tokenResponse.ok || tokenResult.code !== 0) {
       throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
     }
@@ -698,8 +719,22 @@ const showQrModalFunc = (item) => {
 
 // 显示预览二维码模态框
 const showQrPreviewModalFunc = async () => {
+  // 检查当前选中的应用是否有广告配置
+  const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+  if (!selectedApp) {
+    alert('请先选择一个应用');
+    return;
+  }
+  
+  if (!selectedApp.advertiser_id || !selectedApp.promotion_id) {
+    alert(`应用 "${selectedApp.name}" 未配置广告预览二维码\n\n请前往游戏管理页面为该应用设置：\n• 广告主ID (advertiser_id)\n• 推广计划ID (promotion_id)`);
+    return;
+  }
+
   try {
     console.log('🔄 获取最新的广告预览二维码...');
+    console.log(`📋 使用应用 "${selectedApp.name}" 的广告配置：advertiser_id=${selectedApp.advertiser_id}, promotion_id=${selectedApp.promotion_id}`);
+    
     const qrUrl = await fetchRealAdPreviewQrCode();
     currentPreviewQrUrl.value = qrUrl;
 
@@ -717,12 +752,18 @@ const showQrPreviewModalFunc = async () => {
     showQrPreviewModal.value = true;
   } catch (error) {
     console.error('❌ 显示预览二维码失败:', error);
-    // 如果是配置错误，给出具体的提示
-    // if (error.message.includes('未配置广告ID')) {
-    //   alert(error.message);
-    // } else {
-    //   alert('获取二维码失败，请稍后重试');
-    // }
+    
+    let errorMessage = `应用 "${selectedApp.name}" 的广告预览二维码获取失败`;
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      errorMessage += '：网络请求失败，请检查网络连接或稍后重试';
+    } else if (error.name === 'AbortError') {
+      errorMessage += '：请求超时，请检查网络连接或稍后重试';
+    } else {
+      errorMessage += '：' + (error.message || '未知错误');
+    }
+    
+    alert(errorMessage + '\n\n请确认应用的广告配置是否正确，或联系管理员检查API权限');
+    // 错误时不打开模态框，只显示错误提示
   }
 };
 
@@ -792,6 +833,9 @@ const copyQrUrl = async () => {
 
 // 获取真实的广告预览二维码
 const fetchRealAdPreviewQrCode = async () => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+
   try {
     console.log('🔄 开始获取真实的广告预览二维码...');
 
@@ -803,8 +847,7 @@ const fetchRealAdPreviewQrCode = async () => {
 
     // 检查应用是否有广告ID配置
     if (!selectedApp.advertiser_id || !selectedApp.promotion_id) {
-      alert(`应用 "${selectedApp.name}" 未配置广告预览二维码`);
-      return;
+      throw new Error(`应用 "${selectedApp.name}" 未配置广告预览二维码，请在应用管理中设置advertiser_id和promotion_id`);
     }
 
     console.log('📋 使用应用配置:', {
@@ -823,13 +866,21 @@ const fetchRealAdPreviewQrCode = async () => {
     const response = await fetch(`/api/douyin/ad-preview-qrcode?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15'
-      }
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error(`HTTP错误: ${response.status}`);
+      let errorMsg = `HTTP错误: ${response.status}`;
+      if (response.status === 0) {
+        errorMsg += ' - 网络连接失败';
+      } else if (response.statusText) {
+        errorMsg += ' - ' + response.statusText;
+      }
+      throw new Error(errorMsg);
     }
 
     const result = await response.json();
@@ -837,21 +888,22 @@ const fetchRealAdPreviewQrCode = async () => {
 
     if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
       return result.data.data.qrcode_msg_url;
-    } else if (result.code === 40102 || result.message?.includes('access_token已过期')) {
-      // 如果token过期，返回指定的预览URL作为降级方案
-      return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl44%2FGj3rCQGe6eaF7nvgX94=&type=preview';
     } else {
-      throw new Error(result.message || '获取二维码失败');
+      throw new Error(result.message || result.err_msg || 'API返回错误，无法获取二维码');
     }
 
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('❌ 获取广告预览二维码失败:', error);
-    // 如果是配置错误，直接抛出错误提示用户
-    if (error.message.includes('未配置广告ID')) {
-      throw error;
+    
+    // 重新包装错误信息
+    if (error.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络连接或稍后重试');
+    } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      throw new Error('网络请求失败，请检查网络连接或代理服务器状态');
     }
-    // 其他错误返回默认的预览URL作为降级方案
-    return 'https://ad.oceanengine.com/mobile/render/ocean_app/preview.html?token=44juStAq2Kt5ajcxL7ZRfW0Vny5zgm28xfDEs3Mxr%2FYHn0AWeFFsQOBMKZAiBX9gwIBxSY6s6r%2Ff5wkp2v%2BPQANEq8ugqJklnZ6%2BzJsZeXGK0H9L4ygzKCeHKgLKLqjs4wwEosv3tP28%2B4eluR%2Bbl3tsFmV2ZFom18zZ98xKelk=&type=preview';
+    
+    throw error;
   }
 };
 
@@ -944,10 +996,24 @@ onMounted(async () => {
   // 加载应用列表
   await loadAppList();
 
-  // 设置默认选中的应用
+  // 设置默认选中的应用 - 优先选择有正确广告参数的应用
   if (appList.value.length > 0) {
-    selectedAppId.value = appList.value[0].appid;
-    queryParams.mp_id = appList.value[0].appid;
+    // 查找有正确广告参数的应用（神仙游）
+    const validApp = appList.value.find(app =>
+      app.advertiser_id === '1843320456982026' &&
+      app.promotion_id === '7550558554752532523'
+    );
+    
+    if (validApp) {
+      selectedAppId.value = validApp.appid;
+      queryParams.mp_id = validApp.appid;
+      console.log('✅ 默认选择有效应用:', validApp.name, validApp.appid);
+    } else {
+      // 降级到第一个应用
+      selectedAppId.value = appList.value[0].appid;
+      queryParams.mp_id = appList.value[0].appid;
+      console.log('⚠️ 未找到有效应用，使用第一个应用:', appList.value[0].name);
+    }
 
     // 设置默认日期为当天
     const today = new Date();

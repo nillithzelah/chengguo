@@ -77,7 +77,7 @@ axios.interceptors.response.use(
       isMatch: res.code === 20000
     });
 
-    if (res.code !== 20000) {
+    if (res.code !== 20000 && res.code !== 0) {
       console.log('axios.interceptor.response: 响应码不匹配，抛出错误');
       Message.error({
         content: res.msg || 'Error',

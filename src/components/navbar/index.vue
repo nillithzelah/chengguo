@@ -149,7 +149,7 @@
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
   const avatar = computed(() => {
-    return userStore.avatar;
+    return userStore.avatar || '/src/assets/images/avatar-user.svg';
   });
   const theme = computed(() => {
     return appStore.theme;

@@ -31,7 +31,7 @@ interface DouyinGameAdListRes {
   list: DouyinGameAdRecord[];
   total: number;
 }
-import { oceanEngineService } from './oceanengine-service';
+import { douyinApiService as oceanEngineService } from './douyin-service';
 
 // 抖音API响应格式
 interface DouyinApiResponse<T> {
@@ -76,7 +76,7 @@ class DouyinAdService {
   private async initialize() {
     try {
       // 预加载token
-      await oceanEngineService.getAdList({ advertiser_id: '' }).catch(() => {
+      await oceanEngineService.getEcpmData({ mp_id: 'tt8c62fadf136c334702' }).catch(() => {
         console.warn('预加载OceanEngine服务失败，将在首次请求时重试');
       });
     } catch (error) {
@@ -189,10 +189,9 @@ class DouyinAdService {
   // 获取广告列表
   async getAdList(params: DouyinGameAdParams): Promise<DouyinGameAdListRes> {
     try {
-      const response = await oceanEngineService.getAdList({
-        advertiser_id: params.advertiserId || '',
-        filtering: this.buildFiltering(params),
-        page: params.current || 1,
+      const response = await oceanEngineService.getEcpmData({
+        mp_id: params.advertiserId || 'tt8c62fadf136c334702',
+        page_no: params.current || 1,
         page_size: params.pageSize || 20,
       });
 
@@ -245,9 +244,7 @@ class DouyinAdService {
   // 获取广告统计数据
   async getAdStatistics(advertiserId: string) {
     try {
-      const response = await oceanEngineService.getAdvertiserReport(advertiserId, [
-        'cost', 'show', 'click', 'convert', 'ctr', 'total_ads'
-      ]);
+      const response = await oceanEngineService.getAppStats(advertiserId || 'tt8c62fadf136c334702');
 
       return {
         totalAds: response.total_ads || 0,

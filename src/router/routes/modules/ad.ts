@@ -24,6 +24,17 @@ const AD: AppRouteRecordRaw = {
         roles: ['*'], // 所有用户都可以访问
       },
     },
+    // Token管理页面 - 管理员可以访问
+    // {
+    //   path: 'token-management',
+    //   name: 'TokenManagement',
+    //   component: () => import('@/views/token-management/index.vue'),
+    //   meta: {
+    //     locale: 'menu.ad.token.management',
+    //     requiresAuth: true,
+    //     roles: ['admin'], // 只有管理员可以访问
+    //   },
+    // },
   ],
 };
 
