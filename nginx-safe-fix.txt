@@ -1,0 +1,62 @@
+# 基于原始ecpm-app配置的安全修改
+# 只添加必要的监测链接规则，不删除任何现有配置
+
+# 原始配置分析：
+# - HTTP重定向到HTTPS ✓
+# - HTTPS配置 ✓
+# - SSL证书配置 ✓
+# - 前端路由 ✓
+# - API代理（需要修复路径）✗
+# - ACME challenge ✓
+# - IP重定向 ✓
+
+# 修改方案：在HTTPS server块中添加监测链接规则，并修复API路径
+
+## 修改步骤：
+
+# 1. 备份当前配置
+sudo cp /etc/nginx/sites-enabled/ecpm-app /etc/nginx/sites-enabled/ecpm-app.backup.safe
+
+# 2. 编辑配置文件
+sudo nano /etc/nginx/sites-enabled/ecpm-app
+
+# 3. 在HTTPS server块中，找到 "location /api" 规则之前，插入以下内容：
+
+    # 巨量广告监测链接 - 添加到API规则之前
+    location = /openid/report {
+        proxy_pass http://localhost:3000/openid/report;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        access_log /var/log/nginx/ad-monitor.access.log;
+    }
+
+# 4. 修复API规则路径（将 location /api 改为 location /api/）
+# 找到这一行：
+#     location /api {
+# 改为：
+#     location /api/ {
+
+# 5. 保存文件并退出
+
+# 6. 检查配置语法
+sudo nginx -t
+
+# 7. 重新加载nginx
+sudo systemctl reload nginx
+
+# 8. 测试修复效果
+echo "测试API健康检查..."
+curl -s https://ecpm.game985.vip/api/health
+
+echo ""
+echo "测试监测端点..."
+curl -s "https://ecpm.game985.vip/openid/report?promotionid=test&imei=test&callback=test"
+
+echo ""
+echo "修复完成！"

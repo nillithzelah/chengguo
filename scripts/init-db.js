@@ -4,11 +4,13 @@ const { testConnection, syncDatabase, sequelize } = require('../config/database'
 const defineUserModel = require('../models/User');
 const defineGameModel = require('../models/Game');
 const defineUserGameModel = require('../models/UserGame');
+const defineConversionEventModel = require('../models/ConversionEvent');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
 const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
+const ConversionEvent = defineConversionEventModel(sequelize);
 
 // 定义模型关联关系
 User.belongsToMany(Game, {
@@ -144,7 +146,7 @@ async function initializeDatabase() {
       {
         appid: 'tt8c62fadf136c334702',
         name: '橙果宜牛小游戏',
-        appSecret: '56808246ee49c052ecc7be8be79551859837409e',
+        appSecret: '969c80995b1fc13fdbe952d73fb9f8c086706b6b',
         description: '默认的小游戏应用',
         status: 'active',
         validated: true

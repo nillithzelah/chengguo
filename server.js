@@ -11,15 +11,20 @@ const defineUserModel = require('./models/User');
 const defineGameModel = require('./models/Game');
 const defineUserGameModel = require('./models/UserGame');
 const defineUserDeviceModel = require('./models/UserDevice');
+const defineConversionEventModel = require('./models/ConversionEvent');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
 const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
 const UserDevice = defineUserDeviceModel(sequelize);
+const ConversionEvent = defineConversionEventModel(sequelize);
 
 // 设备信息解析器
 const deviceParser = require('./utils/server-device-parser');
+
+// 转化事件回调服务
+const conversionCallbackService = require('./services/conversion-callback-service');
 
 // 定义模型关联关系
 User.belongsToMany(Game, {
@@ -1504,8 +1509,8 @@ async function refreshAccessToken() {
     const refreshRequestData = {
       app_id: '1843500894701081', // 应用ID
       appid: 'tt8c62fadf136c334702', // 小游戏App ID (保持字符串格式)
-      secret: '56808246ee49c052ecc7be8be79551859837409e', // App Secret
-      refresh_token: 'ff66bfc4e0566b489f49b84f6581f61319257e79', // 刷新token
+      secret: '7ad00307b2596397ceeee3560ca8bfc9b3622476', // App Secret
+      refresh_token: 'bccb13fdd2b6b06c56562a6ac687a3664c30b0da', // 刷新token
       grant_type: 'refresh_token'
     };
 
@@ -1560,7 +1565,7 @@ async function refreshAccessToken() {
 //     const refreshRequestData = {
 //       app_id: '1843500894701081', // 应用ID
 //       appid: 'tt8c62fadf136c334702', // 小游戏App ID
-//       secret: '56808246ee49c052ecc7be8be79551859837409e', // App Secret
+//       secret: '969c80995b1fc13fdbe952d73fb9f8c086706b6b', // App Secret
 //       refresh_token: refresh_token,
 //       grant_type: 'refresh_token'
 //     };
@@ -1729,8 +1734,8 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     console.log('📍 步骤1: 获取有效的access_token');
 
     // 使用有效的token配置
-    let accessToken = 'd0294ed262b6ad013ad84003a4b51b575905fd85';
-    const refreshToken = 'ff66bfc4e0566b489f49b84f6581f61319257e79';
+    let accessToken = '969c80995b1fc13fdbe952d73fb9f8c086706b6b';
+    const refreshToken = 'bccb13fdd2b6b06c56562a6ac687a3664c30b0da';
     console.log('✅ 使用有效的access_token');
 
     // 如果token过期，可以在这里添加动态获取逻辑
@@ -1879,7 +1884,7 @@ app.get('/api/douyin/ecpm', async (req, res) => {
 
     // 从前端传递的查询参数中获取App Secret
     // 前端应该传递app_secret参数，或者我们需要从配置中获取
-    const appSecret = req.query.app_secret || process.env.VITE_DOUYIN_APP_SECRET || '56808246ee49c052ecc7be8be79551859837409e';
+    const appSecret = req.query.app_secret || process.env.VITE_DOUYIN_APP_SECRET || '7ad00307b2596397ceeee3560ca8bfc9b3622476';
 
     const tokenRequestData = {
       appid: mpId,  // 使用前端传递的mp_id作为appid
@@ -2086,7 +2091,413 @@ app.post('/api/douyin/proxy', async (req, res) => {
   }
 });
 
-// 巨量广告第三方监测链接端点
+// 转化事件回调端点 - 支持GET和POST方法
+const handleConversionCallback = async (req, res) => {
+  const method = req.method;
+  const params = method === 'POST' ? req.body : req.query;
+  const startTime = Date.now();
+
+  console.log(`📡 收到转化事件回调请求 (${method}):`, {
+    url: req.url,
+    headers: req.headers,
+    params: params,
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+
+  let eventRecord = null;
+
+  try {
+    // 1. 检查是否重复事件（通过outer_event_id去重）
+    if (params.outer_event_id) {
+      const existingEvent = await ConversionEvent.findByOuterEventId(params.outer_event_id);
+      if (existingEvent) {
+        console.log('⚠️ 检测到重复事件，跳过处理:', params.outer_event_id);
+
+        const response = {
+          code: 0,
+          message: 'success (duplicate event skipped)',
+          data: {
+            event_id: existingEvent.id,
+            duplicate: true,
+            original_received_at: existingEvent.received_at
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        return res.json(response);
+      }
+    }
+
+    // 2. 创建转化事件记录
+    const eventData = {
+      callback: params.callback,
+      event_type: parseInt(params.event_type),
+      event_name: conversionCallbackService.getSupportedEventTypes()[params.event_type] || '未知事件',
+      request_method: method,
+      request_ip: req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.ip,
+      user_agent: req.headers['user-agent'],
+      status: 'processing',
+      received_at: new Date()
+    };
+
+    // 添加设备信息
+    if (params.idfa) eventData.idfa = params.idfa;
+    if (params.imei) eventData.imei = params.imei;
+    if (params.oaid) eventData.oaid = params.oaid;
+    if (params.oaid_md5) eventData.oaid_md5 = params.oaid_md5;
+    if (params.muid) eventData.muid = params.muid;
+    if (params.os !== undefined) eventData.os = parseInt(params.os);
+    if (params.caid1) eventData.caid1 = params.caid1;
+    if (params.caid2) eventData.caid2 = params.caid2;
+
+    // 添加可选参数
+    if (params.conv_time) eventData.conv_time = parseInt(params.conv_time);
+    if (params.match_type !== undefined) eventData.match_type = parseInt(params.match_type);
+    if (params.outer_event_id) eventData.outer_event_id = params.outer_event_id;
+    if (params.outer_event_identity) eventData.outer_event_identity = params.outer_event_identity;
+    if (params.source) eventData.source = params.source;
+    if (params.props) {
+      eventData.props = typeof params.props === 'object' ? JSON.stringify(params.props) : params.props;
+    }
+
+    eventRecord = await ConversionEvent.createEvent(eventData);
+    console.log('📝 已创建转化事件记录:', eventRecord.id);
+
+    // 3. 处理转化事件回调
+    const result = await conversionCallbackService.processConversionCallback(params, method);
+
+    // 4. 更新事件记录状态
+    const updateData = {
+      processing_time: Date.now() - startTime,
+      processed_at: new Date()
+    };
+
+    if (result.success) {
+      updateData.status = 'success';
+      updateData.callback_response = JSON.stringify(result.callback_result);
+      updateData.callback_status = result.callback_result.status || 200;
+
+      console.log('✅ 转化事件回调处理成功');
+
+      const response = {
+        code: 0,
+        message: 'success',
+        data: {
+          event_id: eventRecord.id,
+          event_type: result.event_info.event_type,
+          event_name: result.event_info.event_name,
+          processed: true,
+          processing_time: updateData.processing_time,
+          callback_result: result.callback_result
+        },
+        timestamp: result.timestamp
+      };
+
+      // 更新数据库记录
+      await ConversionEvent.updateStatus(eventRecord.id, 'success', updateData);
+      res.json(response);
+
+    } else {
+      updateData.status = 'failed';
+      updateData.error_message = result.error;
+
+      console.error('❌ 转化事件回调处理失败:', result.error);
+
+      const errorResponse = {
+        code: result.code || 500,
+        message: '转化事件回调处理失败',
+        error: result.error,
+        event_id: eventRecord.id,
+        timestamp: result.timestamp
+      };
+
+      // 更新数据库记录
+      await ConversionEvent.updateStatus(eventRecord.id, 'failed', updateData);
+      res.status(result.code || 500).json(errorResponse);
+    }
+
+  } catch (error) {
+    console.error('❌ 处理转化事件回调时发生异常:', error);
+
+    // 如果已经创建了事件记录，更新其状态
+    if (eventRecord) {
+      await ConversionEvent.updateStatus(eventRecord.id, 'failed', {
+        error_message: error.message,
+        processing_time: Date.now() - startTime,
+        processed_at: new Date()
+      });
+    }
+
+    const errorResponse = {
+      code: 500,
+      message: '服务器内部错误',
+      error: error.message,
+      event_id: eventRecord ? eventRecord.id : null,
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+};
+
+// 转化事件回调路由
+app.get('/api/conversion/callback', handleConversionCallback);
+app.post('/api/conversion/callback', handleConversionCallback);
+
+// 获取支持的事件类型列表
+app.get('/api/conversion/event-types', (req, res) => {
+  const eventTypes = conversionCallbackService.getSupportedEventTypes();
+
+  res.json({
+    code: 0,
+    message: 'success',
+    data: {
+      event_types: Object.entries(eventTypes).map(([code, name]) => ({
+        code: parseInt(code),
+        name: name
+      })),
+      total: Object.keys(eventTypes).length
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 获取支持的归因方式列表
+app.get('/api/conversion/match-types', (req, res) => {
+  const matchTypes = conversionCallbackService.getSupportedMatchTypes();
+
+  res.json({
+    code: 0,
+    message: 'success',
+    data: {
+      match_types: Object.entries(matchTypes).map(([code, name]) => ({
+        code: parseInt(code),
+        name: name
+      })),
+      total: Object.keys(matchTypes).length
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 获取转化事件列表 (仅管理员)
+app.get('/api/conversion/events', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员、超级查看者和客服可以查看转化事件
+    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和客服可以查看转化事件'
+      });
+    }
+
+    const {
+      page = 1,
+      page_size = 20,
+      event_type,
+      status,
+      start_date,
+      end_date
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(page_size);
+    const limit = parseInt(page_size);
+
+    // 构建查询条件
+    const whereCondition = {};
+
+    if (event_type !== undefined) {
+      whereCondition.event_type = parseInt(event_type);
+    }
+
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    if (start_date && end_date) {
+      whereCondition.received_at = {
+        [sequelize.Sequelize.Op.between]: [new Date(start_date), new Date(end_date)]
+      };
+    }
+
+    // 查询转化事件
+    const { count, rows } = await ConversionEvent.findAndCountAll({
+      where: whereCondition,
+      limit,
+      offset,
+      order: [['received_at', 'DESC']],
+      attributes: [
+        'id', 'callback', 'event_type', 'event_name', 'status',
+        'processing_time', 'callback_status', 'error_message',
+        'request_method', 'request_ip', 'received_at', 'processed_at',
+        'idfa', 'imei', 'oaid', 'muid', 'os', 'conv_time', 'match_type'
+      ]
+    });
+
+    // 格式化数据
+    const formattedEvents = rows.map(event => event.toFrontendFormat());
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        events: formattedEvents,
+        pagination: {
+          page: parseInt(page),
+          page_size: parseInt(page_size),
+          total: count,
+          total_pages: Math.ceil(count / parseInt(page_size))
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('获取转化事件列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      error: error.message
+    });
+  }
+});
+
+// 获取转化事件统计 (仅管理员)
+app.get('/api/conversion/stats', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员、超级查看者和客服可以查看统计
+    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和客服可以查看统计'
+      });
+    }
+
+    const { start_date, end_date } = req.query;
+
+    let startDate = start_date ? new Date(start_date) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 默认30天
+    let endDate = end_date ? new Date(end_date) : new Date();
+
+    // 获取基础统计
+    const totalEvents = await ConversionEvent.count({
+      where: {
+        received_at: {
+          [sequelize.Sequelize.Op.between]: [startDate, endDate]
+        }
+      }
+    });
+
+    const successEvents = await ConversionEvent.count({
+      where: {
+        received_at: {
+          [sequelize.Sequelize.Op.between]: [startDate, endDate]
+        },
+        status: 'success'
+      }
+    });
+
+    const failedEvents = await ConversionEvent.count({
+      where: {
+        received_at: {
+          [sequelize.Sequelize.Op.between]: [startDate, endDate]
+        },
+        status: 'failed'
+      }
+    });
+
+    // 按事件类型统计
+    const eventTypeStats = await ConversionEvent.findAll({
+      where: {
+        received_at: {
+          [sequelize.Sequelize.Op.between]: [startDate, endDate]
+        }
+      },
+      attributes: [
+        'event_type',
+        'event_name',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+        [sequelize.fn('AVG', sequelize.col('processing_time')), 'avg_processing_time']
+      ],
+      group: ['event_type', 'event_name'],
+      raw: true
+    });
+
+    // 按状态统计
+    const statusStats = await ConversionEvent.findAll({
+      where: {
+        received_at: {
+          [sequelize.Sequelize.Op.between]: [startDate, endDate]
+        }
+      },
+      attributes: [
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    // 每日统计（最近7天）
+    const dailyStats = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const dayStart = new Date(dateStr + ' 00:00:00');
+      const dayEnd = new Date(dateStr + ' 23:59:59');
+
+      const dayCount = await ConversionEvent.count({
+        where: {
+          received_at: {
+            [sequelize.Sequelize.Op.between]: [dayStart, dayEnd]
+          }
+        }
+      });
+
+      dailyStats.push({
+        date: dateStr,
+        count: dayCount
+      });
+    }
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        summary: {
+          total_events: totalEvents,
+          success_events: successEvents,
+          failed_events: failedEvents,
+          success_rate: totalEvents > 0 ? (successEvents / totalEvents * 100).toFixed(2) + '%' : '0%'
+        },
+        event_type_stats: eventTypeStats,
+        status_stats: statusStats,
+        daily_stats: dailyStats,
+        date_range: {
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0]
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('获取转化事件统计错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      error: error.message
+    });
+  }
+});
+
+// 巨量广告第三方监测链接端点 (保留原有功能)
 app.get('/openid/report', async (req, res) => {
   console.log('📊 收到巨量广告监测请求:', req.query);
   console.log('📊 请求头信息:', {
@@ -2104,6 +2515,8 @@ app.get('/openid/report', async (req, res) => {
       imei,
       oaid,
       androidid,
+      idfa,
+      muid,
       os,
       TIMESTAMP: timestamp,
       callback
@@ -2116,6 +2529,8 @@ app.get('/openid/report', async (req, res) => {
       imei: imei,
       oaid: oaid,
       android_id: androidid,
+      idfa: idfa,
+      muid: muid,
       os: os,
       timestamp: timestamp,
       callback_param: callback,
@@ -2127,9 +2542,115 @@ app.get('/openid/report', async (req, res) => {
 
     console.log('📝 解析的监测数据:', monitorData);
 
+    // 步骤1: 将数据保存到数据库（可选）
     // TODO: 将数据保存到数据库
     // 这里可以根据需要保存到专门的广告监测表中
     // 例如：await saveAdMonitorData(monitorData);
+
+    // 步骤2: 转发监测数据到巨量平台
+    console.log('📤 转发监测数据到巨量平台...');
+
+    let forwardResult = null;
+    try {
+      // 构建转发到巨量平台的参数 - 只包含有值的参数
+      const forwardParams = {};
+
+      // 只在参数存在且有值时才添加
+      if (callback && callback.trim()) {
+        forwardParams.callback = callback.trim();
+      }
+      // 设备信息参数 - 支持巨量广告官方规范的两种组合
+      if (idfa && idfa.trim()) {
+        forwardParams.idfa = idfa.trim();
+      }
+      if (imei && imei.trim()) {
+        forwardParams.imei = imei.trim();
+      }
+      if (oaid && oaid.trim()) {
+        forwardParams.oaid = oaid.trim();
+      }
+      if (muid && muid.trim()) {
+        forwardParams.muid = muid.trim();
+      }
+      if (os && os.trim()) {
+        forwardParams.os = os.trim();
+      }
+      if (androidid && androidid.trim()) {
+        forwardParams.androidid = androidid.trim();
+      }
+      if (timestamp && timestamp.trim()) {
+        forwardParams.conv_time = timestamp.trim();
+      }
+
+      // 只有当有参数时才转发
+      if (Object.keys(forwardParams).length === 0) {
+        console.log('⚠️ 没有有效的参数需要转发，跳过转发步骤');
+        forwardResult = {
+          success: true,
+          status: 200,
+          data: { code: 0, msg: 'no_params_to_forward' },
+          forwarded_at: new Date().toISOString(),
+          note: '没有有效的参数需要转发'
+        };
+      } else {
+        console.log('📋 转发参数:', forwardParams);
+
+        // 调用巨量平台的转化回调API（新版本）
+        const forwardResponse = await axios.post('https://analytics.oceanengine.com/api/v2/conversion', {
+          event_type: 'active', // 固定为激活事件
+          context: {
+            ad: {
+              callback: forwardParams.callback
+            },
+            device: {
+              platform: forwardParams.os === '1' ? 'ios' : 'android',
+              ...(forwardParams.idfa && { idfa: forwardParams.idfa }),
+              ...(forwardParams.imei && { imei: forwardParams.imei }),
+              ...(forwardParams.oaid && { oaid: forwardParams.oaid }),
+              ...(forwardParams.androidid && { android_id: forwardParams.androidid })
+            }
+          },
+          timestamp: Date.now()
+        }, {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': req.headers['user-agent'] || 'DouyinGameAds-Monitor/1.0'
+          }
+        });
+
+        forwardResult = {
+          success: true,
+          status: forwardResponse.status,
+          data: forwardResponse.data,
+          forwarded_at: new Date().toISOString()
+        };
+
+        console.log('✅ 监测数据转发成功:', {
+          status: forwardResponse.status,
+          response: forwardResponse.data
+        });
+      }
+
+    } catch (forwardError) {
+      console.error('❌ 监测数据转发失败:', forwardError.message);
+
+      forwardResult = {
+        success: false,
+        error: forwardError.message,
+        forwarded_at: new Date().toISOString()
+      };
+
+      // 转发失败不影响整体响应，只记录错误
+      if (forwardError.response) {
+        console.error('📄 巨量平台响应错误:', {
+          status: forwardError.response.status,
+          data: forwardError.response.data
+        });
+        forwardResult.status = forwardError.response.status;
+        forwardResult.response_data = forwardError.response.data;
+      }
+    }
 
     // 返回成功响应
     const response = {
@@ -2139,7 +2660,8 @@ app.get('/openid/report', async (req, res) => {
       timestamp: new Date().toISOString(),
       data: {
         promotion_id: promotionid,
-        processed: true
+        processed: true,
+        forward_result: forwardResult
       }
     };
 
@@ -2229,6 +2751,11 @@ async function startServer() {
       console.log(`📡 Webhook地址: http://localhost:${PORT}/api/douyin/webhook`);
       console.log(`🔍 健康检查: http://localhost:${PORT}/api/health`);
       console.log(`🔐 用户认证: http://localhost:${PORT}/api/user/login`);
+      console.log(`📊 转化事件回调: http://localhost:${PORT}/api/conversion/callback`);
+      console.log(`📋 事件类型列表: http://localhost:${PORT}/api/conversion/event-types`);
+      console.log(`🎯 归因方式列表: http://localhost:${PORT}/api/conversion/match-types`);
+      console.log(`📈 转化事件统计: http://localhost:${PORT}/api/conversion/stats`);
+      console.log(`📝 转化事件列表: http://localhost:${PORT}/api/conversion/events`);
       console.log('');
       console.log('📝 默认用户:');
       console.log('   管理员: admin / admin123');

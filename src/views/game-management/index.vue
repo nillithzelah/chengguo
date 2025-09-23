@@ -681,7 +681,7 @@ const testAdPreview = async () => {
     const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Access-Token': '969c80995b1fc13fdbe952d73fb9f8c086706b6b',
         'Content-Type': 'application/json'
       }
     });
@@ -859,7 +859,7 @@ const testEditAdPreview = async () => {
     const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Access-Token': '969c80995b1fc13fdbe952d73fb9f8c086706b6b',
         'Content-Type': 'application/json'
       }
     });

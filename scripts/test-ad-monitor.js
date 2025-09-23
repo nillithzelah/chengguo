@@ -116,6 +116,70 @@ async function testMissingParams() {
   }
 }
 
+// 测试转发功能
+async function testForwardFunctionality() {
+  console.log('\n🔄 测试监测数据转发功能...\n');
+
+  const testParams = {
+    promotionid: 'test_promotion_forward_123',
+    mid1: 'test_mid1_forward_456',
+    imei: 'test_imei_forward_789',
+    oaid: 'test_oaid_forward_101',
+    androidid: 'test_android_id_forward_202',
+    os: '1',
+    TIMESTAMP: Date.now().toString(),
+    callback: 'testForwardCallback'
+  };
+
+  const testUrl = 'http://localhost:3000/openid/report';
+
+  try {
+    console.log('📤 发送包含转发功能的测试请求...');
+    console.log('📋 请求参数:', testParams);
+
+    const response = await axios.get(testUrl, {
+      params: testParams,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36',
+        'X-Forwarded-For': '192.168.1.100'
+      },
+      timeout: 15000
+    });
+
+    console.log('\n✅ 转发测试请求成功!');
+    console.log('📊 响应状态:', response.status);
+    console.log('📄 响应数据:', JSON.stringify(response.data, null, 2));
+
+    // 检查转发结果
+    if (response.data.data && response.data.data.forward_result) {
+      const forwardResult = response.data.data.forward_result;
+      console.log('\n📤 转发结果分析:');
+      console.log('   转发成功:', forwardResult.success);
+
+      if (forwardResult.success) {
+        console.log('   巨量平台响应状态:', forwardResult.status);
+        console.log('   转发时间:', forwardResult.forwarded_at);
+        console.log('🎉 监测数据转发功能正常工作!');
+      } else {
+        console.log('   转发错误:', forwardResult.error);
+        console.log('⚠️ 监测数据转发失败，但不影响整体响应');
+      }
+    } else {
+      console.log('⚠️ 响应中未找到转发结果信息');
+    }
+
+  } catch (error) {
+    console.error('\n❌ 转发测试失败:', error.message);
+
+    if (error.response) {
+      console.error('📊 错误响应状态:', error.response.status);
+      console.error('📄 错误响应数据:', error.response.data);
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('💡 服务器未运行，请先启动服务器: node server.js');
+    }
+  }
+}
+
 // 主测试函数
 async function runAllTests() {
   console.log('🚀 巨量广告监测链接完整测试套件\n');
@@ -123,12 +187,14 @@ async function runAllTests() {
   await testAdMonitorEndpoint();
   await testJsonpCallback();
   await testMissingParams();
+  await testForwardFunctionality();
 
   console.log('\n🏁 所有测试完成');
   console.log('\n💡 使用说明:');
   console.log('   1. 确保服务器正在运行: node server.js');
   console.log('   2. 如果使用nginx，需要重载配置: sudo nginx -s reload');
   console.log('   3. 生产环境URL: https://ecpm.game985.vip/openid/report');
+  console.log('   4. 转发功能会自动将监测数据发送到巨量平台的 https://ad.oceanengine.com/track/activate/');
 }
 
 // 如果直接运行此脚本

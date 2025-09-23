@@ -8,7 +8,7 @@ class DouyinAuthService {
 
   constructor() {
     this.appKey = import.meta.env.VITE_DOUYIN_APP_KEY || 'tt8c62fadf136c334702';
-    this.appSecret = import.meta.env.VITE_DOUYIN_APP_SECRET || '56808246ee49c052ecc7be8be79551859837409e';
+    this.appSecret = import.meta.env.VITE_DOUYIN_APP_SECRET || '969c80995b1fc13fdbe952d73fb9f8c086706b6b';
     // 现在统一使用后端代理接口
     this.baseUrl = '/api/douyin';
   }

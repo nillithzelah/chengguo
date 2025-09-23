@@ -221,7 +221,7 @@
             <input
               v-model="newGame.appSecret"
               type="password"
-              placeholder="输入32位App Secret，如：56808246ee49c052ecc7be8be79551859837409e"
+              placeholder="输入32位App Secret，如：969c80995b1fc13fdbe952d73fb9f8c086706b6b"
               class="form-input"
             />
             <div class="form-hint">
@@ -572,7 +572,7 @@ const openAddGameModal = () => {
 // 填入示例数据
 const fillExampleData = () => {
   newGame.appid = 'tt8c62fadf136c334702';
-  newGame.appSecret = '56808246ee49c052ecc7be8be79551859837409e';
+  newGame.appSecret = '969c80995b1fc13fdbe952d73fb9f8c086706b6b';
   newGame.name = '示例游戏应用';
   newGame.description = '这是一个示例游戏应用配置';
   testResult.value = null;
@@ -692,7 +692,7 @@ const testAdPreview = async () => {
     const response = await fetch(`https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/?${params.toString()}`, {
       method: 'GET',
       headers: {
-        'Access-Token': '958cf07457f50048ff87dbe2c9ae2bcf9d3c7f15',
+        'Access-Token': '969c80995b1fc13fdbe952d73fb9f8c086706b6b',
         'Content-Type': 'application/json'
       }
     });

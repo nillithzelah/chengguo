@@ -434,7 +434,7 @@ const loadAppList = async () => {
     console.error('❌ 加载应用列表失败:', err);
     appList.value = [{
       appid: 'tt8c62fadf136c334702',
-      appSecret: '56808246ee49c052ecc7be8be79551859837409e',
+      appSecret: '969c80995b1fc13fdbe952d73fb9f8c086706b6b',
       name: '默认应用',
       owner: 'admin'
     }];
