@@ -79,6 +79,11 @@ UserDevice.belongsTo(User, {
 // JWT secret key - In production, use a strong secret key from environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// 抖音API Token管理
+let currentAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
+let currentRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
+let tokenLastRefresh = new Date();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1508,9 +1513,8 @@ async function refreshAccessToken() {
 
     const refreshRequestData = {
       app_id: '1843500894701081', // 应用ID
-      appid: 'tt8c62fadf136c334702', // 小游戏App ID (保持字符串格式)
       secret: '7ad00307b2596397ceeee3560ca8bfc9b3622476', // App Secret
-      refresh_token: 'bccb13fdd2b6b06c56562a6ac687a3664c30b0da', // 刷新token
+      refresh_token: currentRefreshToken, // 使用当前refresh_token
       grant_type: 'refresh_token'
     };
 
@@ -1529,7 +1533,14 @@ async function refreshAccessToken() {
       const newAccessToken = refreshResponse.data.data.access_token;
       const newRefreshToken = refreshResponse.data.data.refresh_token;
 
-      console.log('✅ Token刷新成功');
+      // 更新全局token变量
+      currentAccessToken = newAccessToken;
+      currentRefreshToken = newRefreshToken;
+      tokenLastRefresh = new Date();
+
+      console.log('✅ Token刷新成功，已更新全局变量');
+      console.log('📅 下次刷新时间:', new Date(Date.now() + 12 * 60 * 60 * 1000).toLocaleString('zh-CN'));
+
       return {
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
@@ -1545,81 +1556,72 @@ async function refreshAccessToken() {
   }
 }
 
-// Token刷新API
-// app.post('/api/douyin/refresh-token', async (req, res) => {
-//   console.log('🔄 Token刷新API请求');
+// 定时刷新Token的函数
+function startTokenRefreshScheduler() {
+  console.log('⏰ 启动Token自动刷新调度器...');
+  console.log('📅 刷新间隔: 12小时');
+  console.log('📅 下次刷新时间:', new Date(Date.now() + 12 * 60 * 60 * 1000).toLocaleString('zh-CN'));
 
-//   try {
-//     const { refresh_token } = req.body;
+  // 每12小时刷新一次 (12 * 60 * 60 * 1000 = 43200000毫秒)
+  setInterval(async () => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 5 * 60 * 1000; // 5分钟重试间隔
 
-//     if (!refresh_token) {
-//       return res.status(400).json({
-//         error: '缺少参数',
-//         message: '请提供refresh_token参数'
-//       });
-//     }
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`⏰ 定时器触发，开始刷新Token... (尝试 ${retryCount + 1}/${maxRetries})`);
+        await refreshAccessToken();
+        console.log('✅ 定时刷新Token成功');
+        break; // 成功后跳出重试循环
+      } catch (error) {
+        retryCount++;
+        console.error(`❌ 定时刷新Token失败 (尝试 ${retryCount}/${maxRetries}):`, error.message);
 
-//     console.log('📋 刷新token参数验证通过');
+        if (retryCount < maxRetries) {
+          console.log(`⏳ ${retryDelay / 1000}秒后重试...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        } else {
+          console.error('❌ Token刷新失败，已达到最大重试次数，请手动检查配置');
+          // 这里可以添加告警机制，比如发送邮件或消息通知
+        }
+      }
+    }
+  }, 12 * 60 * 60 * 1000); // 12小时
 
-//     // 调用抖音token刷新API
-//     const refreshRequestData = {
-//       app_id: '1843500894701081', // 应用ID
-//       appid: 'tt8c62fadf136c334702', // 小游戏App ID
-//       secret: '969c80995b1fc13fdbe952d73fb9f8c086706b6b', // App Secret
-//       refresh_token: refresh_token,
-//       grant_type: 'refresh_token'
-//     };
+  console.log('✅ Token自动刷新调度器已启动');
+}
 
-//     console.log('📤 发送刷新请求到抖音API...');
+// 手动触发Token刷新端点
+app.post('/api/douyin/refresh-token', async (req, res) => {
+  console.log('🔄 手动触发Token刷新请求');
 
-//     const refreshResponse = await axios.post('https://api.oceanengine.com/open_api/oauth2/refresh_token/', refreshRequestData, {
-//       headers: {
-//         'Content-Type': 'application/json'
-//       },
-//       timeout: 15000
-//     });
+  try {
+    const result = await refreshAccessToken();
 
-//     console.log('📥 抖音API响应:', JSON.stringify(refreshResponse.data, null, 2));
+    res.json({
+      code: 0,
+      message: 'Token刷新成功',
+      data: {
+        access_token: result.access_token.substring(0, 20) + '...',
+        refresh_token: result.refresh_token.substring(0, 20) + '...',
+        expires_in: result.expires_in,
+        refreshed_at: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    });
 
-//     if (refreshResponse.data.code === 0 && refreshResponse.data.data) {
-//       console.log('✅ Token刷新成功');
+  } catch (error) {
+    console.error('❌ 手动Token刷新失败:', error.message);
 
-//       res.json({
-//         code: 0,
-//         message: 'Token刷新成功',
-//         data: {
-//           access_token: refreshResponse.data.data.access_token,
-//           refresh_token: refreshResponse.data.data.refresh_token,
-//           expires_in: refreshResponse.data.data.expires_in
-//         }
-//       });
-//     } else {
-//       console.error('❌ Token刷新失败:', refreshResponse.data.message);
-
-//       res.status(400).json({
-//         code: 400,
-//         message: refreshResponse.data.message || 'Token刷新失败',
-//         details: refreshResponse.data
-//       });
-//     }
-
-//   } catch (error) {
-//     console.error('❌ Token刷新API异常:', error.message);
-
-//     if (error.response) {
-//       console.error('📄 抖音API错误响应:', {
-//         status: error.response.status,
-//         data: error.response.data
-//       });
-//     }
-
-//     res.status(500).json({
-//       error: 'Token刷新失败',
-//       message: error.message || '网络请求失败',
-//       code: error.response?.status || 'API_ERROR'
-//     });
-//   }
-// });
+    res.status(500).json({
+      code: 500,
+      message: 'Token刷新失败',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // 测试直接API调用
 app.get('/api/douyin/test-direct-api', async (req, res) => {
@@ -1733,10 +1735,10 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     // 步骤1: 使用已知的有效access_token
     console.log('📍 步骤1: 获取有效的access_token');
 
-    // 使用有效的token配置
-    let accessToken = '969c80995b1fc13fdbe952d73fb9f8c086706b6b';
-    const refreshToken = 'bccb13fdd2b6b06c56562a6ac687a3664c30b0da';
-    console.log('✅ 使用有效的access_token');
+    // 使用全局token变量
+    let accessToken = currentAccessToken;
+    console.log('✅ 使用当前access_token');
+    console.log('📅 Token最后刷新时间:', tokenLastRefresh.toLocaleString('zh-CN'));
 
     // 如果token过期，可以在这里添加动态获取逻辑
     // TODO: 实现token刷新机制
@@ -2703,6 +2705,70 @@ app.get('/api/health', (req, res) => {
     version: process.env.npm_package_version || '1.0.0'
   });
 });
+
+// Token状态查询端点
+app.get('/api/douyin/token-status', (req, res) => {
+  const nextRefreshTime = new Date(tokenLastRefresh.getTime() + 12 * 60 * 60 * 1000);
+  const timeUntilRefresh = nextRefreshTime.getTime() - Date.now();
+
+  res.json({
+    code: 0,
+    message: 'success',
+    data: {
+      current_access_token: currentAccessToken.substring(0, 20) + '...',
+      current_refresh_token: currentRefreshToken.substring(0, 20) + '...',
+      last_refresh: tokenLastRefresh.toISOString(),
+      next_refresh: nextRefreshTime.toISOString(),
+      time_until_refresh_seconds: Math.max(0, Math.floor(timeUntilRefresh / 1000)),
+      time_until_refresh_formatted: formatTimeUntilRefresh(timeUntilRefresh),
+      auto_refresh_enabled: true,
+      refresh_interval_hours: 12
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 手动触发Token刷新端点
+app.post('/api/douyin/refresh-token', async (req, res) => {
+  console.log('🔄 手动触发Token刷新请求');
+
+  try {
+    const result = await refreshAccessToken();
+
+    res.json({
+      code: 0,
+      message: 'Token刷新成功',
+      data: {
+        access_token: result.access_token.substring(0, 20) + '...',
+        refresh_token: result.refresh_token.substring(0, 20) + '...',
+        expires_in: result.expires_in,
+        refreshed_at: new Date().toISOString()
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ 手动Token刷新失败:', error.message);
+
+    res.status(500).json({
+      code: 500,
+      message: 'Token刷新失败',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 格式化剩余时间
+function formatTimeUntilRefresh(milliseconds) {
+  if (milliseconds <= 0) return '即将刷新';
+
+  const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+  const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+
+  return `${hours}小时${minutes}分钟${seconds}秒`;
+}
 // 用户登录API 已在上方实现
 
 // 错误处理中间件
@@ -2745,6 +2811,9 @@ async function startServer() {
       process.exit(1);
     }
 
+    // 启动Token自动刷新调度器
+    startTokenRefreshScheduler();
+
     // 启动服务器
     app.listen(PORT, () => {
       console.log(`🚀 服务器运行在端口 ${PORT}`);
@@ -2756,6 +2825,7 @@ async function startServer() {
       console.log(`🎯 归因方式列表: http://localhost:${PORT}/api/conversion/match-types`);
       console.log(`📈 转化事件统计: http://localhost:${PORT}/api/conversion/stats`);
       console.log(`📝 转化事件列表: http://localhost:${PORT}/api/conversion/events`);
+      console.log(`🎫 Token刷新状态: 每12小时自动刷新`);
       console.log('');
       console.log('📝 默认用户:');
       console.log('   管理员: admin / admin123');
