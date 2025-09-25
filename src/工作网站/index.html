@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小游戏展示</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* 顶部图片样式 - 正方形，放大2倍，向底部靠拢 */
+        .top-image-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px; /* 减少下边距，让图片更靠近游戏列表 */
+            padding: 0 10px;
+        }
+        .top-image {
+            width: calc(100% - 30px); /* 全宽度放大版 */
+            height: calc(100% - 30px); /* 正方形 */
+            max-width: 400px; /* 最大宽度限制 - 放大2倍 */
+            max-height: 400px; /* 最大高度限制 - 放大2倍 */
+            object-fit: cover;
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
+            display: block;
+        }
+        .top-image:hover {
+            transform: translateY(-8px) scale(1.05);
+        }
+
+        /* 移动端适配 - 放大版 */
+        @media (max-width: 768px) {
+            .top-image {
+                width: calc(80% - 20px);
+                height: calc(80% - 20px);
+                max-width: 300px;
+                max-height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .top-image {
+                width: calc(90% - 16px);
+                height: calc(90% - 16px);
+                max-width: 250px;
+                max-height: 250px;
+            }
+        }
+
+        .logo {
+            max-width: 250px;
+            height: auto;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+        .search-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+        .search-bar input {
+            width: 100%;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .search-bar input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .games-container {
+            padding: 30px 20px;
+            padding-top: 100px; /* 为固定搜索栏留空间 */
+        }
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .game-item {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .game-item:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+        }
+        .game-preview {
+            width: 100%;
+            height: 300px;
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: transform 0.3s ease;
+            border-radius: 10px;
+        }
+        .game-item:hover .game-preview {
+            transform: scale(1.05);
+        }
+        .game-name {
+            padding: 10px 15px 5px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .game-description {
+            padding: 0 15px 10px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.3;
+        }
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        .back-to-top:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索游戏...">
+    </div>
+
+    <!-- <div class="header">
+        <img src="https://via.placeholder.com/200x100?text=Logo" alt="Logo" class="logo">
+    </div> -->
+
+    <div class="games-container">
+        <!-- 顶部图片区域 -->
+        <div class="top-image-container">
+            <img src="images/top-image.jpg" alt="顶部图片" class="top-image" onerror="this.style.display='none'">
+        </div>
+
+        <div class="games-grid" id="gamesGrid">
+            <!-- 游戏项目将在这里动态添加 -->
+        </div>
+    </div>
+
+    <button class="back-to-top" id="backToTop">↑</button>
+
+    <script>
+        let games = [];
+        let allGames = [];
+
+        // 从JSON文件加载游戏数据
+        async function loadGamesData() {
+            try {
+                const response = await fetch('games.json');
+                const data = await response.json();
+                allGames = data.games.filter(game => game.enabled !== false);
+                games = [...allGames];
+                renderGames(games);
+            } catch (error) {
+                console.error('加载游戏数据失败:', error);
+                // 如果加载失败，使用默认数据
+                games = [
+                    { name: '游戏1', preview: 'https://via.placeholder.com/300x150?text=游戏1', url: 'games/game1/index.html' },
+                    { name: '游戏2', preview: 'https://via.placeholder.com/300x150?text=游戏2', url: 'games/game2/index.html' },
+                    { name: '游戏3', preview: 'https://via.placeholder.com/300x150?text=游戏3', url: 'games/game3/index.html' },
+                ];
+                renderGames(games);
+            }
+        }
+
+        // 渲染游戏列表
+        function renderGames(gamesToRender) {
+            const gamesGrid = document.getElementById('gamesGrid');
+            gamesGrid.innerHTML = '';
+
+            if (gamesToRender.length === 0) {
+                gamesGrid.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">没有找到相关游戏</div>';
+                return;
+            }
+
+            gamesToRender.forEach(game => {
+                const gameItem = document.createElement('div');
+                gameItem.className = 'game-item';
+                gameItem.onclick = () => { if (game.url) window.open(game.url, '_blank'); };
+                gameItem.innerHTML = `
+                    <div class="game-preview" style="background-image: url('${game.preview}');"></div>
+                    <div class="game-name">${game.name}</div>
+                    ${game.description ? `<div class="game-description">${game.description}</div>` : ''}
+                `;
+                gamesGrid.appendChild(gameItem);
+            });
+        }
+
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const filteredGames = allGames.filter(game =>
+                game.name.toLowerCase().includes(searchTerm) ||
+                (game.description && game.description.toLowerCase().includes(searchTerm)) ||
+                (game.category && game.category.toLowerCase().includes(searchTerm))
+            );
+            games = filteredGames;
+            renderGames(games);
+        });
+
+        // 返回顶部功能
+        document.getElementById('backToTop').addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // 页面加载完成后加载游戏数据
+        document.addEventListener('DOMContentLoaded', loadGamesData);
+    </script>
+</body>
+</html>
