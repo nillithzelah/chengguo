@@ -163,6 +163,62 @@
       "preview": "images/限时闯关.png",
       "category": "益智",
       "enabled": true
+    },
+    {
+      "id": "game46",
+      "name": "萌萌连连看",
+      "preview": "images/萌萌连连看.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game47",
+      "name": "欢乐消除游戏软件",
+      "preview": "images/欢乐消除游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game48",
+      "name": "梦幻农场物语游戏软件",
+      "preview": "images/梦幻农场物语游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game49",
+      "name": "森林冒险之旅游戏软件",
+      "preview": "images/森林冒险之旅游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game50",
+      "name": "神速清理助手",
+      "preview": "images/神速清理助手.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game51",
+      "name": "神仙游",
+      "preview": "images/神仙游.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game52",
+      "name": "天神游",
+      "preview": "images/天神游.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game53",
+      "name": "水果对碰游戏软件",
+      "preview": "images/水果对碰游戏软件.png",
+      "category": "益智",
+      "enabled": true
     }
   ],
   "categories": [
