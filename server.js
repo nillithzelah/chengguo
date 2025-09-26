@@ -3,6 +3,8 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 // 数据库和模型导入
@@ -12,6 +14,7 @@ const defineGameModel = require('./models/Game');
 const defineUserGameModel = require('./models/UserGame');
 const defineUserDeviceModel = require('./models/UserDevice');
 const defineConversionEventModel = require('./models/ConversionEvent');
+const defineTokenModel = require('./models/Token');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
@@ -19,6 +22,7 @@ const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
 const UserDevice = defineUserDeviceModel(sequelize);
 const ConversionEvent = defineConversionEventModel(sequelize);
+const Token = defineTokenModel(sequelize);
 
 // 设备信息解析器
 const deviceParser = require('./utils/server-device-parser');
@@ -79,10 +83,82 @@ UserDevice.belongsTo(User, {
 // JWT secret key - In production, use a strong secret key from environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// 抖音API Token管理
-let currentAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
-let currentRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
-let tokenLastRefresh = new Date();
+// 抖音API Token管理 - 从数据库加载
+let currentAccessToken = null;
+let currentRefreshToken = null;
+let tokenLastRefresh = null;
+
+// Token刷新历史记录文件
+const TOKEN_LOG_FILE = path.join(__dirname, 'token-refresh-history.log');
+
+// 记录token刷新历史
+function logTokenRefresh(accessToken, refreshToken, expiresIn, refreshTime) {
+  const logEntry = {
+    timestamp: refreshTime.toISOString(),
+    timestamp_cn: refreshTime.toLocaleString('zh-CN'),
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+    expires_at: expiresIn ? new Date(refreshTime.getTime() + expiresIn * 1000).toISOString() : null
+  };
+
+  const logLine = JSON.stringify(logEntry, null, 2) + '\n---\n';
+
+  try {
+    fs.appendFileSync(TOKEN_LOG_FILE, logLine);
+    console.log('📝 Token刷新历史已记录到文件');
+  } catch (error) {
+    console.error('❌ 记录token历史失败:', error);
+  }
+}
+
+// 从数据库加载token
+async function loadTokensFromDatabase() {
+  try {
+    console.log('📡 从数据库加载token...');
+
+    const accessTokenRecord = await Token.getActiveToken('access_token');
+    const refreshTokenRecord = await Token.getActiveToken('refresh_token');
+
+    if (accessTokenRecord) {
+      currentAccessToken = accessTokenRecord.token_value;
+      console.log('✅ 加载access_token成功');
+    } else {
+      console.log('⚠️ 未找到活跃的access_token');
+    }
+
+    if (refreshTokenRecord) {
+      currentRefreshToken = refreshTokenRecord.token_value;
+      tokenLastRefresh = refreshTokenRecord.last_refresh_at || new Date();
+      console.log('✅ 加载refresh_token成功');
+    } else {
+      console.log('⚠️ 未找到活跃的refresh_token');
+    }
+
+    // 记录服务器启动时的初始token状态
+    if (currentAccessToken && currentRefreshToken) {
+      const startupTime = new Date();
+      logTokenRefresh(currentAccessToken, currentRefreshToken, null, startupTime);
+      console.log('📝 已记录服务器启动时的token状态');
+    }
+
+    // 如果没有找到token，初始化默认token
+    if (!accessTokenRecord || !refreshTokenRecord) {
+      console.log('🔄 初始化默认token...');
+      await Token.initDefaultTokens();
+      // 重新加载
+      return await loadTokensFromDatabase();
+    }
+
+  } catch (error) {
+    console.error('❌ 加载token失败:', error);
+    // 如果数据库加载失败，使用默认值作为fallback
+    console.log('🔄 使用默认token作为fallback...');
+    currentAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
+    currentRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
+    tokenLastRefresh = new Date();
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1532,19 +1608,37 @@ async function refreshAccessToken() {
     if (refreshResponse.data.code === 0 && refreshResponse.data.data) {
       const newAccessToken = refreshResponse.data.data.access_token;
       const newRefreshToken = refreshResponse.data.data.refresh_token;
+      const expiresIn = refreshResponse.data.data.expires_in;
+      const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+      // 更新数据库中的token
+      await Token.updateToken('access_token', newAccessToken, {
+        expiresAt,
+        appId: '1843500894701081',
+        appSecret: '7ad00307b2596397ceeee3560ca8bfc9b3622476'
+      });
+
+      await Token.updateToken('refresh_token', newRefreshToken, {
+        expiresAt: null, // refresh_token通常没有明确的过期时间
+        appId: '1843500894701081',
+        appSecret: '7ad00307b2596397ceeee3560ca8bfc9b3622476'
+      });
 
       // 更新全局token变量
       currentAccessToken = newAccessToken;
       currentRefreshToken = newRefreshToken;
       tokenLastRefresh = new Date();
 
-      console.log('✅ Token刷新成功，已更新全局变量');
-      console.log('📅 下次刷新时间:', new Date(Date.now() + 12 * 60 * 60 * 1000).toLocaleString('zh-CN'));
+      // 记录token刷新历史
+      logTokenRefresh(newAccessToken, newRefreshToken, expiresIn, tokenLastRefresh);
+
+      console.log('✅ Token刷新成功，已更新数据库和全局变量');
+      console.log('📅 下次刷新时间:', new Date(Date.now() + 10 * 60 * 1000).toLocaleString('zh-CN'));
 
       return {
         access_token: newAccessToken,
         refresh_token: newRefreshToken,
-        expires_in: refreshResponse.data.data.expires_in
+        expires_in: expiresIn
       };
     } else {
       console.error('❌ Token刷新失败:', refreshResponse.data.message);
@@ -1559,10 +1653,10 @@ async function refreshAccessToken() {
 // 定时刷新Token的函数
 function startTokenRefreshScheduler() {
   console.log('⏰ 启动Token自动刷新调度器...');
-  console.log('📅 刷新间隔: 12小时');
-  console.log('📅 下次刷新时间:', new Date(Date.now() + 12 * 60 * 60 * 1000).toLocaleString('zh-CN'));
+  console.log('📅 刷新间隔: 10分钟');
+  console.log('📅 下次刷新时间:', new Date(Date.now() + 10 * 60 * 1000).toLocaleString('zh-CN'));
 
-  // 每12小时刷新一次 (12 * 60 * 60 * 1000 = 43200000毫秒)
+  // 每10分钟刷新一次 (10 * 60 * 1000 = 600000毫秒)
   setInterval(async () => {
     let retryCount = 0;
     const maxRetries = 3;
@@ -1587,7 +1681,7 @@ function startTokenRefreshScheduler() {
         }
       }
     }
-  }, 12 * 60 * 60 * 1000); // 12小时
+  }, 10 * 60 * 1000); // 10分钟
 
   console.log('✅ Token自动刷新调度器已启动');
 }
@@ -2829,24 +2923,117 @@ app.get('/api/health', (req, res) => {
 
 // Token状态查询端点
 app.get('/api/douyin/token-status', (req, res) => {
-  const nextRefreshTime = new Date(tokenLastRefresh.getTime() + 12 * 60 * 60 * 1000);
+  const nextRefreshTime = new Date((tokenLastRefresh || new Date()).getTime() + 10 * 60 * 1000);
   const timeUntilRefresh = nextRefreshTime.getTime() - Date.now();
 
   res.json({
     code: 0,
     message: 'success',
     data: {
-      current_access_token: currentAccessToken.substring(0, 20) + '...',
-      current_refresh_token: currentRefreshToken.substring(0, 20) + '...',
-      last_refresh: tokenLastRefresh.toISOString(),
+      current_access_token: currentAccessToken ? currentAccessToken.substring(0, 20) + '...' : null,
+      current_refresh_token: currentRefreshToken ? currentRefreshToken.substring(0, 20) + '...' : null,
+      last_refresh: tokenLastRefresh ? tokenLastRefresh.toISOString() : null,
       next_refresh: nextRefreshTime.toISOString(),
       time_until_refresh_seconds: Math.max(0, Math.floor(timeUntilRefresh / 1000)),
       time_until_refresh_formatted: formatTimeUntilRefresh(timeUntilRefresh),
       auto_refresh_enabled: true,
-      refresh_interval_hours: 12
+      refresh_interval_minutes: 10
     },
     timestamp: new Date().toISOString()
   });
+});
+
+// 获取所有token记录 (仅管理员)
+app.get('/api/douyin/tokens', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以查看token
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看token信息'
+      });
+    }
+
+    const tokens = await Token.findAll({
+      order: [['updated_at', 'DESC']]
+    });
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        tokens: tokens.map(token => token.toFrontendFormat()),
+        total: tokens.length
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('获取token列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      error: error.message
+    });
+  }
+});
+
+// 获取token刷新历史记录 (仅管理员)
+app.get('/api/douyin/token-history', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以查看token历史
+    if (currentUser.role !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看token历史'
+      });
+    }
+
+    // 读取历史记录文件
+    let history = [];
+    try {
+      if (fs.existsSync(TOKEN_LOG_FILE)) {
+        const fileContent = fs.readFileSync(TOKEN_LOG_FILE, 'utf8');
+        const entries = fileContent.split('---\n').filter(entry => entry.trim());
+
+        history = entries.map(entry => {
+          try {
+            return JSON.parse(entry.trim());
+          } catch (e) {
+            return null;
+          }
+        }).filter(entry => entry !== null);
+
+        // 按时间倒序排列
+        history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      }
+    } catch (error) {
+      console.error('读取token历史文件失败:', error);
+    }
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        history: history,
+        total: history.length,
+        log_file: TOKEN_LOG_FILE
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('获取token历史错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误',
+      error: error.message
+    });
+  }
 });
 
 // 手动触发Token刷新端点
@@ -2931,6 +3118,9 @@ async function startServer() {
       }
       process.exit(1);
     }
+
+    // 从数据库加载token
+    await loadTokensFromDatabase();
 
     // 启动Token自动刷新调度器
     startTokenRefreshScheduler();

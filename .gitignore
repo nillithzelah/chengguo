@@ -111,3 +111,16 @@ chengguo-deploy.zip
 douyin-admin.tar.gz
 dist-final-clean.zip
 ad-preview-qr.png
+
+# SSH Keys and sensitive files
+ssh*
+*ssh*
+*密钥*
+*key*
+*.pem
+*.key
+*.crt
+*.p12
+
+# Token history (contains sensitive data)
+token-refresh-history.log
