@@ -1999,6 +1999,127 @@ app.get('/api/douyin/ecpm', async (req, res) => {
   }
 });
 
+// 巨量引擎广告报告API - 获取广告投放数据
+app.post('/api/douyin/ad-report', async (req, res) => {
+  console.log('🚀 ===== 开始巨量引擎广告报告获取流程 =====');
+
+  try {
+    const {
+      advertiser_id,
+      start_date,
+      end_date,
+      fields,
+      page,
+      page_size
+    } = req.body;
+
+    // 验证必填参数
+    if (!advertiser_id) {
+      return res.status(400).json({
+        error: '缺少参数',
+        message: '请提供 advertiser_id 参数'
+      });
+    }
+
+    console.log('📋 请求参数:', { advertiser_id, start_date, end_date, fields, page, page_size });
+
+    // 步骤1: 获取有效的access_token
+    console.log('📍 步骤1: 获取access_token');
+
+    // 优先使用前端传递的小游戏access_token（用于广告报告）
+    let accessToken = req.headers['authorization']?.replace('Bearer ', '');
+
+    if (!accessToken) {
+      // 如果前端没有传递，尝试使用全局广告投放token
+      accessToken = currentAccessToken;
+      console.log('✅ 使用全局广告投放access_token');
+      console.log('📅 Token最后刷新时间:', tokenLastRefresh.toLocaleString('zh-CN'));
+    } else {
+      console.log('✅ 使用前端传递的小游戏access_token');
+    }
+
+    if (!accessToken) {
+      return res.status(401).json({
+        error: '缺少认证',
+        message: '请提供有效的access_token'
+      });
+    }
+
+    // 步骤2: 调用巨量引擎广告报告API
+    console.log('📍 步骤2: 获取广告报告数据');
+    console.log('🔗 请求URL: https://ad.oceanengine.com/open_api/2/report/ad/get/');
+
+    const reportParams = {
+      advertiser_id: advertiser_id,
+      start_date: start_date || new Date().toISOString().split('T')[0],
+      end_date: end_date || new Date().toISOString().split('T')[0],
+      fields: fields || ['ad_id', 'impressions', 'clicks', 'media_source', 'platform'],
+      page: page || 1,
+      page_size: page_size || 10
+    };
+
+    console.log('📤 广告报告请求参数:', JSON.stringify(reportParams, null, 2));
+
+    console.log('📤 发送请求Headers:', {
+      'Access-Token': accessToken.substring(0, 10) + '...',
+      'Content-Type': 'application/json'
+    });
+
+    const reportResponse = await axios.get('https://ad.oceanengine.com/open_api/2/report/ad/get/', {
+      params: reportParams,
+      headers: {
+        'Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    console.log('📥 广告报告响应:', JSON.stringify(reportResponse.data, null, 2));
+
+    if (reportResponse.data.code !== 0) {
+      console.error('❌ 广告报告获取失败:', reportResponse.data.message);
+
+      return res.status(reportResponse.data.code === 40105 ? 401 : 500).json({
+        error: '广告报告获取失败',
+        message: reportResponse.data.message,
+        details: reportResponse.data
+      });
+    }
+
+    console.log('✅ 广告报告获取成功');
+    console.log('🎉 ===== 巨量引擎广告报告获取流程完成 =====');
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: reportResponse.data.data,
+      request_log: {
+        report_request: {
+          url: 'https://ad.oceanengine.com/open_api/2/report/ad/get/',
+          params: reportParams,
+          response: reportResponse.data
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 广告报告流程失败:', error.message);
+
+    if (error.response) {
+      console.error('📄 API响应错误:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      error: '获取广告报告失败',
+      message: error.message || '网络请求失败',
+      code: error.response?.status || 'API_ERROR'
+    });
+  }
+});
+
 // 通用API代理端点 - 用于解决前端跨域问题
 app.post('/api/douyin/proxy', async (req, res) => {
   console.log('🔗 通用API代理请求');

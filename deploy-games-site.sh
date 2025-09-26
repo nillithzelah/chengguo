@@ -3,9 +3,9 @@
 echo "部署小游戏展示网站到服务器..."
 
 # 服务器配置 - 请根据实际情况修改
-SERVER_HOST="your-server-ip"
-SERVER_USER="your-username"
-REMOTE_PATH="/var/www/html/games"
+SERVER_HOST="47.115.94.203"
+SERVER_USER="root"
+REMOTE_PATH="/var/www/douyin-admin-master/games"
 
 # 本地源目录
 LOCAL_DIR="src/工作网站"
@@ -32,4 +32,4 @@ echo "重新加载nginx配置..."
 ssh $SERVER_USER@$SERVER_HOST "sudo systemctl reload nginx"
 
 echo "部署完成！"
-echo "访问地址: http://ecpm.game985.vip/games/"
+echo "访问地址: http://m.game985.vip/"

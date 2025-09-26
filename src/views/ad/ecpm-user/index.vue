@@ -79,27 +79,38 @@
         >
           {{ loading ? '加载中...' : '查询数据' }}
         </button>
-        <!-- 隐藏调试相关按钮 -->
-        <!--
+        <!-- 调试相关按钮 -->
+        <button
+          @click="debugSourceInfo"
+          class="btn btn-warning btn-small"
+        >
+          调试来源信息
+        </button>
         <button
           @click="testDeviceInfo"
-          class="btn btn-info"
+          class="btn btn-info btn-small"
         >
           测试设备信息
         </button>
         <button
           @click="resetQuery"
-          class="btn btn-secondary"
+          class="btn btn-secondary btn-small"
         >
           重置
         </button>
         <button
           @click="triggerCityDebug"
-          class="btn btn-outline"
+          class="btn btn-outline btn-small"
         >
           调试城市获取
         </button>
-        -->
+        <button
+          @click="fetchAdReport"
+          :disabled="loading"
+          class="btn btn-info btn-small"
+        >
+          获取广告报告
+        </button>
       </div>
     </div>
 
@@ -130,7 +141,10 @@
       <div class="table-header">
         <h3>eCPM数据明细</h3>
         <div class="table-info">
-          共 {{ tableData.length }} 条记录
+          <div>共 {{ tableData.length }} 条记录</div>
+          <div v-if="selectedAppId" class="current-app-info">
+            当前应用: {{ getCurrentAppName() }} ({{ selectedAppId }})
+          </div>
         </div>
       </div>
 
@@ -139,6 +153,7 @@
           <thead>
             <tr>
               <th>事件时间</th>
+              <th>应用</th>
               <th>来源</th>
               <th>用户名</th>
               <th>用户ID</th>
@@ -153,18 +168,19 @@
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="loading-cell">
+              <td colspan="11" class="loading-cell">
                 <div class="loading-spinner"></div>
                 加载中...
               </td>
             </tr>
             <tr v-else-if="tableData.length === 0">
-              <td colspan="10" class="empty-cell">
+              <td colspan="11" class="empty-cell">
                 暂无数据
               </td>
             </tr>
             <tr v-else v-for="item in tableData" :key="item.id">
               <td>{{ formatDateTime(item.event_time) }}</td>
+              <td>{{ getCurrentAppName() }}</td>
               <td>{{ item.source || '未知' }}</td>
               <td>{{ item.username }}</td>
               <td>{{ item.open_id }}</td>
@@ -347,6 +363,156 @@ const getAppStyle = (app) => {
 const formatDateTime = (dateTimeStr) => {
   if (!dateTimeStr) return '-';
   return dateTimeStr.replace('T', ' ').substring(0, 19);
+};
+
+// 获取当前选中应用的名称
+const getCurrentAppName = () => {
+  if (!selectedAppId.value) return '未选择应用';
+  const app = appList.value.find(app => app.appid === selectedAppId.value);
+  return app ? app.name : '未知应用';
+};
+
+// 获取来源显示名称 - 根据广告ID推断平台来源
+const getSourceDisplayName = (source, aid) => {
+  // 优先根据广告ID (aid) 判断平台，因为这是最可靠的标识
+  if (aid) {
+    const aidStr = String(aid);
+    const aidNum = parseInt(aidStr);
+
+    // 抖音广告ID通常是19位数字，以7开头
+    if (aidStr.startsWith('7') && aidStr.length >= 18) {
+      return '抖音';
+    }
+
+    // 头条广告ID通常是16-17位数字，以16或17开头
+    if ((aidStr.startsWith('16') || aidStr.startsWith('17')) && aidStr.length >= 15) {
+      return '头条';
+    }
+
+    // 西瓜视频广告ID特征
+    if (aidStr.startsWith('18') && aidStr.length >= 15) {
+      return '西瓜视频';
+    }
+
+    // 火山小视频广告ID特征
+    if (aidStr.startsWith('19') && aidStr.length >= 15) {
+      return '火山小视频';
+    }
+
+    // 对于短广告ID，根据数值范围判断可能的平台
+    // 抖音测试广告ID通常较小
+    if (aidNum >= 1000 && aidNum <= 9999) {
+      // 1000-9999 范围的广告ID可能是抖音测试广告
+      return '抖音(测试)';
+    }
+
+    // 头条测试广告ID通常是小数字
+    if (aidNum >= 1 && aidNum <= 99) {
+      return '头条(测试)';
+    }
+
+    // 其他长数字ID可能是广告联盟或第三方平台
+    if (aidStr.length >= 10 && /^\d+$/.test(aidStr)) {
+      return '广告联盟';
+    }
+
+    // 中等长度数字ID
+    if (aidStr.length >= 5 && /^\d+$/.test(aidStr)) {
+      return '第三方广告';
+    }
+  }
+
+  // 如果广告ID无法判断，尝试分析source字段
+  if (source && source.trim()) {
+    const lowerSource = source.toLowerCase();
+    const originalSource = source.trim();
+
+    // 头条系产品识别
+    if (lowerSource.includes('toutiao') || lowerSource.includes('头条') ||
+        lowerSource === 'tt' || lowerSource.includes('jinritoutiao') ||
+        lowerSource.includes('jinri') || originalSource.includes('今日头条')) {
+      return '头条';
+    }
+
+    // 抖音系产品识别
+    if (lowerSource.includes('douyin') || lowerSource.includes('抖音') ||
+        lowerSource === 'dy' || lowerSource.includes('aweme') ||
+        originalSource.includes('抖音')) {
+      return '抖音';
+    }
+
+    // 西瓜视频
+    if (lowerSource.includes('xigua') || lowerSource.includes('西瓜') ||
+        originalSource.includes('西瓜视频')) {
+      return '西瓜视频';
+    }
+
+    // 抖音极速版
+    if (lowerSource.includes('douyin_lite') || lowerSource.includes('极速版') ||
+        originalSource.includes('抖音极速版')) {
+      return '抖音极速版';
+    }
+
+    // 其他抖音系产品
+    if (lowerSource.includes('pipixia') || lowerSource.includes('皮皮虾') ||
+        originalSource.includes('皮皮虾')) {
+      return '皮皮虾';
+    }
+
+    if (lowerSource.includes('huoshan') || lowerSource.includes('火山') ||
+        originalSource.includes('火山小视频')) {
+      return '火山小视频';
+    }
+
+    // 广告场景类型
+    const sceneMap = {
+      'feed': '信息流广告',
+      'draw': 'Draw广告',
+      'search': '搜索广告',
+      'hotspot': '热点广告',
+      'recommend': '推荐广告',
+      'follow': '关注页广告',
+      'homepage': '首页广告',
+      'video': '视频广告',
+      'live': '直播广告',
+      'union': '穿山甲广告',
+      'adx': '广告联盟'
+    };
+
+    if (sceneMap[lowerSource]) {
+      return sceneMap[lowerSource];
+    }
+
+    // 如果是数字，可能是场景ID
+    if (!isNaN(originalSource) && originalSource.length <= 5) {
+      const platformCodes = {
+        '1': '抖音',
+        '2': '头条',
+        '3': '西瓜视频',
+        '4': '皮皮虾',
+        '5': '火山小视频'
+      };
+      return platformCodes[originalSource] || `广告场景${originalSource}`;
+    }
+
+    // 如果包含特定模式，可能是平台标识
+    if (originalSource.match(/^[A-Z]{2}\d+$/)) {
+      if (originalSource.startsWith('DY')) return '抖音';
+      if (originalSource.startsWith('TT')) return '头条';
+      if (originalSource.startsWith('XG')) return '西瓜视频';
+    }
+
+    // 如果是较长的数字串，可能是广告位ID
+    if (originalSource.match(/^\d{8,}$/)) {
+      return '广告投放';
+    }
+
+    // 返回原值作为兜底
+    return `${originalSource}(广告)`;
+  }
+
+  // 如果都没有信息，返回通用描述
+  return '广告投放';
 };
 
 
@@ -577,7 +743,7 @@ const loadData = async () => {
       tableData.value = records.map((item, index) => ({
         id: index + 1,
         event_time: item.event_time,
-        source: item.source || '未知来源',
+        source: getSourceDisplayName(item.source, item.aid),
         username: userStore.userInfo?.name || '当前用户',
         open_id: item.open_id,
         aid: item.aid,
@@ -629,6 +795,34 @@ const loadData = async () => {
     error.value = err.message || '加载数据失败，请稍后重试';
   } finally {
     loading.value = false;
+  }
+};
+
+// 调试来源信息
+const debugSourceInfo = () => {
+  console.log('🔍 调试来源信息...');
+  console.log('📊 当前表格数据:', tableData.value);
+
+  if (tableData.value.length > 0) {
+    const sourceInfo = tableData.value.map((item, index) => ({
+      index: index + 1,
+      originalSource: item.source,
+      aid: item.aid,
+      aidLength: String(item.aid).length,
+      displaySource: getSourceDisplayName(item.source, item.aid),
+      revenue: item.revenue
+    }));
+
+    console.table(sourceInfo);
+
+    // 显示前5条记录的详细信息
+    const sampleInfo = sourceInfo.slice(0, 5).map(info =>
+      `记录${info.index}: 原始来源="${info.originalSource}", 广告ID="${info.aid}"(${info.aidLength}位), 显示来源="${info.displaySource}"`
+    ).join('\n');
+
+    alert(`来源信息调试结果 (基于广告ID判断平台):\n\n${sampleInfo}\n\n• 抖音广告ID通常19位以7开头\n• 头条广告ID通常16-17位以16/17开头\n• 其他ID按特征判断\n\n完整信息请查看控制台日志`);
+  } else {
+    alert('暂无数据，请先查询数据');
   }
 };
 
@@ -977,6 +1171,106 @@ const resetQuery = () => {
   error.value = null;
 };
 
+// 获取广告报告
+const fetchAdReport = async () => {
+  loading.value = true;
+  error.value = null;
+
+  try {
+    console.log('🔄 开始获取巨量引擎广告报告...');
+
+    // 获取当前选中的应用配置
+    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+    if (!selectedApp) {
+      throw new Error('未选择有效的应用');
+    }
+
+    // 获取access_token
+    console.log('🔑 获取access_token...');
+    const tokenResponse = await fetch('/api/douyin/test-connection', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appid: selectedApp.appid,
+        secret: selectedApp.appSecret
+      })
+    });
+
+    const tokenResult = await tokenResponse.json();
+    if (!tokenResponse.ok || tokenResult.code !== 0) {
+      throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
+    }
+
+    const accessToken = tokenResult.data?.access_token;
+    if (!accessToken) {
+      throw new Error('获取到的access_token为空');
+    }
+
+    console.log('✅ 获取access_token成功');
+
+    // 调用巨量引擎广告报告API
+    const reportParams = {
+      advertiser_id: selectedApp.advertiser_id || '1843320456982026', // 默认广告主ID
+      start_date: queryParams.date_hour || new Date().toISOString().split('T')[0],
+      end_date: queryParams.date_hour || new Date().toISOString().split('T')[0],
+      fields: ['ad_id', 'impressions', 'clicks', 'media_source', 'platform'],
+      page: 1,
+      page_size: 10
+    };
+
+    console.log('📊 调用广告报告API，参数:', reportParams);
+
+    const reportResponse = await fetch('/api/douyin/ad-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(reportParams)
+    });
+
+    if (!reportResponse.ok) {
+      throw new Error(`HTTP错误: ${reportResponse.status}`);
+    }
+
+    const reportResult = await reportResponse.json();
+    console.log('✅ 广告报告API响应:', reportResult);
+
+    if (reportResult.code === 0 && reportResult.data) {
+      // 处理广告报告数据
+      const reportData = reportResult.data.list || [];
+      console.log('📋 广告报告数据:', reportData);
+
+      // 显示在调试面板中
+      debugInfo.value = [];
+      debugInfo.value.push(`广告报告获取成功，共 ${reportData.length} 条记录`);
+      debugInfo.value.push(`查询日期: ${reportParams.start_date}`);
+      debugInfo.value.push(`广告主ID: ${reportParams.advertiser_id}`);
+
+      if (reportData.length > 0) {
+        reportData.forEach((item, index) => {
+          debugInfo.value.push(`记录 ${index + 1}: 广告ID=${item.ad_id}, 曝光=${item.impressions}, 点击=${item.clicks}, 来源=${item.media_source}, 平台=${item.platform}`);
+        });
+      } else {
+        debugInfo.value.push('暂无广告报告数据');
+      }
+
+      alert(`广告报告获取成功！共 ${reportData.length} 条记录，请查看调试面板。`);
+    } else {
+      throw new Error(reportResult.message || '获取广告报告失败');
+    }
+
+  } catch (err) {
+    console.error('❌ 获取广告报告失败:', err);
+    error.value = err.message || '获取广告报告失败，请稍后重试';
+    alert('获取广告报告失败: ' + err.message);
+  } finally {
+    loading.value = false;
+  }
+};
+
 
 
 // 页面加载时初始化
@@ -1309,6 +1603,12 @@ onMounted(async () => {
 .table-info {
   color: #86909c;
   font-size: 14px;
+}
+
+.current-app-info {
+  color: #165dff;
+  font-weight: 500;
+  margin-top: 4px;
 }
 
 .table-container {

@@ -5,7 +5,7 @@ echo "上传小游戏展示网站文件到服务器..."
 # 服务器配置 - 请修改为你的实际服务器信息
 SERVER_HOST="your-server-ip"
 SERVER_USER="your-username"
-REMOTE_PATH="/var/www/html/games"
+REMOTE_PATH="/var/www/douyin-admin-master/games"
 
 echo "创建远程目录..."
 ssh $SERVER_USER@$SERVER_HOST "sudo mkdir -p $REMOTE_PATH"
@@ -34,7 +34,7 @@ if [ $? -eq 0 ]; then
     echo "nginx配置测试通过，重载nginx..."
     ssh $SERVER_USER@$SERVER_HOST "sudo systemctl reload nginx"
     echo "✅ 部署完成！"
-    echo "访问地址: http://ecpm.game985.vip/games/"
+    echo "访问地址: http://m.game985.vip/"
 else
     echo "❌ nginx配置有误，请检查配置"
 fi
