@@ -22,7 +22,7 @@ echo.
 echo 🔄 开始上传文件...
 echo 请手动执行以下命令上传文件:
 echo.
-echo scp %FILES_TO_UPLOAD% root@47.115.94.203:/root/chengguo/
+echo scp %FILES_TO_UPLOAD% root@47.115.94.203:/var/www/douyin-admin-master/
 echo.
 echo 密码: 1qaz1QAZ1qaz
 echo.

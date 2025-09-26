@@ -5,7 +5,7 @@
 SERVER_IP="47.115.94.203"
 USERNAME="root"
 PASSWORD="1qaz1QAZ1qaz"
-REMOTE_PATH="/root/chengguo"
+REMOTE_PATH="/var/www/douyin-admin-master"
 
 echo "🚀 开始部署Token数据库功能到服务器..."
 echo "服务器: $SERVER_IP"
@@ -75,7 +75,7 @@ expect {
         exp_continue
     }
     "*#" {
-        send "cd $REMOTE_PATH\r"
+        send "cd /var/www/douyin-admin-master\r"
         send "pkill -f 'node server.js'\r"
         send "sleep 2\r"
         send "npm install\r"

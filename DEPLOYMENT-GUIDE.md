@@ -26,13 +26,14 @@ config/database.js          # 数据库配置（已更新）
 在本地项目目录执行：
 
 ```bash
-scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitignore root@47.115.94.203:/root/chengguo/
+scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitignore root@47.115.94.203:/var/www/douyin-admin-master/
 ```
 
 **服务器信息：**
 - IP: `47.115.94.203`
 - 用户名: `root`
 - 密码: `1qaz1QAZ1qaz`
+- 项目路径: `/var/www/douyin-admin-master`
 
 ### 2. 在服务器上重启应用
 
@@ -40,7 +41,7 @@ scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitigno
 
 ```bash
 # 进入项目目录
-cd /root/chengguo
+cd /var/www/douyin-admin-master
 
 # 停止当前运行的服务器
 pkill -f "node server.js"
