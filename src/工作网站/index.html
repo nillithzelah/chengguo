@@ -22,9 +22,19 @@
         /* 顶部图片样式 - 正方形，放大2倍，向底部靠拢 */
         .top-image-container {
             display: flex;
-            justify-content: center;
-            margin-bottom: 10px; /* 减少下边距，让图片更靠近游戏列表 */
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px; /* 增加下边距，与游戏列表保持适当间隔 */
             padding: 0 10px;
+        }
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 30px;
+            margin-bottom: 20px;
         }
         .top-image {
             width: calc(100% - 30px); /* 全宽度放大版 */
@@ -66,15 +76,13 @@
             filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
         }
         .search-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 15px;
+            flex: 1;
+            max-width: 600px;
+            padding: 0px;
+            border-radius: 15px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             backdrop-filter: blur(10px);
-            z-index: 1000;
+            margin-right: 60px;
         }
         .search-bar input {
             width: 100%;
@@ -97,9 +105,6 @@
             padding: 0 10px;
         }
         .category-select {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
             padding: 12px 16px;
             font-size: 16px;
             border: 2px solid rgba(255, 255, 255, 0.8);
@@ -116,9 +121,14 @@
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
+        .category-select:hover {
+            background: rgba(255, 255, 255, 1);
+            border-color: rgba(255, 255, 255, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0,0,0,0.15);
+        }
         .games-container {
             padding: 30px 20px;
-            padding-top: 100px; /* 为固定搜索栏留空间 */
         }
         .games-grid {
             display: grid;
@@ -212,10 +222,6 @@
     </style>
 </head>
 <body>
-    <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="搜索游戏...">
-    </div>
-
     <!-- <div class="header">
         <img src="https://via.placeholder.com/200x100?text=Logo" alt="Logo" class="logo">
     </div> -->
@@ -224,9 +230,14 @@
         <!-- 顶部图片区域 -->
         <div class="top-image-container">
             <img src="images/top-image.jpg" alt="顶部图片" class="top-image" onerror="this.style.display='none'">
-            <select id="categorySelect" class="category-select">
-                <!-- 分类选项将在这里动态添加 -->
-            </select>
+            <div class="controls-container">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="搜索游戏...">
+                </div>
+                <select id="categorySelect" class="category-select">
+                    <!-- 分类选项将在这里动态添加 -->
+                </select>
+            </div>
         </div>
 
         <div class="games-grid" id="gamesGrid">
