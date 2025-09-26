@@ -9,21 +9,6 @@
       </div>
     </div>
 
-    <!-- 调试信息面板 -->
-    <div class="debug-section" v-if="debugInfo.length > 0">
-      <div class="debug-header">
-        <h3>🔍 城市获取调试信息</h3>
-        <div class="debug-actions">
-          <button @click="clearDeviceCache" class="btn btn-warning btn-small">清除缓存</button>
-          <button @click="clearDebugInfo" class="btn btn-small">清除调试</button>
-        </div>
-      </div>
-      <div class="debug-content">
-        <div v-for="(info, index) in debugInfo" :key="index" class="debug-item">
-          <pre>{{ info }}</pre>
-        </div>
-      </div>
-    </div>
 
     <!-- 查询表单 -->
     <div class="query-section">
@@ -79,37 +64,11 @@
         >
           {{ loading ? '加载中...' : '查询数据' }}
         </button>
-        <!-- 调试相关按钮 -->
-        <button
-          @click="debugSourceInfo"
-          class="btn btn-warning btn-small"
-        >
-          调试来源信息
-        </button>
-        <button
-          @click="testDeviceInfo"
-          class="btn btn-info btn-small"
-        >
-          测试设备信息
-        </button>
         <button
           @click="resetQuery"
           class="btn btn-secondary btn-small"
         >
           重置
-        </button>
-        <button
-          @click="triggerCityDebug"
-          class="btn btn-outline btn-small"
-        >
-          调试城市获取
-        </button>
-        <button
-          @click="fetchAdReport"
-          :disabled="loading"
-          class="btn btn-info btn-small"
-        >
-          获取广告报告
         </button>
       </div>
     </div>
@@ -142,9 +101,6 @@
         <h3>eCPM数据明细</h3>
         <div class="table-info">
           <div>共 {{ tableData.length }} 条记录</div>
-          <div v-if="selectedAppId" class="current-app-info">
-            当前应用: {{ getCurrentAppName() }} ({{ selectedAppId }})
-          </div>
         </div>
       </div>
 
@@ -324,8 +280,6 @@ const queryParams = reactive({
 // 统计数据
 const stats = ref(null);
 
-// 调试信息
-const debugInfo = ref([]);
 
 // 二维码相关
 const showQrModal = ref(false);
@@ -798,76 +752,6 @@ const loadData = async () => {
   }
 };
 
-// 调试来源信息
-const debugSourceInfo = () => {
-  console.log('🔍 调试来源信息...');
-  console.log('📊 当前表格数据:', tableData.value);
-
-  if (tableData.value.length > 0) {
-    const sourceInfo = tableData.value.map((item, index) => ({
-      index: index + 1,
-      originalSource: item.source,
-      aid: item.aid,
-      aidLength: String(item.aid).length,
-      displaySource: getSourceDisplayName(item.source, item.aid),
-      revenue: item.revenue
-    }));
-
-    console.table(sourceInfo);
-
-    // 显示前5条记录的详细信息
-    const sampleInfo = sourceInfo.slice(0, 5).map(info =>
-      `记录${info.index}: 原始来源="${info.originalSource}", 广告ID="${info.aid}"(${info.aidLength}位), 显示来源="${info.displaySource}"`
-    ).join('\n');
-
-    alert(`来源信息调试结果 (基于广告ID判断平台):\n\n${sampleInfo}\n\n• 抖音广告ID通常19位以7开头\n• 头条广告ID通常16-17位以16/17开头\n• 其他ID按特征判断\n\n完整信息请查看控制台日志`);
-  } else {
-    alert('暂无数据，请先查询数据');
-  }
-};
-
-// 测试设备信息获取
-const testDeviceInfo = async () => {
-  console.log('🧪 开始测试设备信息获取...');
-  try {
-    const result = await userStore.testIPFetching();
-    if (result) {
-      alert(`设备信息获取成功:\nIP: ${result.ip}\n城市: ${result.city}\n品牌: ${result.phoneBrand}\n型号: ${result.phoneModel}`);
-    } else {
-      alert('设备信息获取失败，请查看控制台日志');
-    }
-  } catch (err) {
-    console.error('测试失败:', err);
-    alert('测试失败: ' + err.message);
-  }
-};
-
-// 调试城市获取
-const triggerCityDebug = async () => {
-  console.log('🔍 手动触发城市获取调试...');
-  debugInfo.value = [];
-
-  try {
-    // 手动调用城市获取
-    await userStore.fetchDeviceInfo();
-    debugInfo.value.push(`设备信息: ${JSON.stringify(userStore.deviceInfo, null, 2)}`);
-  } catch (error) {
-    debugInfo.value.push(`错误: ${error.message}`);
-  }
-};
-
-// 清除调试信息
-const clearDebugInfo = () => {
-  debugInfo.value = [];
-};
-
-// 清除设备缓存
-const clearDeviceCache = () => {
-  console.log('🗑️ 清除设备信息缓存...');
-  localStorage.removeItem('deviceInfo');
-  localStorage.removeItem('deviceInfoTime');
-  alert('缓存已清除！请刷新页面重新获取设备信息。');
-};
 
 // 生成二维码
 const generateQrCode = async (item) => {
@@ -1172,105 +1056,6 @@ const resetQuery = () => {
   error.value = null;
 };
 
-// 获取广告报告
-const fetchAdReport = async () => {
-  loading.value = true;
-  error.value = null;
-
-  try {
-    console.log('🔄 开始获取巨量引擎广告报告...');
-
-    // 获取当前选中的应用配置
-    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
-    if (!selectedApp) {
-      throw new Error('未选择有效的应用');
-    }
-
-    // 获取access_token
-    console.log('🔑 获取access_token...');
-    const tokenResponse = await fetch('/api/douyin/test-connection', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        appid: selectedApp.appid,
-        secret: selectedApp.appSecret
-      })
-    });
-
-    const tokenResult = await tokenResponse.json();
-    if (!tokenResponse.ok || tokenResult.code !== 0) {
-      throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
-    }
-
-    const accessToken = tokenResult.data?.access_token;
-    if (!accessToken) {
-      throw new Error('获取到的access_token为空');
-    }
-
-    console.log('✅ 获取access_token成功');
-
-    // 调用巨量引擎广告报告API
-    const reportParams = {
-      advertiser_id: selectedApp.advertiser_id || '1843320456982026', // 默认广告主ID
-      start_date: queryParams.date_hour || new Date().toISOString().split('T')[0],
-      end_date: queryParams.date_hour || new Date().toISOString().split('T')[0],
-      fields: ['ad_id', 'impressions', 'clicks', 'media_source', 'platform'],
-      page: 1,
-      page_size: 10
-    };
-
-    console.log('📊 调用广告报告API，参数:', reportParams);
-
-    const reportResponse = await fetch('/api/douyin/ad-report', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify(reportParams)
-    });
-
-    if (!reportResponse.ok) {
-      throw new Error(`HTTP错误: ${reportResponse.status}`);
-    }
-
-    const reportResult = await reportResponse.json();
-    console.log('✅ 广告报告API响应:', reportResult);
-
-    if (reportResult.code === 0 && reportResult.data) {
-      // 处理广告报告数据
-      const reportData = reportResult.data.list || [];
-      console.log('📋 广告报告数据:', reportData);
-
-      // 显示在调试面板中
-      debugInfo.value = [];
-      debugInfo.value.push(`广告报告获取成功，共 ${reportData.length} 条记录`);
-      debugInfo.value.push(`查询日期: ${reportParams.start_date}`);
-      debugInfo.value.push(`广告主ID: ${reportParams.advertiser_id}`);
-
-      if (reportData.length > 0) {
-        reportData.forEach((item, index) => {
-          debugInfo.value.push(`记录 ${index + 1}: 广告ID=${item.ad_id}, 曝光=${item.impressions}, 点击=${item.clicks}, 来源=${item.media_source}, 平台=${item.platform}`);
-        });
-      } else {
-        debugInfo.value.push('暂无广告报告数据');
-      }
-
-      alert(`广告报告获取成功！共 ${reportData.length} 条记录，请查看调试面板。`);
-    } else {
-      throw new Error(reportResult.message || '获取广告报告失败');
-    }
-
-  } catch (err) {
-    console.error('❌ 获取广告报告失败:', err);
-    error.value = err.message || '获取广告报告失败，请稍后重试';
-    alert('获取广告报告失败: ' + err.message);
-  } finally {
-    loading.value = false;
-  }
-};
 
 
 
@@ -1358,67 +1143,6 @@ onMounted(async () => {
   }
 }
 
-/* 调试信息面板 */
-.debug-section {
-  background: #f6f8fa;
-  border: 1px solid #d1d9e0;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
-}
-
-.debug-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.debug-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #24292f;
-}
-
-.debug-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-warning {
-  background: #faad14;
-  color: white;
-}
-
-.btn-warning:hover:not(:disabled) {
-  background: #d48806;
-}
-
-.debug-content {
-  max-height: 300px;
-  overflow-y: auto;
-  background: #ffffff;
-  border: 1px solid #d1d9e0;
-  border-radius: 4px;
-}
-
-.debug-item {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f6f8fa;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.debug-item:last-child {
-  border-bottom: none;
-}
-
-.debug-item pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
 
 /* 查询表单 */
 .query-section {
@@ -1606,11 +1330,6 @@ onMounted(async () => {
   font-size: 14px;
 }
 
-.current-app-info {
-  color: #165dff;
-  font-weight: 500;
-  margin-top: 4px;
-}
 
 .table-container {
   overflow-x: auto;
