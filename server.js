@@ -157,7 +157,9 @@ async function loadTokensFromDatabase() {
     // 如果数据库加载失败，使用默认值作为fallback
     console.log('🔄 使用默认token作为fallback...');
     adAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
-    adRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
+    // adRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
+    // adAccessToken = '747d5aa714aa6253a2c136bdc0ece1bb82cc029f';
+    adRefreshToken = '374ed2497d18f5b5f200becd8a047b1505845e0f';
     adTokenLastRefresh = new Date();
   }
 }
@@ -1681,10 +1683,10 @@ function shouldRefreshToken() {
 // 基于过期时间检查的Token刷新调度器
 function startTokenRefreshScheduler() {
   console.log('⏰ 启动广告投放Token过期检查调度器...');
-  console.log('📅 检查间隔: 30秒');
+  console.log('📅 检查间隔: 5分钟');
   console.log('🎯 刷新条件: 过期前5分钟内');
 
-  // 每30秒检查一次是否需要刷新
+  // 每5分钟检查一次是否需要刷新
   setInterval(async () => {
     if (!shouldRefreshToken()) {
       return; // 不需要刷新，跳过
@@ -1713,7 +1715,7 @@ function startTokenRefreshScheduler() {
         }
       }
     }
-  }, 30 * 1000); // 30秒检查一次
+  }, 5 * 60 * 1000); // 5分钟检查一次
 
   console.log('✅ 广告投放Token过期检查调度器已启动');
 }
@@ -1901,7 +1903,8 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       console.error('❌ 二维码获取失败:', qrResponse.data.message);
 
       // 如果是token过期错误，尝试刷新token
-      if (qrResponse.data.code === 40102 ||
+      if (qrResponse.data.code === 40105 ||
+          qrResponse.data.code === 40102 ||
           qrResponse.data.code === 401 ||
           qrResponse.data.message?.includes('access_token已过期') ||
           qrResponse.data.message?.includes('token') && qrResponse.data.message?.includes('过期') ||
@@ -1910,7 +1913,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
         console.log('🔄 检测到token过期或无效，尝试刷新token...');
 
         try {
-          const newTokenData = await refreshAccessToken();
+          const newTokenData = await refreshAdAccessToken();
           accessToken = newTokenData.access_token;
 
           console.log('✅ Token刷新成功，重试二维码获取...');
@@ -3137,7 +3140,7 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
   console.log('🔄 手动触发Token刷新请求');
 
   try {
-    const result = await refreshAccessToken();
+    const result = await refreshAdAccessToken();
 
     res.json({
       code: 0,
