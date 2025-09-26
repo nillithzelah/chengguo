@@ -9,8 +9,72 @@
 
 ## 🚀 使用方法
 
-### 更新Access Token
+### 首次部署：重置数据库表（重要）
 
+如果服务器上已有旧的tokens表结构，需要先重置：
+
+```bash
+# 重置tokens表（删除旧表，创建新表，初始化默认数据）
+node scripts/reset-tokens-table.js
+```
+
+## 🔍 查询Token信息
+
+### 查看完整Token值
+```bash
+# 显示数据库中所有活跃Token的完整信息
+node scripts/query-db.js
+```
+
+**输出包含:**
+- 完整Token值（不脱敏）
+- 过期时间
+- 应用信息
+- 创建/更新时间
+
+### 推荐：SQLite兼容脚本（服务器环境）
+
+#### 更新Access Token
+```bash
+# 语法
+node scripts/update-token-sqlite.js access_token "新的access_token"
+
+# 示例
+node scripts/update-token-sqlite.js access_token "0801121847476a4341356250537a72504157376b6f5a637163773d3d"
+```
+
+#### 更新Refresh Token
+```bash
+# 语法
+node scripts/update-token-sqlite.js refresh_token "新的refresh_token"
+
+# 示例
+node scripts/update-token-sqlite.js refresh_token "857b246c6868b17e556892edf5826f8342408de5"
+```
+
+### 备用：直接数据库操作脚本
+
+#### 更新Access Token
+```bash
+# 语法
+node scripts/update-token-direct.js access_token "新的access_token"
+
+# 示例
+node scripts/update-token-direct.js access_token "0801121847476a4341356250537a72504157376b6f5a637163773d3d"
+```
+
+#### 更新Refresh Token
+```bash
+# 语法
+node scripts/update-token-direct.js refresh_token "新的refresh_token"
+
+# 示例
+node scripts/update-token-direct.js refresh_token "857b246c6868b17e556892edf5826f8342408de5"
+```
+
+### 备用：模型操作脚本（需要完整环境）
+
+#### 更新Access Token
 ```bash
 # 语法
 node scripts/update-ad-access-token.js "新的access_token"
@@ -19,8 +83,7 @@ node scripts/update-ad-access-token.js "新的access_token"
 node scripts/update-ad-access-token.js "0801121847476a4341356250537a72504157376b6f5a637163773d3d"
 ```
 
-### 更新Refresh Token
-
+#### 更新Refresh Token
 ```bash
 # 语法
 node scripts/update-ad-refresh-token.js "新的refresh_token"
@@ -99,6 +162,41 @@ curl "http://localhost:3000/api/douyin/ad-preview-qrcode?advertiser_id=184340249
 - 确保Node.js环境正常
 - 检查脚本文件权限
 - 确认所有依赖已安装
+
+### `Token.updateToken is not a function` 错误
+- **原因**: Sequelize模型方法未正确加载
+- **解决**: 使用 `update-token-direct.js` 脚本直接操作数据库
+- **命令**:
+  ```bash
+  node scripts/update-token-direct.js access_token "your_token_here"
+  node scripts/update-token-direct.js refresh_token "your_token_here"
+  ```
+
+### `no such column: token_value` 错误
+- **原因**: 数据库表结构不匹配
+- **解决**: 使用SQLite兼容脚本，自动检测表结构
+- **命令**:
+  ```bash
+  node scripts/update-token-sqlite.js access_token "your_token_here"
+  node scripts/update-token-sqlite.js refresh_token "your_token_here"
+  ```
+
+### `no such column: updated_at` 错误
+- **原因**: 服务器数据库缺少某些列
+- **解决**: 使用SQLite兼容脚本，自动适配表结构
+- **命令**: 同上，SQLite兼容脚本会自动处理缺失列
+
+### 服务器已有旧token表
+- **原因**: 服务器上存在旧版本的tokens表结构
+- **解决**: 先重置tokens表，再使用更新脚本
+- **命令**:
+  ```bash
+  # 1. 重置表结构
+  node scripts/reset-tokens-table.js
+
+  # 2. 更新token值
+  node scripts/update-token-sqlite.js access_token "your_token_here"
+  ```
 
 ## 📞 技术支持
 

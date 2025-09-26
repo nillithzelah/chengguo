@@ -156,9 +156,9 @@ async function loadTokensFromDatabase() {
     console.error('❌ 加载token失败:', error);
     // 如果数据库加载失败，使用默认值作为fallback
     console.log('🔄 使用默认token作为fallback...');
-    adAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
+    // adAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
     // adRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
-    // adAccessToken = '747d5aa714aa6253a2c136bdc0ece1bb82cc029f';
+    adAccessToken = '747d5aa714aa6253a2c136bdc0ece1bb82cc029f';
     adRefreshToken = '374ed2497d18f5b5f200becd8a047b1505845e0f';
     adTokenLastRefresh = new Date();
   }
@@ -1968,9 +1968,9 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       message: 'success',
       data: qrResponse.data.data,
       token_info: {
-        ad_access_token: accessToken.substring(0, 20) + '...',
-        expires_in: '未知', // 使用预配置token，过期时间未知
-        note: '使用预配置的广告投放access_token'
+        ad_access_token: accessToken,
+        // expires_in: tokenExpiresInfo.expires_in, // 使用预配置token，过期时间未知
+        // note: '使用预配置的广告投放access_token'
       },
       request_log: {
         qr_request: {
