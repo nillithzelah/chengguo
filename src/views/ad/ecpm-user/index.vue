@@ -677,7 +677,7 @@ const loadData = async () => {
       throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
     }
 
-    const accessToken = tokenResult.data?.access_token;
+    const accessToken = tokenResult.data?.minigame_access_token;
     if (!accessToken) {
       throw new Error('获取到的access_token为空');
     }
@@ -923,6 +923,7 @@ const showQrPreviewModalFunc = async () => {
   if (!selectedApp.advertiser_id || !selectedApp.promotion_id) {
     alert(`应用 "${selectedApp.name}" 未配置广告预览二维码\n\n请前往游戏管理页面为该应用设置：\n• 广告主ID (advertiser_id)\n• 推广计划ID (promotion_id)`);
     return;
+    
   }
 
   try {

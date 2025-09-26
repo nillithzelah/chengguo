@@ -84,9 +84,10 @@ UserDevice.belongsTo(User, {
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // 抖音API Token管理 - 从数据库加载
-let currentAccessToken = null;
-let currentRefreshToken = null;
-let tokenLastRefresh = null;
+let adAccessToken = null; // 广告投放access_token
+let adRefreshToken = null; // 广告投放refresh_token
+let adTokenLastRefresh = null; // 广告投放token最后刷新时间
+let adTokenExpiresAt = null; // 广告投放token过期时间
 
 // Token刷新历史记录文件
 const TOKEN_LOG_FILE = path.join(__dirname, 'token-refresh-history.log');
@@ -121,24 +122,25 @@ async function loadTokensFromDatabase() {
     const refreshTokenRecord = await Token.getActiveToken('refresh_token');
 
     if (accessTokenRecord) {
-      currentAccessToken = accessTokenRecord.token_value;
-      console.log('✅ 加载access_token成功');
+      adAccessToken = accessTokenRecord.token_value;
+      adTokenExpiresAt = accessTokenRecord.expires_at ? new Date(accessTokenRecord.expires_at) : null;
+      console.log('✅ 加载广告投放access_token成功');
     } else {
-      console.log('⚠️ 未找到活跃的access_token');
+      console.log('⚠️ 未找到活跃的广告投放access_token');
     }
 
     if (refreshTokenRecord) {
-      currentRefreshToken = refreshTokenRecord.token_value;
-      tokenLastRefresh = refreshTokenRecord.last_refresh_at || new Date();
-      console.log('✅ 加载refresh_token成功');
+      adRefreshToken = refreshTokenRecord.token_value;
+      adTokenLastRefresh = refreshTokenRecord.last_refresh_at || new Date();
+      console.log('✅ 加载广告投放refresh_token成功');
     } else {
-      console.log('⚠️ 未找到活跃的refresh_token');
+      console.log('⚠️ 未找到活跃的广告投放refresh_token');
     }
 
     // 记录服务器启动时的初始token状态
-    if (currentAccessToken && currentRefreshToken) {
+    if (adAccessToken && adRefreshToken) {
       const startupTime = new Date();
-      logTokenRefresh(currentAccessToken, currentRefreshToken, null, startupTime);
+      logTokenRefresh(adAccessToken, adRefreshToken, null, startupTime);
       console.log('📝 已记录服务器启动时的token状态');
     }
 
@@ -154,9 +156,9 @@ async function loadTokensFromDatabase() {
     console.error('❌ 加载token失败:', error);
     // 如果数据库加载失败，使用默认值作为fallback
     console.log('🔄 使用默认token作为fallback...');
-    currentAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
-    currentRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
-    tokenLastRefresh = new Date();
+    adAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
+    adRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
+    adTokenLastRefresh = new Date();
   }
 }
 
@@ -1525,7 +1527,7 @@ app.post('/api/douyin/test-connection', async (req, res) => {
         code: 0,
         message: '连接成功！应用配置有效',
         data: {
-          access_token: tokenResponse.data.data.access_token.substring(0, 20) + '...',
+          minigame_access_token: tokenResponse.data.data.access_token.substring(0, 20) + '...',
           expires_in: tokenResponse.data.data.expires_in,
           tested_at: new Date().toISOString()
         }
@@ -1583,14 +1585,18 @@ app.post('/api/douyin/test-connection', async (req, res) => {
 });
 
 // Token刷新函数
-async function refreshAccessToken() {
+async function refreshAdAccessToken() {
   try {
-    console.log('🔄 开始刷新access_token...');
+    console.log('🔄 开始刷新广告投放access_token...');
+
+    // 从环境变量获取配置，如果没有则使用默认值
+    const appId = process.env.VITE_DOUYIN_APP_ID || '1843500894701081';
+    const appSecret = process.env.VITE_DOUYIN_APP_SECRET || '7ad00307b2596397ceeee3560ca8bfc9b3622476';
 
     const refreshRequestData = {
-      app_id: '1843500894701081', // 应用ID
-      secret: '7ad00307b2596397ceeee3560ca8bfc9b3622476', // App Secret
-      refresh_token: currentRefreshToken, // 使用当前refresh_token
+      app_id: appId, // 应用ID
+      secret: appSecret, // App Secret
+      refresh_token: adRefreshToken, // 使用当前refresh_token
       grant_type: 'refresh_token'
     };
 
@@ -1614,26 +1620,27 @@ async function refreshAccessToken() {
       // 更新数据库中的token
       await Token.updateToken('access_token', newAccessToken, {
         expiresAt,
-        appId: '1843500894701081',
-        appSecret: '7ad00307b2596397ceeee3560ca8bfc9b3622476'
+        appId: appId,
+        appSecret: appSecret
       });
 
       await Token.updateToken('refresh_token', newRefreshToken, {
         expiresAt: null, // refresh_token通常没有明确的过期时间
-        appId: '1843500894701081',
-        appSecret: '7ad00307b2596397ceeee3560ca8bfc9b3622476'
+        appId: appId,
+        appSecret: appSecret
       });
 
       // 更新全局token变量
-      currentAccessToken = newAccessToken;
-      currentRefreshToken = newRefreshToken;
-      tokenLastRefresh = new Date();
+      adAccessToken = newAccessToken;
+      adRefreshToken = newRefreshToken;
+      adTokenLastRefresh = new Date();
+      adTokenExpiresAt = expiresAt;
 
       // 记录token刷新历史
-      logTokenRefresh(newAccessToken, newRefreshToken, expiresIn, tokenLastRefresh);
+      logTokenRefresh(newAccessToken, newRefreshToken, expiresIn, adTokenLastRefresh);
 
-      console.log('✅ Token刷新成功，已更新数据库和全局变量');
-      console.log('📅 下次刷新时间:', new Date(Date.now() + 10 * 60 * 1000).toLocaleString('zh-CN'));
+      console.log('✅ 广告投放Token刷新成功，已更新数据库和全局变量');
+      console.log('📅 下次刷新时间:', new Date(Date.now() + 30 * 1000).toLocaleString('zh-CN'));
 
       return {
         access_token: newAccessToken,
@@ -1641,61 +1648,86 @@ async function refreshAccessToken() {
         expires_in: expiresIn
       };
     } else {
-      console.error('❌ Token刷新失败:', refreshResponse.data.message);
+      console.error('❌ 广告投放Token刷新失败:', refreshResponse.data.message);
       throw new Error(refreshResponse.data.message || 'Token刷新失败');
     }
   } catch (error) {
-    console.error('❌ Token刷新异常:', error.message);
+    console.error('❌ 广告投放Token刷新异常:', error.message);
     throw error;
   }
 }
 
-// 定时刷新Token的函数
-function startTokenRefreshScheduler() {
-  console.log('⏰ 启动Token自动刷新调度器...');
-  console.log('📅 刷新间隔: 10分钟');
-  console.log('📅 下次刷新时间:', new Date(Date.now() + 10 * 60 * 1000).toLocaleString('zh-CN'));
+// 检查token是否需要刷新的函数
+function shouldRefreshToken() {
+  if (!adTokenExpiresAt) {
+    console.log('⚠️ 没有token过期时间信息，需要刷新');
+    return true;
+  }
 
-  // 每10分钟刷新一次 (10 * 60 * 1000 = 600000毫秒)
+  const now = new Date();
+  const timeUntilExpiry = adTokenExpiresAt.getTime() - now.getTime();
+  const minutesUntilExpiry = timeUntilExpiry / (1000 * 60);
+
+  // 如果还有5分钟或更少时间过期，就刷新
+  if (minutesUntilExpiry <= 5) {
+    console.log(`⏰ Token将在 ${minutesUntilExpiry.toFixed(1)} 分钟后过期，需要刷新`);
+    return true;
+  }
+
+  console.log(`✅ Token还有 ${minutesUntilExpiry.toFixed(1)} 分钟过期，无需刷新`);
+  return false;
+}
+
+// 基于过期时间检查的Token刷新调度器
+function startTokenRefreshScheduler() {
+  console.log('⏰ 启动广告投放Token过期检查调度器...');
+  console.log('📅 检查间隔: 30秒');
+  console.log('🎯 刷新条件: 过期前5分钟内');
+
+  // 每30秒检查一次是否需要刷新
   setInterval(async () => {
+    if (!shouldRefreshToken()) {
+      return; // 不需要刷新，跳过
+    }
+
     let retryCount = 0;
     const maxRetries = 3;
-    const retryDelay = 5 * 60 * 1000; // 5分钟重试间隔
+    const retryDelay = 5 * 1000; // 5秒重试间隔
 
     while (retryCount < maxRetries) {
       try {
-        console.log(`⏰ 定时器触发，开始刷新Token... (尝试 ${retryCount + 1}/${maxRetries})`);
-        await refreshAccessToken();
-        console.log('✅ 定时刷新Token成功');
+        console.log(`🔄 检测到token即将过期，开始刷新广告投放Token... (尝试 ${retryCount + 1}/${maxRetries})`);
+        await refreshAdAccessToken();
+        console.log('✅ 广告投放Token刷新成功');
         break; // 成功后跳出重试循环
       } catch (error) {
         retryCount++;
-        console.error(`❌ 定时刷新Token失败 (尝试 ${retryCount}/${maxRetries}):`, error.message);
+        console.error(`❌ 广告投放Token刷新失败 (尝试 ${retryCount}/${maxRetries}):`, error.message);
 
         if (retryCount < maxRetries) {
           console.log(`⏳ ${retryDelay / 1000}秒后重试...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         } else {
-          console.error('❌ Token刷新失败，已达到最大重试次数，请手动检查配置');
+          console.error('❌ 广告投放Token刷新失败，已达到最大重试次数，请手动检查配置');
           // 这里可以添加告警机制，比如发送邮件或消息通知
         }
       }
     }
-  }, 10 * 60 * 1000); // 10分钟
+  }, 30 * 1000); // 30秒检查一次
 
-  console.log('✅ Token自动刷新调度器已启动');
+  console.log('✅ 广告投放Token过期检查调度器已启动');
 }
 
 // 手动触发Token刷新端点
 app.post('/api/douyin/refresh-token', async (req, res) => {
-  console.log('🔄 手动触发Token刷新请求');
+  console.log('🔄 手动触发广告投放Token刷新请求');
 
   try {
-    const result = await refreshAccessToken();
+    const result = await refreshAdAccessToken();
 
     res.json({
       code: 0,
-      message: 'Token刷新成功',
+      message: '广告投放Token刷新成功',
       data: {
         access_token: result.access_token.substring(0, 20) + '...',
         refresh_token: result.refresh_token.substring(0, 20) + '...',
@@ -1706,11 +1738,11 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ 手动Token刷新失败:', error.message);
+    console.error('❌ 手动广告投放Token刷新失败:', error.message);
 
     res.status(500).json({
       code: 500,
-      message: 'Token刷新失败',
+      message: '广告投放Token刷新失败',
       error: error.message,
       timestamp: new Date().toISOString()
     });
@@ -1827,12 +1859,12 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     console.log('📋 请求参数:', { advertiser_id, id_type, promotion_id });
 
     // 步骤1: 使用已知的有效access_token
-    console.log('📍 步骤1: 获取有效的access_token');
+    console.log('📍 步骤1: 获取有效的广告投放access_token');
 
     // 使用全局token变量
-    let accessToken = currentAccessToken;
-    console.log('✅ 使用当前access_token');
-    console.log('📅 Token最后刷新时间:', tokenLastRefresh.toLocaleString('zh-CN'));
+    let accessToken = adAccessToken;
+    console.log('✅ 使用当前广告投放access_token');
+    console.log('📅 Token最后刷新时间:', adTokenLastRefresh.toLocaleString('zh-CN'));
 
     // 如果token过期，可以在这里添加动态获取逻辑
     // TODO: 实现token刷新机制
@@ -1869,8 +1901,13 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       console.error('❌ 二维码获取失败:', qrResponse.data.message);
 
       // 如果是token过期错误，尝试刷新token
-      if (qrResponse.data.code === 40102 || qrResponse.data.message?.includes('access_token已过期')) {
-        console.log('🔄 检测到token过期，尝试刷新token...');
+      if (qrResponse.data.code === 40102 ||
+          qrResponse.data.code === 401 ||
+          qrResponse.data.message?.includes('access_token已过期') ||
+          qrResponse.data.message?.includes('token') && qrResponse.data.message?.includes('过期') ||
+          qrResponse.data.message?.includes('token') && qrResponse.data.message?.includes('invalid') ||
+          qrResponse.data.message?.includes('unauthorized')) {
+        console.log('🔄 检测到token过期或无效，尝试刷新token...');
 
         try {
           const newTokenData = await refreshAccessToken();
@@ -1895,9 +1932,9 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
               message: 'success',
               data: retryResponse.data.data,
               token_info: {
-                access_token: accessToken.substring(0, 20) + '...',
+                ad_access_token: accessToken.substring(0, 20) + '...',
                 expires_in: newTokenData.expires_in,
-                note: '使用刷新后的access_token'
+                note: '使用刷新后的广告投放access_token'
               },
               request_log: {
                 qr_request: {
@@ -1928,9 +1965,9 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       message: 'success',
       data: qrResponse.data.data,
       token_info: {
-        access_token: accessToken.substring(0, 20) + '...',
+        ad_access_token: accessToken.substring(0, 20) + '...',
         expires_in: '未知', // 使用预配置token，过期时间未知
-        note: '使用预配置的access_token'
+        note: '使用预配置的广告投放access_token'
       },
       request_log: {
         qr_request: {
@@ -2001,16 +2038,16 @@ app.get('/api/douyin/ecpm', async (req, res) => {
     console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
 
     if (tokenResponse.data.err_no !== 0) {
-      console.error('❌ Token获取失败:', tokenResponse.data.err_tips);
+      console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
       return res.status(500).json({
-        error: 'Token获取失败',
+        error: '小游戏Token获取失败',
         message: tokenResponse.data.err_tips,
         details: tokenResponse.data
       });
     }
 
-    const accessToken = tokenResponse.data.data.access_token;
-    console.log('✅ Token获取成功:', accessToken);
+    const minigameAccessToken = tokenResponse.data.data.access_token;
+    console.log('✅ 小游戏Token获取成功:', minigameAccessToken);
 
     // 步骤2: 获取eCPM数据
     console.log('📍 步骤2: 获取eCPM数据');
@@ -2021,7 +2058,7 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       open_id: '',
       mp_id: req.query.mp_id || 'tt8c62fadf136c334702',  // 使用前端传递的参数
       date_hour: req.query.date_hour || new Date().toISOString().split('T')[0],  // 使用前端传递的参数
-      access_token: accessToken,  // 使用刚获取的真实token
+      access_token: minigameAccessToken,  // 使用刚获取的小游戏token
       page_no: parseInt(req.query.page_no) || 1,  // 使用前端传递的参数
       page_size: parseInt(req.query.page_size) || 10  // 使用前端传递的参数
     };
@@ -2058,11 +2095,11 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       message: 'success',
       data: ecpmResponse.data,
       token_info: {
-        access_token: accessToken,
+        minigame_access_token: minigameAccessToken,
         expires_in: tokenResponse.data.data.expires_in
       },
       request_log: {
-        token_request: {
+        minigame_token_request: {
           url: 'https://minigame.zijieapi.com/mgplatform/api/apps/v2/token',
           params: tokenRequestData,
           response: tokenResponse.data
@@ -2125,9 +2162,9 @@ app.post('/api/douyin/ad-report', async (req, res) => {
 
     if (!accessToken) {
       // 如果前端没有传递，尝试使用全局广告投放token
-      accessToken = currentAccessToken;
+      accessToken = adAccessToken;
       console.log('✅ 使用全局广告投放access_token');
-      console.log('📅 Token最后刷新时间:', tokenLastRefresh.toLocaleString('zh-CN'));
+      console.log('📅 Token最后刷新时间:', adTokenLastRefresh.toLocaleString('zh-CN'));
     } else {
       console.log('✅ 使用前端传递的小游戏access_token');
     }
@@ -2172,6 +2209,56 @@ app.post('/api/douyin/ad-report', async (req, res) => {
 
     if (reportResponse.data.code !== 0) {
       console.error('❌ 广告报告获取失败:', reportResponse.data.message);
+
+      // 如果是token过期错误，尝试刷新token
+      if (reportResponse.data.code === 40105 ||
+          reportResponse.data.code === 401 ||
+          reportResponse.data.message?.includes('access_token已过期') ||
+          reportResponse.data.message?.includes('token') && reportResponse.data.message?.includes('过期') ||
+          reportResponse.data.message?.includes('token') && reportResponse.data.message?.includes('invalid') ||
+          reportResponse.data.message?.includes('unauthorized')) {
+        console.log('🔄 检测到token过期或无效，尝试刷新token...');
+
+        try {
+          const newTokenData = await refreshAdAccessToken();
+          accessToken = newTokenData.access_token;
+
+          console.log('✅ Token刷新成功，重试广告报告获取...');
+
+          // 使用新token重试请求
+          const retryResponse = await axios.get('https://ad.oceanengine.com/open_api/2/report/ad/get/', {
+            params: reportParams,
+            headers: {
+              'Access-Token': accessToken,
+              'Content-Type': 'application/json'
+            },
+            timeout: 15000
+          });
+
+          if (retryResponse.data.code === 0) {
+            console.log('✅ 重试成功，广告报告获取成功');
+            return res.json({
+              code: 0,
+              message: 'success',
+              data: retryResponse.data.data,
+              token_info: {
+                ad_access_token: accessToken.substring(0, 20) + '...',
+                expires_in: newTokenData.expires_in,
+                note: '使用刷新后的广告投放access_token'
+              },
+              request_log: {
+                report_request: {
+                  url: 'https://ad.oceanengine.com/open_api/2/report/ad/get/',
+                  params: reportParams,
+                  response: retryResponse.data
+                }
+              }
+            });
+          }
+        } catch (refreshError) {
+          console.error('❌ Token刷新失败:', refreshError.message);
+        }
+      }
 
       return res.status(reportResponse.data.code === 40105 ? 401 : 500).json({
         error: '广告报告获取失败',
@@ -2923,21 +3010,30 @@ app.get('/api/health', (req, res) => {
 
 // Token状态查询端点
 app.get('/api/douyin/token-status', (req, res) => {
-  const nextRefreshTime = new Date((tokenLastRefresh || new Date()).getTime() + 10 * 60 * 1000);
-  const timeUntilRefresh = nextRefreshTime.getTime() - Date.now();
+  const now = new Date();
+  let nextCheckTime = new Date(now.getTime() + 30 * 1000); // 下次检查时间
+  let timeUntilExpiry = null;
+  let timeUntilExpiryFormatted = '未知';
+
+  if (adTokenExpiresAt) {
+    timeUntilExpiry = adTokenExpiresAt.getTime() - now.getTime();
+    timeUntilExpiryFormatted = formatTimeUntilRefresh(timeUntilExpiry);
+  }
 
   res.json({
     code: 0,
     message: 'success',
     data: {
-      current_access_token: currentAccessToken ? currentAccessToken.substring(0, 20) + '...' : null,
-      current_refresh_token: currentRefreshToken ? currentRefreshToken.substring(0, 20) + '...' : null,
-      last_refresh: tokenLastRefresh ? tokenLastRefresh.toISOString() : null,
-      next_refresh: nextRefreshTime.toISOString(),
-      time_until_refresh_seconds: Math.max(0, Math.floor(timeUntilRefresh / 1000)),
-      time_until_refresh_formatted: formatTimeUntilRefresh(timeUntilRefresh),
+      ad_access_token: adAccessToken ? adAccessToken.substring(0, 20) + '...' : null,
+      ad_refresh_token: adRefreshToken ? adRefreshToken.substring(0, 20) + '...' : null,
+      ad_token_last_refresh: adTokenLastRefresh ? adTokenLastRefresh.toISOString() : null,
+      ad_token_expires_at: adTokenExpiresAt ? adTokenExpiresAt.toISOString() : null,
+      next_check: nextCheckTime.toISOString(),
+      time_until_expiry_seconds: timeUntilExpiry ? Math.max(0, Math.floor(timeUntilExpiry / 1000)) : null,
+      time_until_expiry_formatted: timeUntilExpiryFormatted,
       auto_refresh_enabled: true,
-      refresh_interval_minutes: 10
+      refresh_strategy: '按需刷新（过期前5分钟）',
+      check_interval_seconds: 30
     },
     timestamp: new Date().toISOString()
   });
@@ -3136,7 +3232,7 @@ async function startServer() {
       console.log(`🎯 归因方式列表: http://localhost:${PORT}/api/conversion/match-types`);
       console.log(`📈 转化事件统计: http://localhost:${PORT}/api/conversion/stats`);
       console.log(`📝 转化事件列表: http://localhost:${PORT}/api/conversion/events`);
-      console.log(`🎫 Token刷新状态: 每12小时自动刷新`);
+      console.log(`🎫 广告投放Token刷新状态: 按需刷新（过期前5分钟）`);
       console.log('');
       console.log('📝 默认用户:');
       console.log('   管理员: admin / admin123');
