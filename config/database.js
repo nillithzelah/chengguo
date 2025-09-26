@@ -61,6 +61,7 @@ const syncDatabase = async (force = false) => {
 const defineUserModel = require('../models/User');
 const defineGameModel = require('../models/Game');
 const defineUserGameModel = require('../models/UserGame');
+const defineTokenModel = require('../models/Token');
 
 // 注意：eCPM数据表已移除，采用实时查询策略
 // 如需历史数据分析，可按需添加缓存或历史数据表
@@ -69,6 +70,7 @@ const defineUserGameModel = require('../models/UserGame');
 const User = defineUserModel(sequelize);
 const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
+const Token = defineTokenModel(sequelize);
 
 // 定义模型关联关系
 User.belongsToMany(Game, {
