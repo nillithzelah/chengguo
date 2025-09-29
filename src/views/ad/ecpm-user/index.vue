@@ -655,7 +655,7 @@ const loadData = async () => {
       },
       body: JSON.stringify({
         appid: selectedApp.appid,
-        secret: selectedApp.appSecret
+        appSecret: selectedApp.appSecret
       })
     });
 

@@ -21,7 +21,7 @@ try {
 
     if (!row) {
       console.log('❌ tokens表不存在');
-      console.log('💡 请先运行: node scripts/fix-tokens-table.js');
+      console.log('💡 请先运行: node scripts/init-db.js');
       db.close();
       return;
     }
@@ -54,7 +54,7 @@ try {
 
         if (count === 0) {
           console.log('⚠️  tokens表为空，没有任何token记录');
-          console.log('💡 请先运行: node scripts/fix-tokens-table.js');
+          console.log('💡 请先运行: node scripts/init-db.js');
           db.close();
           return;
         }
@@ -96,8 +96,8 @@ try {
             console.log('⚠️  没有有效的access_token，这可能是广告预览二维码API失败的原因');
             console.log('💡 建议:');
             console.log('   1. 检查tokens数据是否正确导入');
-            console.log('   2. 运行: node scripts/fix-tokens-table.js');
-            console.log('   3. 或者在前端使用硬编码token');
+            console.log('   2. 运行: node scripts/init-db.js');
+            console.log('   3. 或者在前端配置正确的环境变量');
           } else {
             console.log('✅ 存在有效的access_token');
             validAccessTokens.forEach(token => {

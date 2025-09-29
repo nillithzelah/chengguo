@@ -53,9 +53,9 @@ DB_PATH=./database.sqlite
 PORT=3000
 NODE_ENV=production
 
-# 抖音API配置（需要从抖音开放平台获取）
-DOUYIN_APP_ID=your_app_id_here
-DOUYIN_APP_SECRET=your_app_secret_here
+# 前端环境变量配置（需要从抖音开放平台获取）
+VITE_DOUYIN_APP_ID=your_app_id_here
+VITE_DOUYIN_APP_SECRET=your_app_secret_here
 ```
 
 ### 4. 初始化数据库

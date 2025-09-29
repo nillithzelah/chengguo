@@ -32,8 +32,9 @@ scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitigno
 **服务器信息：**
 - IP: `47.115.94.203`
 - 用户名: `root`
-- 密码: `1qaz1QAZ1qaz`
 - 项目路径: `/var/www/douyin-admin-master`
+
+⚠️ **安全提醒**: 请勿在文档中存储密码信息。使用环境变量或密钥管理工具。
 
 ### 2. 在服务器上重启应用
 

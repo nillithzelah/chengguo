@@ -15,6 +15,7 @@ const defineUserGameModel = require('./models/UserGame');
 const defineUserDeviceModel = require('./models/UserDevice');
 const defineConversionEventModel = require('./models/ConversionEvent');
 const defineTokenModel = require('./models/Token');
+const defineUserOpenIdModel = require('./models/UserOpenId');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
@@ -23,6 +24,7 @@ const UserGame = defineUserGameModel(sequelize);
 const UserDevice = defineUserDeviceModel(sequelize);
 const ConversionEvent = defineConversionEventModel(sequelize);
 const Token = defineTokenModel(sequelize);
+const UserOpenId = defineUserOpenIdModel(sequelize);
 
 // 设备信息解析器
 const deviceParser = require('./utils/server-device-parser');
@@ -75,6 +77,19 @@ User.hasMany(UserDevice, {
 });
 
 UserDevice.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user',
+  onDelete: 'CASCADE'
+});
+
+// 用户OpenID关联
+User.hasMany(UserOpenId, {
+  foreignKey: 'user_id',
+  as: 'openIds',
+  onDelete: 'CASCADE'
+});
+
+UserOpenId.belongsTo(User, {
   foreignKey: 'user_id',
   as: 'user',
   onDelete: 'CASCADE'
@@ -169,7 +184,7 @@ const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' })); // 增加限制并重新启用
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // 日志中间件
@@ -1339,6 +1354,202 @@ app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
   }
 });
 
+// 绑定用户OpenID
+app.post('/api/user/bind-openid', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { open_id } = req.body;
+
+    if (!open_id) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必要的参数：open_id'
+      });
+    }
+
+    console.log(`🔗 用户 ${currentUser.username} 请求绑定OpenID: ${open_id}`);
+
+    // 绑定用户和OpenID
+    const binding = await UserOpenId.bindUserOpenId(currentUser.userId, open_id);
+
+    console.log(`✅ 用户 ${currentUser.username} 成功绑定OpenID: ${open_id}`);
+
+    res.json({
+      code: 20000,
+      data: {
+        binding: {
+          id: binding.id,
+          user_id: binding.user_id,
+          open_id: binding.open_id,
+          bound_at: binding.bound_at
+        }
+      },
+      message: 'OpenID绑定成功'
+    });
+
+  } catch (error) {
+    console.error('绑定OpenID错误:', error);
+
+    let errorMessage = '绑定失败：服务器内部错误';
+    let statusCode = 500;
+
+    if (error.message.includes('已绑定此OpenID')) {
+      errorMessage = '❌ 绑定失败：该用户已绑定此OpenID';
+      statusCode = 400;
+    } else if (error.message.includes('已被其他用户绑定')) {
+      errorMessage = '❌ 绑定失败：此OpenID已被其他用户绑定，请联系管理员处理';
+      statusCode = 409; // Conflict
+    } else if (error.message.includes('OpenID')) {
+      errorMessage = `❌ 绑定失败：${error.message}`;
+      statusCode = 400;
+    }
+
+    res.status(statusCode).json({
+      code: statusCode,
+      message: errorMessage,
+      details: {
+        open_id: open_id,
+        user_id: currentUser.userId,
+        username: currentUser.username
+      },
+      error: error.message
+    });
+  }
+});
+
+// 解绑用户OpenID
+app.delete('/api/user/unbind-openid', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { open_id, target_user_id } = req.body;
+
+    if (!open_id) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必要的参数：open_id'
+      });
+    }
+
+    console.log(`🔗 用户 ${currentUser.username} 请求解绑OpenID: ${open_id}`);
+    console.log(`📋 请求参数:`, { open_id, target_user_id, currentUserId: currentUser.userId });
+
+    // 检查权限：管理员和审核员可以解绑任何用户的OpenID，普通用户只能解绑自己的
+    let targetUserId = currentUser.userId; // 默认解绑自己的
+
+    if (target_user_id) {
+      // 如果指定了目标用户ID，检查权限
+      if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
+        targetUserId = parseInt(target_user_id);
+        console.log(`🔑 ${currentUser.role} ${currentUser.username} 解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
+      } else {
+        return res.status(403).json({
+          code: 403,
+          message: '❌ 权限不足：只有管理员和审核员可以解绑其他用户的OpenID'
+        });
+      }
+    }
+
+    // 解绑用户和OpenID
+    await UserOpenId.unbindUserOpenId(targetUserId, open_id);
+
+    console.log(`✅ 用户 ${currentUser.username} 成功解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
+
+    res.json({
+      code: 20000,
+      message: 'OpenID解绑成功',
+      data: {
+        target_user_id: targetUserId,
+        open_id: open_id,
+        unbound_by: currentUser.username
+      }
+    });
+
+  } catch (error) {
+    console.error('解绑OpenID错误:', error);
+
+    let errorMessage = '解绑失败：服务器内部错误';
+    let statusCode = 500;
+
+    if (error.message.includes('未找到对应的绑定关系')) {
+      errorMessage = '❌ 解绑失败：未找到对应的绑定关系，可能已被其他用户操作或已解绑';
+      statusCode = 404;
+    } else if (error.message.includes('OpenID')) {
+      errorMessage = `❌ 解绑失败：${error.message}`;
+      statusCode = 400;
+    }
+
+    res.status(statusCode).json({
+      code: statusCode,
+      message: errorMessage,
+      details: {
+        open_id: open_id,
+        target_user_id: target_user_id || currentUser.userId,
+        user_id: currentUser.userId,
+        username: currentUser.username
+      },
+      error: error.message
+    });
+  }
+});
+
+// 根据OpenID查询用户名
+app.post('/api/qr-scan/username-by-openid', async (req, res) => {
+  try {
+    const { open_id, aid, query_type } = req.body;
+
+    console.log('🔍 [用户名查询] 查询用户名请求');
+    console.log('🔑 [用户名查询] OpenID:', open_id, '| 广告ID:', aid, '| 查询类型:', query_type);
+
+    if (!open_id) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少必要的参数：open_id'
+      });
+    }
+
+    console.log('🔍 根据OpenID获取用户名:', { openId: open_id, aid, query_type });
+
+    // 从数据库查询绑定关系
+    const userOpenId = await UserOpenId.findByOpenId(open_id);
+
+    if (userOpenId && userOpenId.user) {
+      const username = userOpenId.user.name || userOpenId.user.username;
+      console.log('✅ 根据OpenID找到用户名:', username, '(open_id:', open_id + ')');
+
+      res.json({
+        code: 20000,
+        data: {
+          username: username,
+          user_id: userOpenId.user.id,
+          open_id: open_id,
+          bound_at: userOpenId.bound_at
+        },
+        message: '查询成功'
+      });
+    } else {
+      console.log('⚠️ 未找到绑定关系，返回默认用户名');
+
+      res.json({
+        code: 20000,
+        data: {
+          username: '未绑定用户',
+          user_id: null,
+          open_id: open_id,
+          bound_at: null
+        },
+        message: '未找到绑定关系'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ 查询用户名错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
 // 抖音webhook端点
 app.get('/api/douyin/webhook', (req, res) => {
   console.log('📡 抖音webhook GET请求验证:', req.query);
@@ -1489,10 +1700,13 @@ app.get('/api/douyin/ads', async (req, res) => {
 // 测试应用连接API
 app.post('/api/douyin/test-connection', async (req, res) => {
   console.log('🔗 测试应用连接请求');
+  console.log('📥 原始请求体:', req.body);
+  console.log('📥 请求头:', req.headers);
 
   try {
-    const { appid, secret } = req.body;
-    const appSecret = secret; // 兼容前端发送的参数名
+    const { appid, secret, appSecret: directAppSecret } = req.body;
+    const appSecret = directAppSecret || secret; // 支持两种字段名
+    console.log('🔑 解析参数:', { appid, appSecret: appSecret ? '***' : 'undefined' });
 
     if (!appid || !appSecret) {
       return res.status(400).json({
@@ -3008,6 +3222,16 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
+// 测试POST请求的端点
+app.post('/api/test-post', (req, res) => {
+  console.log('📥 测试POST请求:', req.body);
+  res.json({
+    success: true,
+    received: req.body,
+    timestamp: new Date().toISOString()
   });
 });
 

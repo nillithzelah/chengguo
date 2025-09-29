@@ -7,9 +7,9 @@
 ## 📋 已完成的配置
 
 ### ✅ API凭证配置
-- **App Key**: `ttb4dbc2662bd4ee7202`
-- **App Secret**: `1c00bc0e29378a3c24541703b93ffceab28a2ad8` 
-- **状态**: 已配置完成
+- **App Key**: 从环境变量 `VITE_DOUYIN_APP_KEY` 获取
+- **App Secret**: 从环境变量 `VITE_DOUYIN_APP_SECRET` 获取
+- **状态**: 通过环境变量配置（安全）
 
 ### ✅ 系统功能
 - 自动获取Access Token
