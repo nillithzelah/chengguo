@@ -145,7 +145,7 @@
               <td>
                 <div class="bind-action-cell">
                   <button
-                    v-if="item.isCurrentUserBound"
+                    v-if="item.isCurrentUserBound || (item.isBound && (userStore.userInfo?.role === 'admin' || (userStore.userInfo?.role as string) === 'moderator'))"
                     @click="unbindUser(item)"
                     class="btn btn-small btn-danger"
                     :disabled="unbinding"
@@ -153,12 +153,19 @@
                     {{ unbinding ? '解绑中...' : '解绑用户' }}
                   </button>
                   <button
-                    v-else
+                    v-else-if="!item.isBound || (item.isBound && userStore.userInfo?.role === 'admin' || (userStore.userInfo?.role as string) === 'moderator')"
                     @click="bindUser(item)"
                     class="btn btn-small btn-success"
-                    :disabled="binding || (item.isBound && userStore.userInfo?.role !== 'admin' && (userStore.userInfo?.role as string) !== 'moderator')"
+                    :disabled="binding"
                   >
-                    {{ binding ? '绑定中...' : item.isBound ? '已被绑定' : '绑定用户' }}
+                    {{ binding ? '绑定中...' : '绑定用户' }}
+                  </button>
+                  <button
+                    v-else
+                    class="btn btn-small btn-secondary"
+                    disabled
+                  >
+                    已被绑定
                   </button>
                 </div>
               </td>
