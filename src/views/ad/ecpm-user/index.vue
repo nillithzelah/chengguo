@@ -114,6 +114,7 @@
               <th>用户名</th>
               <th>用户ID</th>
               <th>广告ID</th>
+              <th>绑定操作</th>
               <!-- <th>二维码</th> -->
               <th>IP</th>
               <th>城市</th>
@@ -124,13 +125,13 @@
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="11" class="loading-cell">
+              <td colspan="12" class="loading-cell">
                 <div class="loading-spinner"></div>
                 加载中...
               </td>
             </tr>
             <tr v-else-if="tableData.length === 0">
-              <td colspan="11" class="empty-cell">
+              <td colspan="12" class="empty-cell">
                 暂无数据
               </td>
             </tr>
@@ -141,6 +142,26 @@
               <td>{{ item.username }}</td>
               <td>{{ item.open_id }}</td>
               <td>{{ item.aid }}</td>
+              <td>
+                <div class="bind-action-cell">
+                  <button
+                    v-if="item.isCurrentUserBound"
+                    @click="unbindUser(item)"
+                    class="btn btn-small btn-danger"
+                    :disabled="unbinding"
+                  >
+                    {{ unbinding ? '解绑中...' : '解绑用户' }}
+                  </button>
+                  <button
+                    v-else
+                    @click="bindUser(item)"
+                    class="btn btn-small btn-success"
+                    :disabled="binding || (item.isBound && userStore.userInfo?.role !== 'admin' && (userStore.userInfo?.role as string) !== 'moderator')"
+                  >
+                    {{ binding ? '绑定中...' : item.isBound ? '已被绑定' : '绑定用户' }}
+                  </button>
+                </div>
+              </td>
               <!-- <td>
                 <div class="qr-code-cell">
                   <img
@@ -269,6 +290,10 @@ const loading = ref(false);
 const error = ref(null);
 const tableData = ref([]);
 
+// 绑定相关状态
+const binding = ref(false);
+const unbinding = ref(false);
+
 // 查询参数
 const queryParams = reactive({
   mp_id: '',
@@ -326,6 +351,7 @@ const getCurrentAppName = () => {
   return app ? app.name : '未知应用';
 };
 
+
 // 获取来源显示名称 - 根据广告ID推断平台来源
 const getSourceDisplayName = (source, aid) => {
   // 优先根据广告ID (aid) 判断平台，因为这是最可靠的标识
@@ -357,12 +383,12 @@ const getSourceDisplayName = (source, aid) => {
     // 抖音测试广告ID通常较小
     if (aidNum >= 1000 && aidNum <= 9999) {
       // 1000-9999 范围的广告ID可能是抖音测试广告
-      return '抖音(测试)';
+      return '抖音';
     }
 
     // 头条测试广告ID通常是小数字
     if (aidNum >= 1 && aidNum <= 99) {
-      return '头条(测试)';
+      return '头条';
     }
 
     // 其他长数字ID可能是广告联盟或第三方平台
@@ -693,20 +719,73 @@ const loadData = async () => {
       const currentBrand = userStore.deviceInfo?.phoneBrand || '未知';
       const currentModel = userStore.deviceInfo?.phoneModel || '未知';
 
-      // 处理数据
-      tableData.value = records.map((item, index) => ({
-        id: index + 1,
-        event_time: item.event_time,
-        source: getSourceDisplayName(item.source, item.aid),
-        username: userStore.userInfo?.name || '当前用户',
-        open_id: item.open_id,
-        aid: item.aid,
-        ip: item.ip || currentIP,
-        city: item.city || currentCity,
-        phone_brand: item.phone_brand || currentBrand,
-        phone_model: item.phone_model || currentModel,
-        revenue: (item.cost || 0) / 100000,  // 修正：收益 = cost / 100000 (十万分之一)
-      }));
+      // 处理数据 - 为每个记录查询用户名
+      const processedRecords = [];
+      for (const item of records) {
+        const record = {
+          id: item.id,
+          event_time: item.event_time,
+          source: getSourceDisplayName(item.source, item.aid),
+          username: '加载中...',
+          open_id: item.open_id,
+          aid: item.aid,
+          ip: item.ip || currentIP,
+          city: item.city || currentCity,
+          phone_brand: item.phone_brand || currentBrand,
+          phone_model: item.phone_model || currentModel,
+          revenue: (item.cost || 0) / 100000,
+          isBound: false,
+          isCurrentUserBound: false
+        };
+
+        // 查询用户名
+        try {
+          const usernameResponse = await fetch('/api/qr-scan/username-by-openid', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              open_id: item.open_id,
+              aid: item.aid,
+              query_type: 'device_id'
+            })
+          });
+
+          if (usernameResponse.ok) {
+            const usernameResult = await usernameResponse.json();
+            if (usernameResult.code === 20000 && usernameResult.data) {
+              record.username = usernameResult.data.username || '未绑定用户';
+              record.isBound = usernameResult.data.user_id !== null;
+              record.isCurrentUserBound = String(usernameResult.data.user_id) === String(userStore.userInfo?.accountId);
+              console.log('调试绑定状态:', {
+                open_id: item.open_id,
+                api_user_id: usernameResult.data.user_id,
+                current_user_accountId: userStore.userInfo?.accountId,
+                isBound: record.isBound,
+                isCurrentUserBound: record.isCurrentUserBound
+              });
+            } else {
+              record.username = '未绑定用户';
+              record.isBound = false;
+              record.isCurrentUserBound = false;
+            }
+          } else {
+            console.warn(`用户名查询失败 (HTTP ${usernameResponse.status}):`, item.open_id);
+            record.username = '查询失败';
+            record.isBound = false;
+            record.isCurrentUserBound = false;
+          }
+        } catch (error) {
+          console.error('用户名查询网络错误:', error, 'OpenID:', item.open_id);
+          record.username = '网络错误';
+          record.isBound = false;
+        }
+
+        processedRecords.push(record);
+      }
+
+      tableData.value = processedRecords;
 
       // 计算统计数据
       const totalRecords = tableData.value.length;
@@ -1034,6 +1113,170 @@ const copyPreviewQrUrl = async () => {
     document.execCommand('copy');
     document.body.removeChild(textArea);
     alert('广告预览链接已复制到剪贴板');
+  }
+};
+
+// 绑定用户
+const bindUser = async (item) => {
+  if (binding.value) return;
+
+  try {
+    binding.value = true;
+    console.log('🔗 开始绑定用户:', item.open_id);
+
+    const response = await fetch('/api/user/bind-openid', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        open_id: item.open_id
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.code === 20000) {
+      console.log('✅ 绑定成功');
+      alert(`✅ 用户绑定成功！\n\nOpenID: ${item.open_id}\n已绑定到当前用户账户`);
+      // 重新加载数据以更新用户名显示
+      await loadData();
+    } else {
+      console.error('❌ 绑定失败:', result.message);
+      let errorMessage = '绑定失败';
+
+      if (result.message) {
+        if (result.message.includes('已绑定此OpenID')) {
+          errorMessage = `❌ 绑定失败：此OpenID已被当前用户绑定\n\nOpenID: ${item.open_id}`;
+        } else if (result.message.includes('已被其他用户绑定')) {
+          errorMessage = `❌ 绑定失败：此OpenID已被其他用户绑定\n\nOpenID: ${item.open_id}\n请联系管理员处理`;
+        } else {
+          errorMessage = `❌ 绑定失败：${result.message}`;
+        }
+      } else {
+        errorMessage = '❌ 绑定失败：服务器返回未知错误';
+      }
+
+      alert(errorMessage);
+    }
+  } catch (error) {
+    console.error('❌ 绑定请求失败:', error);
+    alert(`❌ 绑定请求失败\n\n错误信息: ${error.message}\n\n请检查网络连接后重试`);
+  } finally {
+    binding.value = false;
+  }
+};
+
+// 解绑用户
+const unbindUser = async (item) => {
+  if (unbinding.value) return;
+
+  try {
+    unbinding.value = true;
+    console.log('🔗 开始解绑用户:', item.open_id);
+
+    // 检查当前用户角色
+    const currentUser = userStore.userInfo;
+    let targetUserId = null;
+
+    // 如果是管理员或审核员，获取绑定此OpenID的用户信息
+    if (currentUser.role === 'admin' || (currentUser.role as string) === 'moderator') {
+      // 获取绑定此OpenID的用户信息
+      const bindResponse = await fetch('/api/qr-scan/username-by-openid', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          open_id: item.open_id,
+          aid: item.aid,
+          query_type: 'device_id'
+        })
+      });
+
+      if (bindResponse.ok) {
+        const bindResult = await bindResponse.json();
+        console.log('🔍 绑定信息查询结果:', bindResult);
+
+        if (bindResult.code === 20000 && bindResult.data && bindResult.data.user_id) {
+          targetUserId = bindResult.data.user_id;
+          console.log(`🎯 找到目标用户ID: ${targetUserId}, 用户名: ${bindResult.data.username}`);
+
+          // 确认解绑操作
+          const confirmMessage = `确定要解绑此OpenID吗？\n\nOpenID: ${item.open_id}\n当前绑定用户: ${bindResult.data.username}\n\n注意：管理员操作将解绑指定用户的绑定关系`;
+          if (!confirm(confirmMessage)) {
+            unbinding.value = false;
+            return;
+          }
+        } else {
+          console.warn('⚠️ 绑定信息查询失败或无绑定关系:', bindResult);
+          alert('❌ 此OpenID未绑定任何用户');
+          unbinding.value = false;
+          return;
+        }
+      } else {
+        console.error('❌ 绑定信息查询请求失败:', bindResponse.status);
+        alert('❌ 无法获取绑定信息，请稍后重试');
+        unbinding.value = false;
+        return;
+      }
+    }
+
+    const requestBody: any = {
+      open_id: item.open_id
+    };
+
+    // 如果指定了目标用户ID，添加到请求体
+    if (targetUserId) {
+      requestBody.target_user_id = targetUserId;
+      console.log(`📤 发送解绑请求，目标用户ID: ${targetUserId}`);
+    } else {
+      console.log(`📤 发送解绑请求，无目标用户ID（解绑自己的）`);
+    }
+
+    const response = await fetch('/api/user/unbind-openid', {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.code === 20000) {
+      console.log('✅ 解绑成功');
+      const successMessage = targetUserId
+        ? `✅ 管理员解绑成功！\n\nOpenID: ${item.open_id}\n已从用户ID ${targetUserId} 的账户解绑`
+        : `✅ 用户解绑成功！\n\nOpenID: ${item.open_id}\n已从当前用户账户解绑`;
+      alert(successMessage);
+      // 重新加载数据以更新用户名显示
+      await loadData();
+    } else {
+      console.error('❌ 解绑失败:', result.message);
+      let errorMessage = '解绑失败';
+
+      if (result.message) {
+        if (result.message.includes('未找到对应的绑定关系')) {
+          errorMessage = `❌ 解绑失败：未找到对应的绑定关系\n\nOpenID: ${item.open_id}\n可能已被其他用户操作或已解绑`;
+        } else if (result.message.includes('权限不足')) {
+          errorMessage = `❌ 解绑失败：权限不足\n\n只有管理员和审核员可以解绑其他用户的OpenID`;
+        } else {
+          errorMessage = `❌ 解绑失败：${result.message}`;
+        }
+      } else {
+        errorMessage = '❌ 解绑失败：服务器返回未知错误';
+      }
+
+      alert(errorMessage);
+    }
+  } catch (error) {
+    console.error('❌ 解绑请求失败:', error);
+    alert(`❌ 解绑请求失败\n\n错误信息: ${error.message}\n\n请检查网络连接后重试`);
+  } finally {
+    unbinding.value = false;
   }
 };
 
@@ -1457,6 +1700,13 @@ onMounted(async () => {
     align-items: flex-start;
     gap: 4px;
   }
+}
+
+/* 绑定操作样式 */
+.bind-action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 二维码样式 */
