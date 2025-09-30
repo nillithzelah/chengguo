@@ -18,7 +18,7 @@
           <select
             v-model="selectedAppId"
             @change="onAppChange"
-            class="form-input"
+            class="form-input form-input-wide"
           >
             <option value="">请选择应用</option>
             <option
@@ -42,7 +42,7 @@
           <input
             v-model="queryParams.date_hour"
             type="date"
-            class="form-input"
+            class="form-input form-input-wide"
           />
         </div>
         <div class="form-item">
@@ -85,6 +85,26 @@
           <div class="stat-label">总收益</div>
         </div>
         <div class="stat-card">
+          <div class="stat-value">¥{{ savedTrafficMasterAmount === '[object Object]' || (typeof savedTrafficMasterAmount === 'string' && savedTrafficMasterAmount === '[object Object]') ? '0.00' : savedTrafficMasterAmount }}</div>
+          <div class="stat-label">流量主</div>
+          <!-- 只有管理员和审核员可以修改流量主金额 -->
+          <div v-if="userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'super_viewer'" class="traffic-master-input-group">
+            <input
+              v-model="globalManualAmount"
+              type="number"
+              placeholder="输入新金额"
+              class="form-input form-input-small"
+            />
+            <button
+              @click="confirmGlobalManualAmount"
+              class="btn btn-small btn-success"
+              :disabled="!globalManualAmount || parseFloat(globalManualAmount) <= 0"
+            >
+              更新
+            </button>
+          </div>
+        </div>
+        <div class="stat-card">
           <div class="stat-value">¥{{ stats.totalEcpm }}</div>
           <div class="stat-label">总eCPM</div>
         </div>
@@ -109,57 +129,58 @@
           <thead>
             <tr>
               <th>事件时间</th>
-              <th>应用</th>
+              <th style="min-width: 100px;">应用</th>
               <th>来源</th>
-              <th>用户名</th>
+              <th style="min-width: 120px;">用户名</th>
               <th>用户ID</th>
               <th>广告ID</th>
               <th>绑定操作</th>
               <!-- <th>二维码</th> -->
-              <th>IP</th>
-              <th>城市</th>
-              <th>手机品牌</th>
-              <th>手机型号</th>
+              <!-- <th>IP</th> -->
+              <!-- <th>城市</th> -->
               <th>收益(元)</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="12" class="loading-cell">
+              <td colspan="9" class="loading-cell">
                 <div class="loading-spinner"></div>
                 加载中...
               </td>
             </tr>
             <tr v-else-if="tableData.length === 0">
-              <td colspan="12" class="empty-cell">
+              <td colspan="9" class="empty-cell">
                 暂无数据
               </td>
             </tr>
             <tr v-else v-for="item in tableData" :key="item.id">
               <td>{{ formatDateTime(item.event_time) }}</td>
-              <td>{{ getCurrentAppName() }}</td>
+              <td class="app-name-cell">{{ getCurrentAppName() }}</td>
               <td>{{ item.source || '未知' }}</td>
-              <td>{{ item.username }}</td>
+              <td class="username-cell">{{ item.username }}</td>
               <td>{{ item.open_id }}</td>
               <td>{{ item.aid }}</td>
               <td>
                 <div class="bind-action-cell">
+                  <!-- 解绑按钮：只有管理员和审核员可以解绑 -->
                   <button
-                    v-if="item.isCurrentUserBound || (item.isBound && (userStore.userInfo?.role === 'admin' || (userStore.userInfo?.role as string) === 'moderator'))"
+                    v-if="(userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'super_viewer') && item.isBound"
                     @click="unbindUser(item)"
                     class="btn btn-small btn-danger"
                     :disabled="unbinding"
                   >
                     {{ unbinding ? '解绑中...' : '解绑用户' }}
                   </button>
+                  <!-- 绑定按钮：普通用户只能绑定 -->
                   <button
-                    v-else-if="!item.isBound || (item.isBound && userStore.userInfo?.role === 'admin' || (userStore.userInfo?.role as string) === 'moderator')"
+                    v-else-if="!item.isBound"
                     @click="bindUser(item)"
                     class="btn btn-small btn-success"
                     :disabled="binding"
                   >
                     {{ binding ? '绑定中...' : '绑定用户' }}
                   </button>
+                  <!-- 已绑定状态 -->
                   <button
                     v-else
                     class="btn btn-small btn-secondary"
@@ -187,10 +208,8 @@
                   </button>
                 </div>
               </td> -->
-              <td>{{ item.ip || '未知' }}</td>
-              <td>{{ item.city || '未知' }}</td>
-              <td>{{ item.phone_brand || '未知' }}</td>
-              <td>{{ item.phone_model || '未知' }}</td>
+              <!-- <td>{{ item.ip || '未知' }}</td> -->
+              <!-- <td>{{ item.city || '未知' }}</td> -->
               <td>¥{{ item.revenue }}</td>
             </tr>
           </tbody>
@@ -271,6 +290,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- 错误提示 -->
@@ -280,7 +300,6 @@
       </div>
       <button @click="error = null" class="btn btn-small">关闭</button>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -300,6 +319,12 @@ const tableData = ref([]);
 // 绑定相关状态
 const binding = ref(false);
 const unbinding = ref(false);
+
+// 全局手动金额输入
+const globalManualAmount = ref('');
+
+// 当前保存的流量主金额
+const savedTrafficMasterAmount = ref('0.00');
 
 // 查询参数
 const queryParams = reactive({
@@ -609,12 +634,23 @@ watch(() => userStore.userInfo, async (newUser, oldUser) => {
   }
 }, { immediate: false });
 
+// 监听日期变化，重新加载流量主金额
+watch(() => queryParams.date_hour, async (newDate, oldDate) => {
+  if (newDate && newDate !== oldDate && selectedAppId.value) {
+    console.log('📅 日期变化，重新加载流量主金额:', newDate);
+    await loadTrafficMasterAmount();
+  }
+}, { immediate: false });
+
 // 应用选择变化处理
-const onAppChange = () => {
+const onAppChange = async () => {
   const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
   if (selectedApp) {
     queryParams.mp_id = selectedApp.appid;
     console.log('🔄 切换应用:', selectedApp.name, selectedApp.appid);
+
+    // 切换应用后重新加载流量主金额
+    await loadTrafficMasterAmount();
   } else {
     queryParams.mp_id = '';
   }
@@ -738,8 +774,8 @@ const loadData = async () => {
           aid: item.aid,
           ip: item.ip || currentIP,
           city: item.city || currentCity,
-          phone_brand: item.phone_brand || currentBrand,
-          phone_model: item.phone_model || currentModel,
+          trafficMaster: '',
+          manualAmount: '',
           revenue: (item.cost || 0) / 100000,
           isBound: false,
           isCurrentUserBound: false
@@ -1287,6 +1323,189 @@ const unbindUser = async (item) => {
   }
 };
 
+// 确认手动填写金额
+const confirmManualAmount = async (item) => {
+  if (!item.manualAmount || item.manualAmount <= 0) {
+    alert('请输入有效的金额');
+    return;
+  }
+
+  try {
+    // 这里可以添加API调用来保存手动金额
+    console.log(`确认手动金额: ${item.manualAmount}元 for item:`, item);
+
+    // 更新显示的收益
+    item.revenue = parseFloat(item.manualAmount);
+
+    // 重新计算统计数据
+    const totalRecords = tableData.value.length;
+    const totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
+    const totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
+    const uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
+
+    stats.value = {
+      totalRecords,
+      totalRevenue: totalRevenue.toFixed(2),
+      totalEcpm,
+      totalUsers: uniqueUsers
+    };
+
+    alert(`✅ 手动金额已确认: ¥${item.manualAmount}`);
+  } catch (error) {
+    console.error('确认手动金额失败:', error);
+    alert('确认失败，请重试');
+  }
+};
+
+// 获取流量主金额
+const loadTrafficMasterAmount = async () => {
+  try {
+    // 获取当前选中的应用和日期
+    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+    if (!selectedApp) {
+      console.error('未选择有效的应用');
+      return;
+    }
+
+    const date = queryParams.date_hour || new Date().toISOString().split('T')[0];
+
+    const response = await fetch(`/api/traffic-master/amount?app_id=${selectedApp.appid}&date=${date}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 20000 && result.data) {
+        // API返回的数据格式处理 - 统一转换为字符串格式
+        console.log('=== 流量主金额API调试开始 ===');
+        console.log('完整API响应:', result);
+        console.log('result.data 值:', result.data);
+        console.log('result.data 类型:', typeof result.data);
+
+        if (result.data && typeof result.data === 'object' && result.data.amount) {
+          // 如果是对象格式，取amount字段
+          const amountObj = result.data.amount;
+          console.log('第一层amount对象:', amountObj, '类型:', typeof amountObj);
+
+          let finalAmount = '0.00';
+
+          if (amountObj && typeof amountObj === 'object' && amountObj.amount) {
+            // 如果amount字段本身又是对象，取嵌套的amount
+            finalAmount = String(amountObj.amount);
+            console.log('提取嵌套amount字段:', amountObj.amount);
+          } else if (typeof amountObj === 'string') {
+            // 如果amount字段是字符串
+            finalAmount = amountObj;
+            console.log('amount字段是字符串:', amountObj);
+          } else if (typeof amountObj === 'number') {
+            // 如果amount字段是数字
+            finalAmount = String(amountObj);
+            console.log('amount字段是数字:', amountObj);
+          } else {
+            console.warn('amount字段格式异常:', amountObj);
+            finalAmount = '0.00';
+          }
+
+          savedTrafficMasterAmount.value = finalAmount;
+          console.log('最终设置 savedTrafficMasterAmount.value =', finalAmount);
+        } else if (typeof result.data === 'string') {
+          // 如果直接返回字符串
+          const finalAmount = result.data;
+          savedTrafficMasterAmount.value = finalAmount;
+          console.log('API返回字符串格式，设置值:', finalAmount);
+        } else if (typeof result.data === 'number') {
+          // 如果是数字格式
+          const finalAmount = String(result.data);
+          savedTrafficMasterAmount.value = finalAmount;
+          console.log('API返回数字格式，设置值:', finalAmount);
+        } else {
+          console.error('❌ API数据格式异常，无法处理');
+          console.error('result.data:', result.data);
+          console.error('完整result:', result);
+          savedTrafficMasterAmount.value = '0.00';
+        }
+        console.log('=== 流量主金额API调试结束 ===');
+      } else {
+        console.warn('API返回格式异常:', result);
+        savedTrafficMasterAmount.value = '0.00';
+      }
+    }
+  } catch (error) {
+    console.error('获取流量主金额失败:', error);
+    // 设置默认值，静默失败
+    savedTrafficMasterAmount.value = '0.00';
+    console.log('设置默认值: 0.00');
+  }
+};
+
+// 保存流量主金额
+const saveTrafficMasterAmount = async (amount) => {
+  try {
+    // 获取当前选中的应用和日期
+    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+    if (!selectedApp) {
+      console.error('未选择有效的应用');
+      return false;
+    }
+
+    const date = queryParams.date_hour || new Date().toISOString().split('T')[0];
+
+    const response = await fetch('/api/traffic-master/amount', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        app_id: selectedApp.appid,
+        date: date,
+        amount: amount
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return result.code === 20000;
+    }
+    return false;
+  } catch (error) {
+    console.error('保存流量主金额失败:', error);
+    return false;
+  }
+};
+
+// 确认全局手动金额
+const confirmGlobalManualAmount = async () => {
+  const amount = parseFloat(globalManualAmount.value);
+  if (!amount || amount <= 0) {
+    alert('请输入有效的金额');
+    return;
+  }
+
+  try {
+    console.log(`保存流量主金额: ${amount}元`);
+
+    // 保存到数据库
+    const success = await saveTrafficMasterAmount(amount);
+    if (success) {
+      const finalAmount = amount.toFixed(2);
+      savedTrafficMasterAmount.value = (finalAmount && finalAmount !== '[object Object]') ? finalAmount : '0.00';
+      console.log('保存金额:', finalAmount, '最终值:', savedTrafficMasterAmount.value);
+      alert(`✅ 流量主金额已保存: ¥${finalAmount}`);
+      globalManualAmount.value = ''; // 清空输入框
+    } else {
+      alert('❌ 保存失败，请重试');
+    }
+  } catch (error) {
+    console.error('确认流量主金额失败:', error);
+    alert('确认失败，请重试');
+  }
+};
+
 // 重置查询
 const resetQuery = () => {
   // 重置为默认应用
@@ -1323,6 +1542,9 @@ onMounted(async () => {
     // 即使获取失败也继续执行，不阻塞页面初始化
   }
 
+  // 加载流量主金额
+  await loadTrafficMasterAmount();
+
   // 加载应用列表
   await loadAppList();
 
@@ -1333,7 +1555,7 @@ onMounted(async () => {
       app.advertiser_id === '1843320456982026' &&
       app.promotion_id === '7550558554752532523'
     );
-    
+
     if (validApp) {
       selectedAppId.value = validApp.appid;
       queryParams.mp_id = validApp.appid;
@@ -1362,22 +1584,39 @@ onMounted(async () => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
+  border-radius: 16px;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.05);
 }
 
 .page-header {
   margin-bottom: 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 24px;
+  color: white;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
 }
 
 .page-header h1 {
   font-size: 28px;
   font-weight: 600;
-  color: #1d2129;
   margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-header h1::before {
+  content: "📊";
+  font-size: 32px;
 }
 
 .page-header p {
-  color: #86909c;
   margin: 0;
+  opacity: 0.9;
+  font-size: 16px;
 }
 
 .header-content {
@@ -1396,18 +1635,19 @@ onMounted(async () => {
 
 /* 查询表单 */
 .query-section {
-  background: #fff;
-  border-radius: 8px;
-  padding: 24px;
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 12px;
+  padding: 28px;
   margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.1);
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
 }
 
 .form-item {
@@ -1417,96 +1657,152 @@ onMounted(async () => {
 
 .form-item label {
   display: block;
-  font-weight: 500;
+  font-weight: 600;
   color: #1d2129;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
 }
 
 .form-input {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+  padding: 12px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 8px;
   font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #165dff;
-  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  transform: translateY(-1px);
 }
 
 .form-input select {
   cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.form-input-small {
+  width: 100px;
+  padding: 8px 12px;
+  font-size: 12px;
+  border: 2px solid #e8e8e8;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.form-input-small:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  transform: translateY(-1px);
+}
+
+.form-input-wide {
+  min-width: 250px;
+  max-width: 350px;
 }
 
 .form-actions {
   display: flex;
-  gap: 12px;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* 按钮样式 */
 .btn {
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .btn-primary {
-  background: #165dff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0e42d2;
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 .btn-secondary {
-  background: #f2f3f5;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
   color: #1d2129;
+  border: 1px solid #d9d9d9;
 }
 
 .btn-secondary:hover {
-  background: #e5e6eb;
+  background: linear-gradient(135deg, #e8e8e8 0%, #d0d0d0 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
 }
 
 .btn-success {
-  background: #52c41a;
+  background: linear-gradient(135deg, #52c41a 0%, #389e0d 100%);
   color: white;
 }
 
 .btn-success:hover:not(:disabled) {
-  background: #389e0d;
+  background: linear-gradient(135deg, #389e0d 0%, #237804 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(82, 196, 26, 0.4);
 }
 
 .btn-info {
-  background: #13c2c2;
+  background: linear-gradient(135deg, #13c2c2 0%, #08979c 100%);
   color: white;
 }
 
 .btn-info:hover {
-  background: #08979c;
+  background: linear-gradient(135deg, #08979c 0%, #006d75 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(19, 194, 194, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff4d4f 0%, #cf1322 100%);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #cf1322 0%, #a8071a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 77, 79, 0.4);
 }
 
 .btn-small {
-  padding: 4px 8px;
+  padding: 6px 12px;
   font-size: 12px;
+  border-radius: 6px;
 }
 
 .btn-qr-preview {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 12px 20px;
+  padding: 12px 24px;
   font-size: 14px;
   font-weight: 500;
   border-radius: 8px;
@@ -1529,55 +1825,93 @@ onMounted(async () => {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 12px;
+  padding: 24px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.stat-card:nth-child(1)::before { background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); }
+.stat-card:nth-child(2)::before { background: linear-gradient(90deg, #52c41a 0%, #389e0d 100%); }
+.stat-card:nth-child(3)::before { background: linear-gradient(90deg, #faad14 0%, #d48806 100%); }
+.stat-card:nth-child(4)::before { background: linear-gradient(90deg, #13c2c2 0%, #08979c 100%); }
+.stat-card:nth-child(5)::before { background: linear-gradient(90deg, #722ed1 0%, #531dab 100%); }
+
 .stat-value {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
   color: #1d2129;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  display: block;
 }
 
 .stat-label {
   color: #86909c;
   font-size: 14px;
+  font-weight: 500;
 }
 
 /* 数据表格 */
 .table-section {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+  border: 1px solid rgba(102, 126, 234, 0.1);
 }
 
 .table-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 24px;
+  border-bottom: 1px solid #e8e8e8;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
 }
 
 .table-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: #1d2129;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-header h3::before {
+  content: "📋";
+  font-size: 20px;
 }
 
 .table-info {
   color: #86909c;
   font-size: 14px;
+  font-weight: 500;
 }
 
 
@@ -1592,24 +1926,31 @@ onMounted(async () => {
 
 .data-table th,
 .data-table td {
-  padding: 12px 16px;
+  padding: 16px 20px;
   text-align: left;
   border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
 }
 
 .data-table th {
-  background: #fafbfc;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
   font-weight: 600;
   color: #1d2129;
   white-space: nowrap;
+  border-bottom: 2px solid #e8e8e8;
 }
 
 .data-table td {
   color: #4e5969;
+  transition: background-color 0.2s ease;
 }
 
 .data-table tr:hover {
-  background: #f7f8fa;
+  background: linear-gradient(135deg, #f7f8fa 0%, #f0f2ff 100%);
+}
+
+.data-table tr:hover td {
+  color: #1d2129;
 }
 
 .loading-cell,
@@ -1714,6 +2055,45 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 用户名和应用名称列样式 */
+.username-cell,
+.app-name-cell {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* 流量主单元格样式 */
+.traffic-master-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.traffic-master-cell .form-input {
+  flex: 1;
+  min-width: 80px;
+}
+
+/* 流量主输入框样式 */
+.traffic-master-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.traffic-master-input-group .form-input {
+  flex: 1;
+  min-width: 90px;
+  text-align: center;
+  font-size: 12px;
 }
 
 /* 二维码样式 */

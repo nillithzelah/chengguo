@@ -326,4 +326,31 @@ export const proxyConfig = {
       });
     },
   },
+
+  // 流量主金额管理API代理
+  '/api/traffic-master': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('流量主API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '流量主服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理流量主API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理流量主API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
 };

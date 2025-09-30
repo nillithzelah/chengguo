@@ -107,6 +107,9 @@ let adTokenExpiresAt = null; // 广告投放token过期时间
 // Token刷新历史记录文件
 const TOKEN_LOG_FILE = path.join(__dirname, 'token-refresh-history.log');
 
+// 流量主金额存储文件
+const TRAFFIC_MASTER_FILE = path.join(__dirname, 'traffic-master-amounts.json');
+
 // 记录token刷新历史
 function logTokenRefresh(accessToken, refreshToken, expiresIn, refreshTime) {
   const logEntry = {
@@ -126,6 +129,49 @@ function logTokenRefresh(accessToken, refreshToken, expiresIn, refreshTime) {
   } catch (error) {
     console.error('❌ 记录token历史失败:', error);
   }
+}
+
+// 读取流量主金额数据
+function loadTrafficMasterAmounts() {
+  try {
+    if (fs.existsSync(TRAFFIC_MASTER_FILE)) {
+      const data = fs.readFileSync(TRAFFIC_MASTER_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('❌ 读取流量主金额失败:', error);
+  }
+  return {};
+}
+
+// 保存流量主金额数据
+function saveTrafficMasterAmounts(data) {
+  try {
+    fs.writeFileSync(TRAFFIC_MASTER_FILE, JSON.stringify(data, null, 2));
+    console.log('✅ 流量主金额数据已保存');
+    return true;
+  } catch (error) {
+    console.error('❌ 保存流量主金额失败:', error);
+    return false;
+  }
+}
+
+// 获取指定应用和日期的流量主金额
+function getTrafficMasterAmount(appId, date) {
+  const data = loadTrafficMasterAmounts();
+  const key = `${appId}_${date}`;
+  return data[key] || '0.00';
+}
+
+// 设置指定应用和日期的流量主金额
+function setTrafficMasterAmount(appId, date, amount) {
+  const data = loadTrafficMasterAmounts();
+  const key = `${appId}_${date}`;
+  data[key] = {
+    amount: amount,
+    updated_at: new Date().toISOString()
+  };
+  return saveTrafficMasterAmounts(data);
 }
 
 // 从数据库加载token
@@ -3212,6 +3258,112 @@ app.get('/openid/report', async (req, res) => {
     } else {
       res.status(500).json(errorResponse);
     }
+  }
+});
+
+// 流量主金额管理API
+app.get('/api/traffic-master/amount', authenticateJWT, (req, res) => {
+  try {
+    const { app_id, date } = req.query;
+
+    if (!app_id || !date) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供应用ID和日期参数'
+      });
+    }
+
+    const amount = getTrafficMasterAmount(app_id, date);
+    res.json({
+      code: 20000,
+      data: {
+        app_id: app_id,
+        date: date,
+        amount: amount
+      },
+      message: '获取流量主金额成功'
+    });
+  } catch (error) {
+    console.error('获取流量主金额失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+app.post('/api/traffic-master/amount', authenticateJWT, (req, res) => {
+  try {
+    const { app_id, date, amount } = req.body;
+
+    if (!app_id || !date) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供应用ID和日期'
+      });
+    }
+
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) < 0) {
+      return res.status(400).json({
+        code: 400,
+        message: '请输入有效的金额'
+      });
+    }
+
+    const success = setTrafficMasterAmount(app_id, date, amount.toString());
+    if (success) {
+      res.json({
+        code: 20000,
+        data: {
+          app_id: app_id,
+          date: date,
+          amount: amount
+        },
+        message: '流量主金额保存成功'
+      });
+    } else {
+      res.status(500).json({
+        code: 500,
+        message: '保存失败，请重试'
+      });
+    }
+  } catch (error) {
+    console.error('保存流量主金额失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取所有流量主金额记录
+app.get('/api/traffic-master/amounts', authenticateJWT, (req, res) => {
+  try {
+    const data = loadTrafficMasterAmounts();
+    const records = Object.entries(data).map(([key, value]) => {
+      const [appId, date] = key.split('_');
+      return {
+        app_id: appId,
+        date: date,
+        amount: value.amount,
+        updated_at: value.updated_at
+      };
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        records: records,
+        total: records.length
+      },
+      message: '获取流量主金额记录成功'
+    });
+  } catch (error) {
+    console.error('获取流量主金额记录失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 });
 
