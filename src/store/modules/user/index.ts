@@ -45,16 +45,20 @@ const useUserStore = defineStore('user', {
   actions: {
     switchRoles() {
       return new Promise((resolve) => {
-        if (this.role === 'user') {
+        if (this.role === 'admin') {
           this.role = 'admin';
-        } else if (this.role === 'admin') {
-          this.role = 'viewer';
-        } else if (this.role === 'viewer') {
-          this.role = 'super_viewer';
-        } else if (this.role === 'super_viewer') {
-          this.role = 'user';
+        } else if (this.role === 'internal_boss') {
+          this.role = 'internal_service';
+        } else if (this.role === 'internal_service') {
+          this.role = 'internal_user';
+        } else if (this.role === 'internal_user') {
+          this.role = 'external_boss';
+        } else if (this.role === 'external_boss') {
+          this.role = 'external_service';
+        } else if (this.role === 'external_service') {
+          this.role = 'external_user';
         } else {
-          this.role = 'user'; // 默认切换到 user
+          this.role = 'external_user'; // 默认切换到 external_user
         }
         resolve(this.role);
       });
@@ -474,7 +478,23 @@ const useUserStore = defineStore('user', {
     async info() {
       const res = await getUserInfo();
 
-      this.setInfo(res.data);
+      // 角色映射：将旧的角色名映射到新的角色名
+      const roleMapping = {
+        'super_viewer': 'admin',  // 将旧的super_viewer映射为admin
+        'viewer': 'external_user',
+        'editor': 'internal_service',
+        // 可以根据需要添加更多映射
+      };
+
+      const originalRole = res.data.role;
+      const mappedRole = roleMapping[originalRole] || originalRole;
+
+      console.log('角色映射:', { original: originalRole, mapped: mappedRole });
+
+      this.setInfo({
+        ...res.data,
+        role: mappedRole
+      });
     },
 
     // Login

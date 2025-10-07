@@ -23,8 +23,10 @@ export default function useMenuTree() {
       if (!_routes) return null;
 
       const collector: any = _routes.map((element) => {
+        console.log('🔍 Processing menu item:', element.name, 'layer:', layer, 'path:', element.path);
         // no access
         if (!permission.accessRouter(element)) {
+          console.log('❌ No access to:', element.name);
           return null;
         }
 
@@ -33,6 +35,7 @@ export default function useMenuTree() {
           element.children = [];
           // Check hideInMenu even for leaf nodes
           if (element.meta?.hideInMenu !== true) {
+            console.log('✅ Leaf node added:', element.name);
             return element;
           }
           return null;
@@ -43,11 +46,14 @@ export default function useMenuTree() {
           (x) => x.meta?.hideInMenu !== true
         );
 
+        console.log('🔄 Processing children for:', element.name, 'children count:', element.children.length);
+
         // Associated child node
         const subItem = travel(element.children, layer + 1);
 
         if (subItem.length) {
           element.children = subItem;
+          console.log('✅ Parent node added with children:', element.name, 'children:', subItem.map(c => c.name));
           return element;
         }
         // the else logic
@@ -63,9 +69,13 @@ export default function useMenuTree() {
 
         return null;
       });
-      return collector.filter(Boolean);
+      const result = collector.filter(Boolean);
+      console.log('📋 Menu tree result for layer', layer, ':', result.map(r => ({ name: r.name, children: r.children?.map(c => c.name) })));
+      return result;
     }
-    return travel(copyRouter, 0);
+    const result = travel(copyRouter, 0);
+    console.log('🎯 Final menu tree:', result);
+    return result;
   });
 
   return {

@@ -43,8 +43,8 @@ function defineUserModel(sequelize) {
     }
   },
   role: {
-    type: DataTypes.ENUM('admin', 'user', 'moderator', 'viewer', 'super_viewer'),
-    defaultValue: 'user',
+    type: DataTypes.ENUM('admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user'),
+    defaultValue: 'external_user',
     allowNull: false
   },
   avatar: {

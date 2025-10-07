@@ -140,7 +140,7 @@
         console.log('跳转目标:', redirect || 'EcpmSimple');
 
         router.push({
-          name: (redirect as string) || 'EcpmUser',
+          name: (redirect as string) || 'UserManagement',
           query: {
             ...othersQuery,
           },

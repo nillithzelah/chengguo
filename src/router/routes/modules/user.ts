@@ -5,12 +5,13 @@ const USER: AppRouteRecordRaw = {
   path: '/user',
   name: 'user',
   component: DEFAULT_LAYOUT,
+  redirect: '/user/management', // 重定向到用户管理页面
   meta: {
     locale: 'menu.user',
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 与子路由权限一致
+    roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
   },
   children: [
     {
@@ -20,7 +21,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.management',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
+        roles: ['*'], // 所有登录用户都可以访问
       },
     },
     {
@@ -30,7 +31,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.user',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
+        roles: ['*'], // 所有登录用户都可以访问
       },
     },
     {
@@ -40,7 +41,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.admin',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'viewer', 'moderator'], // 除了user外的所有角色可以访问
+        roles: ['*'], // 所有登录用户都可以访问
       },
     },
   ],

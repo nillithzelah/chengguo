@@ -432,7 +432,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { useUserStore } from '@/store';
 
 // 响应式数据
@@ -501,8 +502,6 @@ const adTestResult = ref(null);
 // 用户权限检查
 const userStore = useUserStore();
 const isAdmin = computed(() => userStore.role === 'admin');
-const isViewer = computed(() => userStore.role === 'viewer');
-const isSuperViewer = computed(() => userStore.role === 'super_viewer');
 const canModify = computed(() => isAdmin.value); // 只有admin可以修改
 
 // 工具函数
@@ -569,6 +568,7 @@ const getUserGameCount = (userId) => {
 
 // API调用函数
 const loadGames = async () => {
+  console.log('📡 游戏管理页面开始加载游戏列表...');
   try {
     const response = await fetch('/api/game/list', {
       method: 'GET',
@@ -578,19 +578,27 @@ const loadGames = async () => {
       }
     });
 
+    console.log('📡 游戏列表API响应状态:', response.status);
     if (response.ok) {
       const result = await response.json();
+      console.log('📡 游戏列表API响应数据:', result);
       if (result.code === 20000) {
+        console.log('✅ 游戏列表加载成功:', result.data.games.length, '个游戏');
         games.value = result.data.games;
         filteredGames.value = [...games.value]; // 更新筛选结果
+      } else {
+        console.log('❌ 游戏列表API返回错误:', result.message);
       }
+    } else {
+      console.log('❌ 游戏列表API请求失败，状态码:', response.status);
     }
   } catch (error) {
-    console.error('加载游戏列表失败:', error);
+    console.error('❌ 加载游戏列表失败:', error);
   }
 };
 
 const loadUsers = async () => {
+  console.log('📡 游戏管理页面开始加载用户列表...');
   try {
     const response = await fetch('/api/user/basic-list', {
       method: 'GET',
@@ -600,14 +608,21 @@ const loadUsers = async () => {
       }
     });
 
+    console.log('📡 用户列表API响应状态:', response.status);
     if (response.ok) {
       const result = await response.json();
+      console.log('📡 用户列表API响应数据:', result);
       if (result.code === 20000) {
+        console.log('✅ 用户列表加载成功:', result.data.users.length, '个用户');
         users.value = result.data.users;
+      } else {
+        console.log('❌ 用户列表API返回错误:', result.message);
       }
+    } else {
+      console.log('❌ 用户列表API请求失败，状态码:', response.status);
     }
   } catch (error) {
-    console.error('加载用户列表失败:', error);
+    console.error('❌ 加载用户列表失败:', error);
   }
 };
 
@@ -1165,12 +1180,39 @@ const closeGameUsersModal = () => {
 // 页面初始化
 onMounted(async () => {
   console.log('🚀 游戏管理页面初始化');
+  console.log('👤 当前用户信息:', userStore.userInfo);
+  console.log('🔑 用户角色:', userStore.userInfo?.role);
+  console.log('📋 isAdmin:', isAdmin.value);
+  console.log('📋 canModify:', canModify.value);
+
+  // 直接调用数据加载，不依赖路由监听
   await loadGames();
   await loadUsers();
 
   // 初始化筛选结果
   filteredGames.value = [...games.value];
 });
+
+// 监听路由变化，当路由变化时重新加载数据
+const route = useRoute();
+
+watch(
+  () => route.name,
+  (newName, oldName) => {
+    console.log('🔍 游戏管理页面路由变化检测:', { newName, oldName, currentRoute: route.name });
+    if (newName === 'GameManagement') {
+      console.log('🔄 游戏管理页面路由变化，重新加载数据');
+      // 等待一小段时间确保组件完全更新
+      setTimeout(async () => {
+        await loadGames();
+        await loadUsers();
+        // 重新初始化筛选结果
+        filteredGames.value = [...games.value];
+      }, 100);
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>

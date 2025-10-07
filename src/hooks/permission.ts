@@ -5,16 +5,24 @@ export default function usePermission() {
   const userStore = useUserStore();
   return {
     accessRouter(route: RouteLocationNormalized | RouteRecordRaw) {
-      return (
+      const hasAccess = (
         !route.meta?.requiresAuth ||
         !route.meta?.roles ||
         route.meta?.roles?.includes('*') ||
         route.meta?.roles?.includes(userStore.role)
       );
+      console.log('Access router check:', {
+        route: route.name,
+        requiresAuth: route.meta?.requiresAuth,
+        roles: route.meta?.roles,
+        userRole: userStore.role,
+        hasAccess
+      });
+      return hasAccess;
     },
     findFirstPermissionRoute(_routers: any, role = 'admin') {
-      // 优先跳转到ECPM用户数据查看页面
-      const preferredRoutes = ['EcpmUser'];
+      // 优先跳转到用户管理页面
+      const preferredRoutes = ['UserManagement'];
 
       // 首先尝试跳转到首选路由
       for (const preferredRoute of preferredRoutes) {
@@ -29,8 +37,8 @@ export default function usePermission() {
       while (cloneRouters.length) {
         const firstElement = cloneRouters.shift();
         if (
-          firstElement?.meta?.roles?.find((el: string[]) => {
-            return el.includes('*') || el.includes(role);
+          firstElement?.meta?.roles?.find((el: string) => {
+            return el === '*' || el === role;
           })
         )
           return { name: firstElement.name };

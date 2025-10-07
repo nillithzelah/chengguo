@@ -96,36 +96,52 @@ async function initializeDatabase() {
 
     const testUsers = [
       {
-        username: 'user',
+        username: 'internal_user',
         password: 'user123',
-        name: '测试用户',
-        email: 'user@chengguo.com',
-        role: 'user',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=user'
+        name: '内用户',
+        email: 'internal_user@chengguo.com',
+        role: 'internal_user',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_user'
       },
       {
-        username: 'moderator',
-        password: 'mod123',
-        name: '客服',
-        email: 'moderator@chengguo.com',
-        role: 'moderator',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=moderator'
+        username: 'internal_service',
+        password: 'service123',
+        name: '内客服',
+        email: 'internal_service@chengguo.com',
+        role: 'internal_service',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_service'
       },
       {
-        username: 'viewer',
-        password: 'viewer123',
-        name: '查看用户',
-        email: 'viewer@chengguo.com',
-        role: 'viewer',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=viewer'
-      },
-      {
-        username: 'boss',
+        username: 'internal_boss',
         password: 'boss123',
-        name: '老板',
-        email: 'boss@chengguo.com',
-        role: 'super_viewer',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=boss'
+        name: '内老板',
+        email: 'internal_boss@chengguo.com',
+        role: 'internal_boss',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_boss'
+      },
+      {
+        username: 'external_user',
+        password: 'euser123',
+        name: '外用户',
+        email: 'external_user@chengguo.com',
+        role: 'external_user',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_user'
+      },
+      {
+        username: 'external_service',
+        password: 'eservice123',
+        name: '外客服',
+        email: 'external_service@chengguo.com',
+        role: 'external_service',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_service'
+      },
+      {
+        username: 'external_boss',
+        password: 'eboss123',
+        name: '外老板',
+        email: 'external_boss@chengguo.com',
+        role: 'external_boss',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_boss'
       }
     ];
 
@@ -278,10 +294,12 @@ async function initializeDatabase() {
     console.log('');
     console.log('📝 使用说明:');
     console.log('   - 管理员账号: admin / admin123');
-    console.log('   - 测试账号: user / user123');
-    console.log('   - 客服账号: moderator / mod123');
-    console.log('   - 查看账号: viewer / viewer123');
-    console.log('   - 老板账号: boss / boss123');
+    console.log('   - 内用户账号: internal_user / user123');
+    console.log('   - 内客服账号: internal_service / service123');
+    console.log('   - 内老板账号: internal_boss / boss123');
+    console.log('   - 外用户账号: external_user / euser123');
+    console.log('   - 外客服账号: external_service / eservice123');
+    console.log('   - 外老板账号: external_boss / eboss123');
     console.log('');
     console.log('🔧 如需重新初始化数据库，请运行:');
     console.log('   node scripts/init-db.js --force');

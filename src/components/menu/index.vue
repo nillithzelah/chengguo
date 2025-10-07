@@ -30,23 +30,56 @@
       const openKeys = ref<string[]>([]);
       const selectedKey = ref<string[]>([]);
 
-      const goto = (item: RouteRecordRaw) => {
+      const goto = async (item: RouteRecordRaw) => {
+        console.log('🔗 [菜单] goto函数被调用，目标页面:', item.name, '路径:', item.path);
+        console.log('🔗 [菜单] 菜单项详情:', {
+          name: item.name,
+          path: item.path,
+          meta: item.meta,
+          component: item.component ? '组件存在' : '组件不存在',
+          componentType: typeof item.component
+        });
+
         // Open external link
         if (regexUrl.test(item.path)) {
+          console.log('🔗 [菜单] 检测到外部链接，正在打开:', item.path);
           openWindow(item.path);
           selectedKey.value = [item.name as string];
           return;
         }
-        // Eliminate external link side effects
-        const { hideInMenu, activeMenu } = item.meta as RouteMeta;
-        if (route.name === item.name && !hideInMenu && !activeMenu) {
-          selectedKey.value = [item.name as string];
-          return;
-        }
-        // Trigger router change
-        router.push({
-          name: item.name,
+
+        // 路由跳转
+        console.log('🔗 [菜单] 开始路由跳转:', { name: item.name, currentRoute: route.name });
+        console.log('🔗 [菜单] 路由跳转前状态:', {
+          currentName: route.name,
+          currentPath: route.path,
+          targetName: item.name
         });
+
+        try {
+          await router.push({
+            name: item.name,
+          });
+
+          console.log('🔗 [菜单] 路由跳转成功');
+          console.log('🔗 [菜单] 路由跳转后状态:', {
+            name: route.name,
+            path: route.path,
+            fullPath: route.fullPath
+          });
+
+          // 等待一小段时间让组件加载
+          setTimeout(() => {
+            console.log('🔗 [菜单] 组件加载等待完成，检查页面状态');
+          }, 100);
+
+        } catch (error) {
+          console.error('🔗 [菜单] 路由跳转失败:', error);
+          console.error('🔗 [菜单] 错误详情:', {
+            message: error.message,
+            stack: error.stack
+          });
+        }
       };
       const findMenuOpenKeys = (target: string) => {
         const result: string[] = [];
@@ -112,7 +145,17 @@
                   <a-menu-item
                     key={element?.name}
                     v-slots={{ icon }}
-                    onClick={() => goto(element)}
+                    onClick={() => {
+                      console.log('🖱️ [菜单] 菜单项被点击:', element?.name);
+                      console.log('🖱️ [菜单] 菜单项完整信息:', {
+                        name: element?.name,
+                        path: element?.path,
+                        meta: element?.meta,
+                        hasChildren: element?.children?.length > 0,
+                        component: element?.component ? '有组件' : '无组件'
+                      });
+                      goto(element);
+                    }}
                   >
                     {t(element?.meta?.locale || '')}
                   </a-menu-item>

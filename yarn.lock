@@ -809,11 +809,6 @@
   resolved "https://registry.npmmirror.com/@types/minimist/-/minimist-1.2.5.tgz"
   integrity sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag==
 
-"@types/mockjs@^1.0.7":
-  version "1.0.10"
-  resolved "https://registry.npmmirror.com/@types/mockjs/-/mockjs-1.0.10.tgz"
-  integrity sha512-SXgrhajHG7boLv6oU93CcmdDm0HYRiceuz6b+7z+/2lCJPTWDv0V5YiwFHT2ejE4bQqgSXQiVPQYPWv7LGsK1g==
-
 "@types/ms@*":
   version "2.1.0"
   resolved "https://registry.npmmirror.com/@types/ms/-/ms-2.1.0.tgz"
@@ -2195,11 +2190,6 @@ colorette@^2.0.20:
   resolved "https://registry.npmmirror.com/colorette/-/colorette-2.0.20.tgz"
   integrity sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w==
 
-commander@*, commander@11.0.0:
-  version "11.0.0"
-  resolved "https://registry.npmmirror.com/commander/-/commander-11.0.0.tgz"
-  integrity sha512-9HMlXtt/BNoYr8ooyjjNRdIilOTkVJXB+GhxMTtOKwk0R4j4lS4NpjuqmRxroBfnfTSHQIHQB7wryHhXarNjmQ==
-
 commander@^2.8.1:
   version "2.20.3"
   resolved "https://registry.npmmirror.com/commander/-/commander-2.20.3.tgz"
@@ -2209,6 +2199,11 @@ commander@^7.2.0:
   version "7.2.0"
   resolved "https://registry.npmmirror.com/commander/-/commander-7.2.0.tgz"
   integrity sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw==
+
+commander@11.0.0:
+  version "11.0.0"
+  resolved "https://registry.npmmirror.com/commander/-/commander-11.0.0.tgz"
+  integrity sha512-9HMlXtt/BNoYr8ooyjjNRdIilOTkVJXB+GhxMTtOKwk0R4j4lS4NpjuqmRxroBfnfTSHQIHQB7wryHhXarNjmQ==
 
 compare-func@^2.0.0:
   version "2.0.0"
@@ -6300,13 +6295,6 @@ mkdirp@^1.0.4:
   version "1.0.4"
   resolved "https://registry.npmmirror.com/mkdirp/-/mkdirp-1.0.4.tgz"
   integrity sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==
-
-mockjs@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.npmmirror.com/mockjs/-/mockjs-1.1.0.tgz"
-  integrity sha512-eQsKcWzIaZzEZ07NuEyO4Nw65g0hdWAyurVol1IPl1gahRwY+svqzfgfey8U8dahLwG44d6/RwEzuK52rSa/JQ==
-  dependencies:
-    commander "*"
 
 moment-timezone@^0.5.43:
   version "0.5.48"

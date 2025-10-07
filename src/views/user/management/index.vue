@@ -115,7 +115,10 @@
           <div v-else>
             <!-- 角色限制提示 -->
             <div v-if="userStore.userInfo?.role !== 'admin'" class="permission-info">
-              <p>您只能创建普通用户账号。</p>
+              <p v-if="userStore.userInfo?.role === 'internal_service'">您只能创建内部普通用户或外部普通用户账号。</p>
+              <p v-else-if="userStore.userInfo?.role === 'external_boss'">您只能创建外部用户账号。</p>
+              <p v-else-if="userStore.userInfo?.role === 'external_service'">您只能创建外部普通用户账号。</p>
+              <p v-else>您只能创建指定类型的用户账号。</p>
             </div>
 
             <div class="form-item">
@@ -357,9 +360,9 @@ const userStore = useUserStore();
 // 权限检查
 const canCreateUser = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'viewer', 'moderator'].includes(role || '');
+  return ['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator'].includes(role || '');
 });
-const canViewUsers = computed(() => ['admin', 'super_viewer', 'viewer', 'moderator'].includes(userStore.userInfo?.role || ''));
+const canViewUsers = computed(() => ['admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user', 'super_viewer', 'viewer', 'moderator', 'user'].includes(userStore.userInfo?.role || ''));
 
 // 可创建的用户角色（根据当前用户角色限制）
 const availableRoles = computed(() => {
@@ -367,19 +370,27 @@ const availableRoles = computed(() => {
   if (currentRole === 'admin') {
     // admin可以创建所有角色
     return [
-      { value: 'user', label: '普通用户' },
-      { value: 'viewer', label: '查看用户' },
-      { value: 'moderator', label: '客服' },
-      { value: 'super_viewer', label: '老板' },
+      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_service', label: '外部客服' },
+      { value: 'external_boss', label: '外部老板' },
+      { value: 'internal_user', label: '内部普通用户' },
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' }
     ];
-  } else if (['viewer', 'moderator'].includes(currentRole || '')) {
-    // viewer和moderator只能创建普通用户
+  } else if (['internal_boss', 'internal_service', 'super_viewer', 'moderator'].includes(currentRole || '')) {
+    // 内部用户可以创建外部用户
     return [
-      { value: 'user', label: '普通用户' }
+      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_service', label: '外部客服' }
+    ];
+  } else if (['external_boss', 'external_service', 'viewer', 'user'].includes(currentRole || '')) {
+    // 外部用户只能创建普通外部用户
+    return [
+      { value: 'external_user', label: '外部普通用户' }
     ];
   }
-  // super_viewer和其他角色不能创建用户
+  // 其他角色不能创建用户
   return [];
 });
 
@@ -389,16 +400,25 @@ const getEditableRoles = () => {
   if (currentRole === 'admin') {
     // admin可以编辑所有角色
     return [
-      { value: 'user', label: '普通用户' },
-      { value: 'viewer', label: '查看用户' },
-      { value: 'moderator', label: '客服' },
-      { value: 'super_viewer', label: '老板' },
+      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_service', label: '外部客服' },
+      { value: 'external_boss', label: '外部老板' },
+      { value: 'internal_user', label: '内部普通用户' },
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' }
     ];
-  } else if (['viewer', 'moderator'].includes(currentRole || '')) {
-    // viewer和moderator只能将用户角色改为user
+  } else if (['internal_boss', 'internal_service', 'super_viewer', 'moderator'].includes(currentRole || '')) {
+    // 内部用户可以编辑外部用户角色
     return [
-      { value: 'user', label: '普通用户' }
+      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_service', label: '外部客服' },
+      { value: 'external_boss', label: '外部老板' }
+    ];
+  } else if (['external_boss', 'external_service', 'viewer', 'user'].includes(currentRole || '')) {
+    // 外部用户只能编辑为普通外部用户
+    return [
+      { value: 'external_user', label: '外部普通用户' }
     ];
   }
   // 其他角色不能编辑角色
@@ -546,16 +566,73 @@ const checkCanEditUser = (user: UserListItem) => {
     return true;
   }
 
-  // super_viewer只能查看，不能编辑任何用户
-  if (currentUserRole === 'super_viewer') {
-    console.log('checkCanEditUser: super_viewer只能查看，不能编辑用户');
-    return false;
+  // internal_boss可以编辑内部和外部用户
+  if (currentUserRole === 'internal_boss') {
+    const canEdit = targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
+    console.log('checkCanEditUser: internal_boss可以编辑内部和外部用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
   }
 
-  // viewer和moderator可以创建和编辑user角色的用户
-  if (['viewer', 'moderator'].includes(currentUserRole || '')) {
-    const canEdit = targetUserRole === 'user';
-    console.log('checkCanEditUser: viewer/moderator只能编辑user角色的用户', {
+  // internal_service可以编辑内部用户和外部普通用户
+  if (currentUserRole === 'internal_service') {
+    const canEdit = targetUserRole === 'internal_user' || targetUserRole === 'external_user';
+    console.log('checkCanEditUser: internal_service可以编辑内部普通用户和外部普通用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  // external_boss可以编辑外部用户
+  if (currentUserRole === 'external_boss') {
+    const canEdit = targetUserRole.startsWith('external_');
+    console.log('checkCanEditUser: external_boss可以编辑外部用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  // external_service可以编辑外部普通用户
+  if (currentUserRole === 'external_service') {
+    const canEdit = targetUserRole === 'external_user';
+    console.log('checkCanEditUser: external_service可以编辑外部普通用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  // 兼容旧角色名称的权限检查 - 旧角色已迁移，但保留向后兼容
+  // super_viewer -> internal_boss, moderator -> internal_service, viewer -> internal_user
+  const roleStr = currentUserRole as string; // 避免类型检查错误，允许旧角色名
+  if (roleStr === 'super_viewer') {
+    // super_viewer等同于internal_boss，可以编辑所有内部和外部用户
+    const canEdit = targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
+    console.log('checkCanEditUser: super_viewer(兼容internal_boss)可以编辑内部和外部用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  if (roleStr === 'moderator') {
+    // moderator等同于internal_service，可以编辑内部普通用户和外部普通用户
+    const canEdit = targetUserRole === 'internal_user' || targetUserRole === 'external_user';
+    console.log('checkCanEditUser: moderator(兼容internal_service)可以编辑普通用户', {
+      targetRole: targetUserRole,
+      canEdit
+    });
+    return canEdit;
+  }
+
+  if (roleStr === 'viewer') {
+    // viewer等同于internal_user，只能编辑外部普通用户（按原有逻辑）
+    const canEdit = targetUserRole === 'external_user';
+    console.log('checkCanEditUser: viewer(兼容internal_user)只能编辑外部普通用户', {
       targetRole: targetUserRole,
       canEdit
     });
@@ -588,10 +665,17 @@ const checkCanDeleteUser = (user: UserListItem) => {
 const getRoleColor = (role: string) => {
   const colors = {
     admin: 'red',
+    internal_boss: 'purple',
+    internal_service: 'orange',
+    internal_user: 'blue',
+    external_boss: 'green',
+    external_service: 'cyan',
+    external_user: 'geekblue',
+    // 兼容旧角色名称，默认归类为内部
+    super_viewer: 'purple',
+    viewer: 'blue',
     moderator: 'orange',
-    user: 'blue',
-    viewer: 'green',
-    super_viewer: 'purple'
+    user: 'geekblue'
   };
   return colors[role] || 'default';
 };
@@ -600,10 +684,17 @@ const getRoleColor = (role: string) => {
 const getRoleText = (role: string) => {
   const texts = {
     admin: '管理员',
-    moderator: '客服',
-    user: '普通用户',
-    viewer: '查看用户',
-    super_viewer: '老板'
+    internal_boss: '内部老板',
+    internal_service: '内部客服',
+    internal_user: '内部普通用户',
+    external_boss: '外部老板',
+    external_service: '外部客服',
+    external_user: '外部普通用户',
+    // 兼容旧角色名称，默认归类为内部
+    super_viewer: '内部老板',
+    viewer: '内部普通用户',
+    moderator: '内部客服',
+    user: '外部普通用户'
   };
   return texts[role] || role;
 };
@@ -798,9 +889,21 @@ const handleEditUser = async () => {
       return;
     }
 
-    // 权限验证：viewer和moderator只能将用户角色改为user
-    if (['viewer', 'moderator'].includes(currentRole || '') && editForm.role !== 'user') {
-      Message.error('您只能将用户角色设置为普通用户');
+    // 权限验证：internal_service只能将用户角色改为internal_user或external_user
+    if (currentRole === 'internal_service' && !['internal_user', 'external_user'].includes(editForm.role)) {
+      Message.error('您只能将用户角色设置为内部普通用户或外部普通用户');
+      return;
+    }
+
+    // 权限验证：external_boss只能将用户角色改为external_开头
+    if (currentRole === 'external_boss' && !editForm.role.startsWith('external_')) {
+      Message.error('您只能编辑外部用户的角色');
+      return;
+    }
+
+    // 权限验证：external_service只能将用户角色改为external_user
+    if (currentRole === 'external_service' && editForm.role !== 'external_user') {
+      Message.error('您只能将用户角色设置为外部普通用户');
       return;
     }
 
@@ -866,15 +969,27 @@ const handleCreateUser = async () => {
 
   const currentRole = userStore.userInfo?.role;
 
-  // 检查权限：admin、viewer、moderator可以创建用户
-  if (!['admin', 'viewer', 'moderator'].includes(currentRole || '')) {
+  // 检查权限：admin、internal_boss、internal_service、external_boss、external_service可以创建用户
+  if (!['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator'].includes(currentRole || '')) {
     Message.error('您没有权限执行此操作');
     return;
   }
 
-  // 检查viewer和moderator只能创建user角色
-  if (['viewer', 'moderator'].includes(currentRole || '') && createForm.role !== 'user') {
-    Message.error('您只能创建普通用户账号');
+  // 检查internal_service只能创建internal_user或external_user角色
+  if (['internal_service', 'moderator'].includes(currentRole || '') && !['internal_user', 'external_user'].includes(createForm.role)) {
+    Message.error('您只能创建内部普通用户或外部普通用户账号');
+    return;
+  }
+
+  // 检查external_boss只能创建external_开头的角色
+  if (['external_boss', 'viewer'].includes(currentRole || '') && !createForm.role.startsWith('external_')) {
+    Message.error('您只能创建外部用户账号');
+    return;
+  }
+
+  // 检查external_service只能创建external_user角色
+  if (['external_service', 'user'].includes(currentRole || '') && createForm.role !== 'external_user') {
+    Message.error('您只能创建外部普通用户账号');
     return;
   }
 

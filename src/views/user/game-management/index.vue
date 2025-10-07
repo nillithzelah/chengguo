@@ -46,7 +46,7 @@
       </div>
       <!-- 调试信息 -->
       <div class="debug-info" style="margin-top: 10px; font-size: 12px; color: #666;">
-        调试: 用户列表数量: {{ userList.length }}, 选中用户ID: "{{ selectedUserId }}"
+        调试: 用户列表数量: {{ (() => { console.log('🎨 [模板] 渲染用户列表数量:', userList.length); return userList.length; })() }}, 选中用户ID: "{{ (() => { console.log('🎨 [模板] 渲染选中用户ID:', selectedUserId); return selectedUserId; })() }}"
       </div>
     </div>
 
@@ -342,10 +342,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { IconRefresh, IconDelete } from '@arco-design/web-vue/es/icon';
 import useUserStore from '@/store/modules/user';
 import { getUserBasicList, getUserGames, assignGameToUser, createGame, deleteGame, removeUserGame, type UserBasicItem, type UserGameListRes } from '@/api/user';
+
+console.log('🔧 [组件] UserGameManagement组件开始加载');
+console.log('🔧 [组件] 当前用户store状态:', useUserStore());
+console.log('🔧 [组件] 当前用户信息:', useUserStore().userInfo);
+console.log('🔧 [组件] 组件setup函数开始执行');
 
 // 响应式数据
 const userLoading = ref(false);
@@ -426,8 +432,17 @@ const gameColumns = [
 const getRoleColor = (role: string) => {
   const colors = {
     admin: 'red',
+    internal_boss: 'purple',
+    internal_service: 'orange',
+    internal_user: 'blue',
+    external_boss: 'green',
+    external_service: 'cyan',
+    external_user: 'geekblue',
+    // 兼容旧角色名称，默认归类为内部
+    super_viewer: 'purple',
     moderator: 'orange',
-    user: 'blue'
+    viewer: 'blue',
+    user: 'geekblue'
   };
   return colors[role] || 'default';
 };
@@ -436,8 +451,17 @@ const getRoleColor = (role: string) => {
 const getRoleText = (role: string) => {
   const texts = {
     admin: '管理员',
-    moderator: '审核员',
-    user: '普通用户'
+    internal_boss: '内部老板',
+    internal_service: '内部客服',
+    internal_user: '内部普通用户',
+    external_boss: '外部老板',
+    external_service: '外部客服',
+    external_user: '外部普通用户',
+    // 兼容旧角色名称，默认归类为内部
+    super_viewer: '内部老板',
+    moderator: '内部客服',
+    viewer: '内部普通用户',
+    user: '外部普通用户'
   };
   return texts[role] || role;
 };
@@ -469,14 +493,44 @@ const formatDate = (dateStr: string) => {
 
 // 加载用户列表
 const loadUserList = async () => {
+  console.log('📡 [API] 用户游戏管理页面开始加载用户列表...');
+  console.log('📡 [API] 当前userLoading状态:', userLoading.value);
+  console.log('📡 [API] 当前用户信息:', userStore.userInfo);
+
   userLoading.value = true;
+  console.log('📡 [API] 设置userLoading为true');
+
   try {
+    console.log('📡 [API] 调用getUserBasicList API...');
+    const startTime = Date.now();
     const response = await getUserBasicList();
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+
+    console.log('📡 [API] API响应接收成功，耗时:', duration, 'ms');
+    console.log('📡 [API] 响应数据结构:', {
+      hasData: !!response.data,
+      hasUsers: !!(response.data?.users),
+      usersCount: response.data?.users?.length || 0,
+      total: response.data?.total || 0
+    });
+
+    console.log('✅ [API] 用户列表加载成功:', response.data.users.length, '个用户');
+    console.log('✅ [API] 用户列表详情:', response.data.users.map(u => ({ id: u.id, username: u.username, role: u.role })));
+
     userList.value = response.data.users;
+    console.log('✅ [API] 响应式数据已更新，userList长度:', userList.value.length);
+
   } catch (error) {
-    console.error('加载用户列表失败:', error);
+    console.error('❌ [API] 加载用户列表失败:', error);
+    console.error('❌ [API] 错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     Message.error('加载用户列表失败');
   } finally {
+    console.log('📡 [API] 最终设置userLoading为false');
     userLoading.value = false;
   }
 };
@@ -901,15 +955,97 @@ const saveNewGame = async () => {
 
 // 组件挂载时加载数据
 onMounted(() => {
-  // 检查用户权限：允许admin、super_viewer、viewer、moderator访问
-  const allowedRoles = ['admin', 'super_viewer', 'viewer', 'moderator'];
+  console.log('🚀 [组件] 用户游戏管理页面组件挂载开始');
+  console.log('🚀 [组件] 组件挂载时的用户信息:', userStore.userInfo);
+  console.log('🚀 [组件] 组件挂载时的路由信息:', route.name, route.path);
+  console.log('🚀 [组件] 组件挂载时的响应式数据:', {
+    userLoading: userLoading.value,
+    gameLoading: gameLoading.value,
+    selectedUserId: selectedUserId.value,
+    userListLength: userList.value.length,
+    gameListLength: gameList.value.length
+  });
+
+  // 直接调用数据加载，不依赖路由监听
+  console.log('🚀 [组件] 开始调用checkPermissionsAndLoadData');
+  checkPermissionsAndLoadData();
+  console.log('🚀 [组件] checkPermissionsAndLoadData调用完成');
+});
+
+// 监听路由变化，当路由变化时重新加载数据
+const route = useRoute();
+
+watch(
+  () => route.name,
+  (newName, oldName) => {
+    console.log('🔍 [路由监听] 用户游戏管理页面路由变化检测:', {
+      newName,
+      oldName,
+      currentRoute: route.name,
+      fullPath: route.fullPath,
+      params: route.params,
+      query: route.query
+    });
+
+    // 只有当路由真正从其他页面跳转到UserGameManagement时才重新加载数据
+    // 避免组件初始化时的重复加载
+    if (newName === 'UserGameManagement' && oldName && oldName !== 'UserGameManagement') {
+      console.log('🔄 [路由监听] 用户游戏管理页面路由变化，重新加载数据');
+      console.log('🔄 [路由监听] 路由变化时的用户信息:', userStore.userInfo);
+      console.log('🔄 [路由监听] 路由变化时的响应式数据:', {
+        userLoading: userLoading.value,
+        gameLoading: gameLoading.value,
+        selectedUserId: selectedUserId.value,
+        userListLength: userList.value.length,
+        gameListLength: gameList.value.length
+      });
+
+      // 等待一小段时间确保组件完全更新
+      setTimeout(() => {
+        console.log('🔄 [路由监听] setTimeout执行，开始检查权限');
+        if (userStore.userInfo?.role) {
+          console.log('🔄 [路由监听] 用户信息存在，开始加载数据');
+          checkPermissionsAndLoadData();
+        } else {
+          console.log('🔄 [路由监听] 用户信息不存在，跳过数据加载');
+        }
+      }, 100);
+    }
+  },
+  { immediate: false } // 移除immediate，避免组件挂载时立即触发
+);
+
+// 检查权限并加载数据
+const checkPermissionsAndLoadData = () => {
+  console.log('🔍 [权限检查] 用户游戏管理页面检查权限并加载数据开始');
+  console.log('👤 [权限检查] 当前用户信息:', userStore.userInfo);
+  console.log('🔑 [权限检查] 用户角色:', userStore.userInfo?.role);
+  console.log('📋 [权限检查] 当前响应式数据:', {
+    userLoading: userLoading.value,
+    gameLoading: gameLoading.value,
+    selectedUserId: selectedUserId.value,
+    userListLength: userList.value.length,
+    gameListLength: gameList.value.length
+  });
+
+  // 检查用户权限：允许admin、内老板、外老板、内客服、外客服访问
+  // 兼容旧角色名：super_viewer -> internal_boss, moderator -> internal_service
+  const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'super_viewer', 'moderator'];
+  console.log('📋 [权限检查] 允许的角色:', allowedRoles);
+  console.log('✅ [权限检查] 角色检查结果:', allowedRoles.includes(userStore.userInfo?.role || ''));
+
   if (!allowedRoles.includes(userStore.userInfo?.role || '')) {
+    console.log('❌ [权限检查] 权限不足，显示错误消息');
+    console.log('❌ [权限检查] 当前用户角色不在允许列表中');
     Message.error('您没有权限访问此页面');
     return;
   }
 
+  console.log('✅ [权限检查] 权限检查通过，开始加载用户列表');
+  console.log('📡 [权限检查] 调用loadUserList函数');
   loadUserList();
-});
+  console.log('📡 [权限检查] loadUserList函数调用完成');
+};
 </script>
 
 <style scoped lang="less">
