@@ -73,7 +73,20 @@ npm run db:test
 npm run build
 ```
 
-### 6. 启动服务
+### 6. 部署前端到服务器
+```bash
+# 上传前端文件到服务器
+# 服务器信息：IP: 47.115.94.203, 用户名: root, 前端路径: /var/www/html/
+scp -r dist/* root@47.115.94.203:/var/www/html/
+
+# 在服务器上设置权限
+ssh root@47.115.94.203
+sudo chown -R www-data:www-data /var/www/html/
+sudo chmod -R 755 /var/www/html/
+sudo systemctl reload nginx
+```
+
+### 7. 启动服务
 ```bash
 # 开发模式启动
 npm run dev
@@ -90,7 +103,12 @@ npm run server
 
 ### 服务器部署
 ```bash
+# 上传后端文件到服务器
+scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitignore root@47.115.94.203:/var/www/douyin-admin-master/
+
 # 使用PM2管理进程
+ssh root@47.115.94.203
+cd /var/www/douyin-admin-master
 npm install -g pm2
 pm2 start server.js --name "chengguo-app"
 pm2 save

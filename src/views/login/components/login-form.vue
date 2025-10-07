@@ -79,8 +79,9 @@
 
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
-    username: 'admin', // 管理员默认值
-    password: 'admin123', // admin default value
+    username: '', // 默认留空
+    password: '', // 默认留空
+
   });
   const userInfo = reactive({
     username: loginConfig.value.username,
@@ -139,7 +140,7 @@
         console.log('跳转目标:', redirect || 'EcpmSimple');
 
         router.push({
-          name: (redirect as string) || 'UserGameManagement',
+          name: (redirect as string) || 'EcpmUser',
           query: {
             ...othersQuery,
           },
