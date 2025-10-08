@@ -137,10 +137,10 @@
         console.log('登录成功，准备跳转...');
 
         const { redirect, ...othersQuery } = router.currentRoute.value.query;
-        console.log('跳转目标:', redirect || 'EcpmSimple');
+        console.log('跳转目标:', redirect || 'EcpmUser');
 
         router.push({
-          name: (redirect as string) || 'UserManagement',
+          name: (redirect as string) || 'EcpmUser',
           query: {
             ...othersQuery,
           },
