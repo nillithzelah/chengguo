@@ -3,19 +3,34 @@ import { useUserStore } from '@/store';
 
 export default function usePermission() {
   const userStore = useUserStore();
+
+  // 角色映射：兼容以前的角色类型，默认迁移为内部角色
+  const roleMapping: Record<string, string> = {
+    'admin': 'internal_boss',
+    'super_viewer': 'external_boss',
+    'viewer': 'external_user',
+    'user': 'internal_user',
+    'boss': 'internal_boss', // 兼容旧的boss角色
+  };
+
+  // 获取映射后的角色
+  const getMappedRole = (role: string) => roleMapping[role] || role;
+
   return {
     accessRouter(route: RouteLocationNormalized | RouteRecordRaw) {
+      const mappedRole = getMappedRole(userStore.role);
       const hasAccess = (
         !route.meta?.requiresAuth ||
         !route.meta?.roles ||
         route.meta?.roles?.includes('*') ||
-        route.meta?.roles?.includes(userStore.role)
+        route.meta?.roles?.includes(mappedRole)
       );
       console.log('Access router check:', {
         route: route.name,
         requiresAuth: route.meta?.requiresAuth,
         roles: route.meta?.roles,
         userRole: userStore.role,
+        mappedRole,
         hasAccess
       });
       return hasAccess;
