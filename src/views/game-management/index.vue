@@ -83,7 +83,7 @@
     </div>
 
     <!-- 创建游戏模态框 -->
-    <div v-if="showCreateGameModal" class="modal-overlay" @click="closeCreateGameModal">
+    <div v-if="showCreateGameModal" class="modal-overlay">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>创建新游戏</h3>
@@ -195,7 +195,7 @@
     </div>
 
     <!-- 编辑游戏模态框 -->
-    <div v-if="showEditGameModal" class="modal-overlay" @click="closeEditGameModal">
+    <div v-if="showEditGameModal" class="modal-overlay">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>编辑游戏</h3>
@@ -307,7 +307,7 @@
     </div>
 
     <!-- 分配用户模态框 -->
-    <div v-if="showAssignUserModal" class="modal-overlay" @click="closeAssignModal">
+    <div v-if="showAssignUserModal" class="modal-overlay">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>为游戏分配用户</h3>
@@ -358,7 +358,7 @@
     </div>
 
     <!-- 查看用户游戏模态框 -->
-    <div v-if="showUserGamesModal" class="modal-overlay" @click="closeUserGamesModal">
+    <div v-if="showUserGamesModal" class="modal-overlay">
       <div class="modal-content large-modal" @click.stop>
         <div class="modal-header">
           <h3>{{ selectedUser?.name || selectedUser?.username }} 的游戏列表</h3>
@@ -393,7 +393,7 @@
     </div>
 
     <!-- 查看游戏用户模态框 -->
-    <div v-if="showGameUsersModal" class="modal-overlay" @click="closeGameUsersModal">
+    <div v-if="showGameUsersModal" class="modal-overlay">
       <div class="modal-content large-modal" @click.stop>
         <div class="modal-header">
           <h3>{{ selectedGame?.name }} 的用户列表</h3>

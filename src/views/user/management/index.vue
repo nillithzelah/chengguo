@@ -205,7 +205,7 @@
     </div>
 
     <!-- 编辑用户模态框 -->
-    <div v-if="showEditModal && editUserInfo" class="modal-overlay" @click="() => { showEditModal = false; editUserInfo = null; }">
+    <div v-if="showEditModal && editUserInfo" class="modal-overlay">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>编辑用户</h3>
