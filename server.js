@@ -657,12 +657,14 @@ app.get('/api/user/list', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     console.log('📋 用户列表API - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
 
-    // 检查权限：管理员、超级查看者、客服和查看用户可以查看用户列表（排除普通用户）
-    if (!['admin', 'super_viewer', 'moderator', 'viewer'].includes(currentUser.role)) {
-      console.log('❌ 用户列表API - 权限不足:', { role: currentUser.role, allowedRoles: ['admin', 'super_viewer', 'moderator', 'viewer'] });
+    // 检查权限：管理员、老板和客服可以查看用户列表（排除普通用户）
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
+      console.log('❌ 用户列表API - 权限不足:', { role: currentUser.role, mappedRole, allowedRoles });
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员、超级查看者和客服可以查看用户列表'
+        message: '权限不足，只有管理员、老板和客服可以查看用户列表'
       });
     }
     console.log('✅ 用户列表API - 权限检查通过');
@@ -670,19 +672,19 @@ app.get('/api/user/list', authenticateJWT, async (req, res) => {
     // 根据用户角色过滤用户数据
     let whereCondition = {};
 
-    // admin和super_viewer可以看到所有用户
-    if (currentUser.role === 'admin' || currentUser.role === 'super_viewer') {
+    // admin、internal_boss、external_boss可以看到所有用户
+    if (['admin', 'internal_boss', 'external_boss'].includes(mappedRole)) {
       // 不添加任何过滤条件，查看所有用户
-      console.log('✅ 用户列表API - admin/super_viewer权限，查看所有用户');
-    } else if (currentUser.role === 'moderator' || currentUser.role === 'viewer') {
-      // moderator和viewer只能看到自己和自己创建的用户
+      console.log('✅ 用户列表API - admin/boss权限，查看所有用户');
+    } else if (['internal_service', 'external_service'].includes(mappedRole)) {
+      // internal_service和external_service只能看到自己和自己创建的用户
       whereCondition = {
         [sequelize.Sequelize.Op.or]: [
           { id: currentUser.userId }, // 自己
           { created_by: currentUser.userId } // 自己创建的用户
         ]
       };
-      console.log('✅ 用户列表API - moderator/viewer权限，只查看自己和自己创建的用户');
+      console.log('✅ 用户列表API - service权限，只查看自己和自己创建的用户');
     } else {
       // 其他角色不能查看用户列表（虽然前端已经过滤，但这里再加一层保护）
       console.log('❌ 用户列表API - 权限不足，拒绝访问');
@@ -2937,11 +2939,13 @@ app.get('/api/conversion/stats', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
 
-    // 检查权限：只有管理员、超级查看者和客服可以查看统计
-    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role)) {
+    // 检查权限：只有管理员、老板和客服可以查看统计
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员和客服可以查看统计'
+        message: '权限不足，只有管理员、老板和客服可以查看统计'
       });
     }
 
