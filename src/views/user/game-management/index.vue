@@ -515,10 +515,29 @@ const loadUserList = async () => {
       total: response.data?.total || 0
     });
 
-    console.log('✅ [API] 用户列表加载成功:', response.data.users.length, '个用户');
-    console.log('✅ [API] 用户列表详情:', response.data.users.map(u => ({ id: u.id, username: u.username, role: u.role })));
+    let users = response.data.users;
 
-    userList.value = response.data.users;
+    // 根据当前用户角色过滤用户列表
+    const currentUserRole = userStore.userInfo?.role;
+    const currentUserId = Number(userStore.userInfo?.accountId);
+
+    if (currentUserRole === 'admin') {
+      // admin可以看到所有用户
+      userList.value = users;
+    } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
+      // 老板只能看到自己创建的用户
+      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+      // 客服只能看到自己创建的用户
+      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else {
+      // 其他角色看不到用户列表
+      userList.value = [];
+    }
+
+    console.log('✅ [API] 用户列表加载成功:', userList.value.length, '个用户');
+    console.log('✅ [API] 用户列表详情:', userList.value.map(u => ({ id: u.id, username: u.username, role: u.role })));
+
     console.log('✅ [API] 响应式数据已更新，userList长度:', userList.value.length);
 
   } catch (error) {

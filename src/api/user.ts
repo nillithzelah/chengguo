@@ -103,6 +103,7 @@ export interface UserBasicItem {
   username: string;
   name: string;
   role: string;
+  created_by?: number;
 }
 
 export interface UserBasicListRes {
