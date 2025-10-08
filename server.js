@@ -32,6 +32,20 @@ const deviceParser = require('./utils/server-device-parser');
 // 转化事件回调服务
 const conversionCallbackService = require('./services/conversion-callback-service');
 
+// 角色映射：兼容以前的角色类型，默认迁移为内部角色
+const roleMapping = {
+  'admin': 'internal_boss',
+  'super_viewer': 'external_boss',
+  'viewer': 'external_user',
+  'user': 'internal_user',
+  'boss': 'internal_boss', // 兼容旧的boss角色
+};
+
+// 获取映射后的角色
+function getMappedRole(role) {
+  return roleMapping[role] || role;
+}
+
 // 定义模型关联关系
 User.belongsToMany(Game, {
   through: UserGame,
@@ -527,11 +541,13 @@ app.put('/api/user/update/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
     const { name, email, role, is_active, password } = req.body;
 
-    // 检查权限：只有管理员和超级查看者可以更新用户
-    if (currentUser.role !== 'admin' && currentUser.role !== 'super_viewer') {
+    // 检查权限：只有管理员和老板可以更新用户
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员和超级查看者可以更新用户信息'
+        message: '权限不足，只有管理员和老板可以更新用户信息'
       });
     }
 
@@ -608,7 +624,8 @@ app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
 
     // 检查权限：只有管理员可以删除用户
-    if (currentUser.role !== 'admin') {
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以删除用户'
@@ -747,8 +764,10 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     const { userId } = req.params;
-    // 检查权限：管理员、超级查看者和客服可以查看任何用户的游戏列表，普通用户只能查看自己的
-    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role) && parseInt(userId) !== currentUser.userId) {
+    // 检查权限：管理员、老板和客服可以查看任何用户的游戏列表，普通用户只能查看自己的
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole) && parseInt(userId) !== currentUser.userId) {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只能查看自己的游戏列表'
@@ -842,11 +861,13 @@ app.post('/api/game/assign', authenticateJWT, async (req, res) => {
    const currentUser = req.user;
    const { userId, gameId, role = 'viewer' } = req.body;
 
-   // 检查权限：只有管理员可以分配游戏权限
-   if (currentUser.role !== 'admin') {
+   // 检查权限：只有管理员和老板可以分配游戏权限
+   const mappedRole = getMappedRole(currentUser.role);
+   const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+   if (!allowedRoles.includes(mappedRole)) {
      return res.status(403).json({
        code: 403,
-       message: '权限不足，只有管理员可以分配游戏权限'
+       message: '权限不足，只有管理员和老板可以分配游戏权限'
      });
    }
 
@@ -919,11 +940,13 @@ app.delete('/api/game/remove/:userId/:gameId', authenticateJWT, async (req, res)
    const currentUser = req.user;
    const { userId, gameId } = req.params;
 
-   // 检查权限：只有管理员可以移除游戏权限
-   if (currentUser.role !== 'admin') {
+   // 检查权限：只有管理员和老板可以移除游戏权限
+   const mappedRole = getMappedRole(currentUser.role);
+   const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+   if (!allowedRoles.includes(mappedRole)) {
      return res.status(403).json({
        code: 403,
-       message: '权限不足，只有管理员可以移除游戏权限'
+       message: '权限不足，只有管理员和老板可以移除游戏权限'
      });
    }
 
@@ -978,11 +1001,13 @@ app.get('/api/game/:id/users', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { id } = req.params;
 
-    // 检查权限：只有管理员可以查看游戏用户列表
-    if (currentUser.role !== 'admin') {
+    // 检查权限：只有管理员和老板可以查看游戏用户列表
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以查看游戏用户列表'
+        message: '权限不足，只有管理员和老板可以查看游戏用户列表'
       });
     }
 
@@ -1050,11 +1075,13 @@ app.get('/api/game/:id/owner', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { id } = req.params;
 
-    // 检查权限：只有管理员可以查看游戏所有者信息
-    if (currentUser.role !== 'admin') {
+    // 检查权限：只有管理员和老板可以查看游戏所有者信息
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以查看游戏所有者信息'
+        message: '权限不足，只有管理员和老板可以查看游戏所有者信息'
       });
     }
 
@@ -1117,8 +1144,9 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
 
-    if (currentUser.role === 'admin') {
-      // 管理员可以看到所有活跃游戏
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole === 'admin' || mappedRole === 'internal_boss' || mappedRole === 'external_boss') {
+      // 管理员、老板可以看到所有活跃游戏
       const games = await Game.findAll({
         where: { status: 'active' },
         attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret', 'advertiser_id', 'promotion_id'],
@@ -1178,8 +1206,9 @@ app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
 
     // 检查权限：只有管理员可以删除游戏
-    if (currentUser.role !== 'admin') {
-      console.log('❌ 权限不足:', { userRole: currentUser.role, requiredRole: 'admin' });
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      console.log('❌ 权限不足:', { userRole: currentUser.role, mappedRole, requiredRole: 'admin' });
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以删除游戏'
@@ -1242,7 +1271,8 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
     const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
 
     // 检查权限：只有管理员可以创建游戏
-    if (currentUser.role !== 'admin') {
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以创建游戏'
@@ -1307,7 +1337,8 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
 
     // 检查权限：只有管理员可以更新游戏
-    if (currentUser.role !== 'admin') {
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以更新游戏'
@@ -1369,11 +1400,13 @@ app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     console.log('📋 获取用户列表 - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
-    // 检查权限：管理员、超级查看者、客服和查看用户可以查看用户列表（排除普通用户）
-    if (!['admin', 'super_viewer', 'moderator', 'viewer'].includes(currentUser.role)) {
+    // 检查权限：管理员、老板和客服可以查看用户列表（排除普通用户）
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员、超级查看者和客服可以查看用户列表'
+        message: '权限不足，只有管理员、老板和客服可以查看用户列表'
       });
     }
 
@@ -1481,18 +1514,21 @@ app.delete('/api/user/unbind-openid', authenticateJWT, async (req, res) => {
     console.log(`🔗 用户 ${currentUser.username} 请求解绑OpenID: ${open_id}`);
     console.log(`📋 请求参数:`, { open_id, target_user_id, currentUserId: currentUser.userId });
 
-    // 检查权限：管理员和审核员可以解绑任何用户的OpenID，普通用户只能解绑自己的
+    // 检查权限：管理员和客服可以解绑任何用户的OpenID，普通用户只能解绑自己的
+    const mappedRole = getMappedRole(currentUser.role);
     let targetUserId = currentUser.userId; // 默认解绑自己的
 
     if (target_user_id) {
       // 如果指定了目标用户ID，检查权限
-      if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
+      const adminRoles = ['admin', 'internal_boss', 'external_boss'];
+      const serviceRoles = ['internal_service', 'external_service'];
+      if (adminRoles.includes(mappedRole) || serviceRoles.includes(mappedRole)) {
         targetUserId = parseInt(target_user_id);
-        console.log(`🔑 ${currentUser.role} ${currentUser.username} 解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
+        console.log(`🔑 ${currentUser.role} (${mappedRole}) ${currentUser.username} 解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
       } else {
         return res.status(403).json({
           code: 403,
-          message: '❌ 权限不足：只有管理员和审核员可以解绑其他用户的OpenID'
+          message: '❌ 权限不足：只有管理员、老板和客服可以解绑其他用户的OpenID'
         });
       }
     }
@@ -2855,11 +2891,13 @@ app.get('/api/conversion/events', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
 
-    // 检查权限：只有管理员、超级查看者和客服可以查看转化事件
-    if (!['admin', 'super_viewer', 'moderator'].includes(currentUser.role)) {
+    // 检查权限：只有管理员、老板和客服可以查看转化事件
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员和客服可以查看转化事件'
+        message: '权限不足，只有管理员、老板和客服可以查看转化事件'
       });
     }
 
@@ -3428,7 +3466,8 @@ app.get('/api/douyin/tokens', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
 
     // 检查权限：只有管理员可以查看token
-    if (currentUser.role !== 'admin') {
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以查看token信息'
@@ -3465,7 +3504,8 @@ app.get('/api/douyin/token-history', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
 
     // 检查权限：只有管理员可以查看token历史
-    if (currentUser.role !== 'admin') {
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以查看token历史'
