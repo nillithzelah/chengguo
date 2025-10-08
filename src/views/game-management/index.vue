@@ -60,10 +60,10 @@
           </div>
           <div class="game-info">
             <p><strong>App ID:</strong> {{ game.appid }}</p>
-            <p><strong>描述:</strong> {{ game.description || '无' }}</p>
-            <p><strong>广告主ID:</strong> {{ game.advertiser_id || '未设置' }}</p>
-            <p><strong>广告ID:</strong> {{ game.promotion_id || '未设置' }}</p>
-            <p><strong>创建时间:</strong> {{ formatDate(game.created_at) }}</p>
+            <p v-if="canModify"><strong>描述:</strong> {{ game.description || '无' }}</p>
+            <p v-if="canModify"><strong>广告主ID:</strong> {{ game.advertiser_id || '未设置' }}</p>
+            <p v-if="canModify"><strong>广告ID:</strong> {{ game.promotion_id || '未设置' }}</p>
+            <p v-if="canModify"><strong>创建时间:</strong> {{ formatDate(game.created_at) }}</p>
           </div>
           <div class="game-actions">
             <!-- 只有admin可以编辑和删除 -->
