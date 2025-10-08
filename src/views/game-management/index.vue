@@ -585,8 +585,27 @@ const loadGames = async () => {
       const result = await response.json();
       console.log('📡 游戏列表API响应数据:', result);
       if (result.code === 20000) {
-        console.log('✅ 游戏列表加载成功:', result.data.games.length, '个游戏');
-        games.value = result.data.games;
+        let gameList = result.data.games;
+
+        // 根据当前用户角色过滤游戏列表
+        const currentUserRole = userStore.userInfo?.role;
+        const currentUserId = Number(userStore.userInfo?.accountId);
+
+        if (currentUserRole === 'admin') {
+          // admin可以看到所有游戏
+          games.value = gameList;
+        } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
+          // 老板只能看到自己创建的游戏
+          games.value = gameList.filter(game => game.created_by === currentUserId);
+        } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+          // 客服只能看到自己创建的游戏
+          games.value = gameList.filter(game => game.created_by === currentUserId);
+        } else {
+          // 其他角色看不到游戏列表
+          games.value = [];
+        }
+
+        console.log('✅ 游戏列表加载成功:', games.value.length, '个游戏');
         filteredGames.value = [...games.value]; // 更新筛选结果
       } else {
         console.log('❌ 游戏列表API返回错误:', result.message);

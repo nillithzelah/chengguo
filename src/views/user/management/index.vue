@@ -708,8 +708,27 @@ const loadUserList = async () => {
   loading.value = true;
   try {
     const response = await getUserList();
-    userList.value = response.data.users;
-    pagination.total = response.data.total;
+    let users = response.data.users;
+
+    // 根据当前用户角色过滤用户列表
+    const currentUserRole = userStore.userInfo?.role;
+    const currentUserId = Number(userStore.userInfo?.accountId);
+
+    if (currentUserRole === 'admin') {
+      // admin可以看到所有用户
+      userList.value = users;
+    } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
+      // 老板只能看到自己创建的用户
+      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+      // 客服只能看到自己创建的用户
+      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else {
+      // 其他角色看不到用户列表
+      userList.value = [];
+    }
+
+    pagination.total = userList.value.length;
   } catch (error) {
     console.error('加载用户列表失败:', error);
     Message.error('加载用户列表失败');
