@@ -123,6 +123,29 @@ export default function setupPermissionGuard(router: Router) {
 - `user`: 普通用户
 - `*`: 所有用户（通配符）
 
+## 角色映射（兼容旧系统）
+
+为确保向后兼容，系统支持旧角色名称自动映射到新角色：
+
+```typescript
+const roleMapping: Record<string, string> = {
+  'admin': 'admin',                    // 保持不变
+  'super_viewer': 'internal_boss',     // 旧超级查看者映射为内老板
+  'viewer': 'internal_user',           // 旧查看者映射为内用户
+  'user': 'internal_user',             // 旧用户映射为内用户
+  'moderator': 'internal_service',     // 审核角色映射为内客服
+};
+```
+
+### 映射说明
+- **admin**: 直接使用新系统的 admin 角色
+- **super_viewer**: 映射为 internal_boss，拥有老板级权限
+- **viewer**: 映射为 internal_user，普通用户权限
+- **user**: 映射为 internal_user，普通用户权限
+- **moderator**: 映射为 internal_service，客服级权限
+
+此映射确保旧系统用户可以无缝过渡到新权限系统，无需手动更新数据库中的角色字段。
+
 ## 实现步骤
 
 ### 步骤1: 配置路由权限
