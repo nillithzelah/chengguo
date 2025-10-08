@@ -670,12 +670,12 @@ const getRoleColor = (role: string) => {
     internal_user: 'blue',
     external_boss: 'green',
     external_service: 'cyan',
-    external_user: 'geekblue',
+    external_user: 'lime',
     // 兼容旧角色名称，默认归类为内部
     super_viewer: 'purple',
     viewer: 'blue',
     moderator: 'orange',
-    user: 'geekblue'
+    user: 'lime'
   };
   return colors[role] || 'default';
 };
