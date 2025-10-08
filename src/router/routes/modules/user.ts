@@ -11,7 +11,7 @@ const USER: AppRouteRecordRaw = {
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
+    roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'], // 管理员、超级查看者、老板、客服可以访问
   },
   children: [
     {
