@@ -65,18 +65,16 @@
             <p><strong>广告ID:</strong> {{ game.promotion_id || '未设置' }}</p>
             <p><strong>创建时间:</strong> {{ formatDate(game.created_at) }}</p>
           </div>
-          <div class="game-actions" v-if="canModify">
-            <!-- 隐藏查看用户按钮 -->
-            <!-- <button @click="viewGameUsers(game)" class="btn btn-outline">
-              查看用户
-            </button> -->
-            <button @click="editGame(game)" class="btn btn-outline">
+          <div class="game-actions">
+            <!-- 只有admin可以编辑和删除 -->
+            <button v-if="canModify" @click="editGame(game)" class="btn btn-outline">
               编辑游戏
             </button>
-            <button @click="openAssignModal(game)" class="btn btn-primary">
+            <!-- 老板和客服可以分配游戏 -->
+            <button v-if="canAssign" @click="openAssignModal(game)" class="btn btn-primary">
               分配用户
             </button>
-            <button @click="deleteGame(game)" class="btn btn-danger btn-small">
+            <button v-if="canModify" @click="deleteGame(game)" class="btn btn-danger btn-small">
               删除游戏
             </button>
           </div>
@@ -502,7 +500,11 @@ const adTestResult = ref(null);
 // 用户权限检查
 const userStore = useUserStore();
 const isAdmin = computed(() => userStore.role === 'admin');
-const canModify = computed(() => isAdmin.value); // 只有admin可以修改
+const canModify = computed(() => isAdmin.value); // 只有admin可以修改（创建、编辑、删除）
+const canAssign = computed(() => {
+  const role = userStore.role;
+  return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
+}); // 老板和客服可以分配游戏
 
 // 工具函数
 const formatDate = (dateStr) => {
