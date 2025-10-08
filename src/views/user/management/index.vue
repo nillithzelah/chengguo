@@ -194,7 +194,7 @@
           <button
             v-if="availableRoles.length > 0"
             @click="() => { console.log('新增用户模态框确认按钮被点击'); handleCreateUser(); }"
-            :disabled="!createForm.username || !createForm.password || !createForm.confirmPassword || !createForm.name || !createForm.email || createForm.password !== createForm.confirmPassword || createForm.password.length < 6 || createLoading"
+            :disabled="!createForm.username || !createForm.password || !createForm.confirmPassword || !createForm.name || createForm.password !== createForm.confirmPassword || createForm.password.length < 6 || createLoading"
             :title="getCreateButtonTooltip()"
             class="btn btn-primary"
           >
