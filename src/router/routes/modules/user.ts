@@ -11,7 +11,7 @@ const USER: AppRouteRecordRaw = {
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    roles: ['admin'], // 只有管理员可以访问用户模块
+    roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
   },
   children: [
     {
