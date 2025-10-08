@@ -524,12 +524,9 @@ const loadUserList = async () => {
     if (currentUserRole === 'admin') {
       // admin可以看到所有用户
       userList.value = users;
-    } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
-      // 老板只能看到自己创建的用户
-      userList.value = users.filter(user => user.created_by === currentUserId);
-    } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
-      // 客服只能看到自己创建的用户
-      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
+      // 老板和客服可以看到所有用户（暂时不过滤，权限检查在后端进行）
+      userList.value = users;
     } else {
       // 其他角色看不到用户列表
       userList.value = [];
