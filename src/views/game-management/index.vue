@@ -634,8 +634,27 @@ const loadUsers = async () => {
       const result = await response.json();
       console.log('📡 用户列表API响应数据:', result);
       if (result.code === 20000) {
-        console.log('✅ 用户列表加载成功:', result.data.users.length, '个用户');
-        users.value = result.data.users;
+        let userList = result.data.users;
+
+        // 根据当前用户角色过滤用户列表
+        const currentUserRole = userStore.userInfo?.role;
+        const currentUserId = Number(userStore.userInfo?.accountId);
+
+        if (currentUserRole === 'admin') {
+          // admin可以看到所有用户
+          users.value = userList;
+        } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
+          // 老板只能看到自己创建的用户
+          users.value = userList.filter(user => user.created_by === currentUserId);
+        } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+          // 客服只能看到自己创建的用户
+          users.value = userList.filter(user => user.created_by === currentUserId);
+        } else {
+          // 其他角色看不到用户列表
+          users.value = [];
+        }
+
+        console.log('✅ 用户列表加载成功:', users.value.length, '个用户');
       } else {
         console.log('❌ 用户列表API返回错误:', result.message);
       }
