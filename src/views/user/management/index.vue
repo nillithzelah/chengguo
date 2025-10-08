@@ -303,7 +303,7 @@
           <button @click="() => { showEditModal = false; editUserInfo = null; }" class="btn btn-secondary" :disabled="editLoading">取消</button>
           <button
             @click="() => { console.log('编辑用户模态框确认按钮被点击'); handleEditUser(); }"
-            :disabled="!editForm.name || !editForm.email || editLoading"
+            :disabled="!editForm.name || editLoading"
             class="btn btn-primary"
           >
             {{ editLoading ? '保存中...' : '保存修改' }}
@@ -436,7 +436,6 @@ const getCreateButtonTooltip = () => {
   if (!createForm.password) errors.push('密码');
   if (!createForm.confirmPassword) errors.push('密码确认');
   if (!createForm.name) errors.push('姓名');
-  if (!createForm.email) errors.push('邮箱');
   if (createForm.password && createForm.password.length < 6) errors.push('密码长度至少6位');
   if (createForm.password && createForm.confirmPassword && createForm.password !== createForm.confirmPassword) errors.push('密码不匹配');
 
@@ -725,9 +724,12 @@ const refreshUserList = () => {
 };
 
 // 处理表格变化
-const handleTableChange = (pagination: any) => {
-  // 这里可以处理分页、排序等
-  console.log('表格变化:', pagination);
+const handleTableChange = (newPagination: any) => {
+  console.log('表格变化:', newPagination);
+  // 更新分页参数
+  pagination.current = newPagination.current;
+  pagination.pageSize = newPagination.pageSize;
+  // 前端分页不需要重新加载数据
 };
 
 // 编辑用户
@@ -877,16 +879,13 @@ const handleEditUser = async () => {
       return;
     }
 
-    if (!editForm.email.trim()) {
-      Message.error('请输入邮箱地址');
-      return;
-    }
-
-    // 邮箱格式验证
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(editForm.email)) {
-      Message.error('请输入有效的邮箱地址');
-      return;
+    // 邮箱验证（如果填写了邮箱）
+    if (editForm.email.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(editForm.email)) {
+        Message.error('请输入有效的邮箱地址');
+        return;
+      }
     }
 
     // 权限验证：internal_service只能将用户角色改为internal_user或external_user
