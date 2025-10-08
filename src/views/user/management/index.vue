@@ -98,7 +98,7 @@
     </a-table>
 
     <!-- 新增用户模态框 -->
-    <div v-if="showCreateModal && canCreateUser" class="modal-overlay" @click="resetCreateForm">
+    <div v-if="showCreateModal && canCreateUser" class="modal-overlay">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>新增用户</h3>
