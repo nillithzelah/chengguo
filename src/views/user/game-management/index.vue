@@ -525,9 +525,8 @@ const loadUserList = async () => {
       // admin可以看到所有用户
       userList.value = users;
     } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
-      // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
-      const managedUserIds = getManagedUserIds(users, currentUserId);
-      userList.value = users.filter(user => managedUserIds.includes(user.id));
+      // 老板和客服可以看到所有用户（暂时，权限检查在后端进行）
+      userList.value = users;
     } else {
       // 其他角色看不到用户列表
       userList.value = [];
