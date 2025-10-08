@@ -21,7 +21,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.management',
         requiresAuth: true,
-        roles: ['*'], // 所有登录用户都可以访问
+        roles: ['admin'], // 只有管理员可以访问
       },
     },
     {
@@ -41,7 +41,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.admin',
         requiresAuth: true,
-        roles: ['*'], // 所有登录用户都可以访问
+        roles: ['admin'], // 只有管理员可以访问
       },
     },
   ],
