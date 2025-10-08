@@ -6,11 +6,11 @@ export default function usePermission() {
 
   // 角色映射：兼容以前的角色类型，默认迁移为内部角色
   const roleMapping: Record<string, string> = {
-    'admin': 'internal_boss',
+    'admin': 'admin',
     'super_viewer': 'internal_boss',
     'viewer': 'internal_user',
     'user': 'internal_user',
-    'boss': 'internal_boss', // 兼容旧的boss角色
+    'moderator': 'internal_service', // 审核角色映射为内部客服
   };
 
   // 获取映射后的角色
