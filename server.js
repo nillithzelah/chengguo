@@ -38,6 +38,7 @@ const roleMapping = {
   'super_viewer': 'external_boss',
   'viewer': 'external_user',
   'user': 'internal_user',
+  'moderator': 'internal_service', // 审核员映射到内客服
   'boss': 'internal_boss', // 兼容旧的boss角色
 };
 
