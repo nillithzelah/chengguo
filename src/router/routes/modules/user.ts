@@ -11,7 +11,7 @@ const USER: AppRouteRecordRaw = {
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
+    roles: ['admin'], // 只有管理员可以访问用户模块
   },
   children: [
     {
@@ -31,7 +31,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.user',
         requiresAuth: true,
-        roles: ['*'], // 所有登录用户都可以访问
+        roles: ['admin'], // 只有管理员可以访问
       },
     },
     {
