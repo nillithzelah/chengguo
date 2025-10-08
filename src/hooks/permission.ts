@@ -10,6 +10,7 @@ export default function usePermission() {
     'super_viewer': 'internal_boss',
     'viewer': 'internal_user',
     'user': 'internal_user',
+    'boss': 'internal_boss', // 兼容旧的boss角色
   };
 
   // 获取映射后的角色
