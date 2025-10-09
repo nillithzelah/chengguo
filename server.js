@@ -12,7 +12,6 @@ const { testConnection, sequelize } = require('./config/database');
 const defineUserModel = require('./models/User');
 const defineGameModel = require('./models/Game');
 const defineUserGameModel = require('./models/UserGame');
-const defineUserDeviceModel = require('./models/UserDevice');
 const defineConversionEventModel = require('./models/ConversionEvent');
 const defineTokenModel = require('./models/Token');
 const defineUserOpenIdModel = require('./models/UserOpenId');
@@ -21,13 +20,10 @@ const defineUserOpenIdModel = require('./models/UserOpenId');
 const User = defineUserModel(sequelize);
 const Game = defineGameModel(sequelize);
 const UserGame = defineUserGameModel(sequelize);
-const UserDevice = defineUserDeviceModel(sequelize);
 const ConversionEvent = defineConversionEventModel(sequelize);
 const Token = defineTokenModel(sequelize);
 const UserOpenId = defineUserOpenIdModel(sequelize);
 
-// 设备信息解析器
-const deviceParser = require('./utils/server-device-parser');
 
 // 转化事件回调服务
 const conversionCallbackService = require('./services/conversion-callback-service');
@@ -83,18 +79,6 @@ User.belongsTo(User, {
   targetKey: 'id'
 });
 
-// 用户设备关联
-User.hasMany(UserDevice, {
-  foreignKey: 'user_id',
-  as: 'devices',
-  onDelete: 'CASCADE'
-});
-
-UserDevice.belongsTo(User, {
-  foreignKey: 'user_id',
-  as: 'user',
-  onDelete: 'CASCADE'
-});
 
 // 用户OpenID关联
 User.hasMany(UserOpenId, {
@@ -231,11 +215,7 @@ async function loadTokensFromDatabase() {
     console.error('❌ 加载token失败:', error);
     // 如果数据库加载失败，使用默认值作为fallback
     console.log('🔄 使用默认token作为fallback...');
-    // adAccessToken = '2c8fbb0bedb3b71efc0525ffe000bc79a7533168';
-    // adRefreshToken = '857b246c6868b17e556892edf5826f8342408de5';
-    adAccessToken = '747d5aa714aa6253a2c136bdc0ece1bb82cc029f';
-    adRefreshToken = '374ed2497d18f5b5f200becd8a047b1505845e0f';
-    adTokenLastRefresh = new Date();
+    // Token已在数据库中初始化，无需硬编码默认值
   }
 }
 
@@ -278,7 +258,7 @@ const authenticateJWT = (req, res, next) => {
 // 用户登录
 app.post('/api/user/login', async (req, res) => {
   try {
-    const { username, password, deviceInfo: clientDeviceInfo } = req.body;
+    const { username, password } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({
@@ -318,48 +298,6 @@ app.post('/api/user/login', async (req, res) => {
     // 更新最后登录时间
     await User.updateLastLogin(user.id);
 
-    // 在服务器端解析设备信息
-    let deviceRecord = null;
-    try {
-      // 从请求中提取设备信息（服务器端解析）
-      const serverParsedDeviceInfo = deviceParser.extractFromRequest(req);
-
-      // 如果客户端也提供了设备信息，可以合并
-      const finalDeviceInfo = {
-        ...serverParsedDeviceInfo,
-        ...(clientDeviceInfo || {}),
-        // 服务器端解析的优先级更高
-        deviceBrand: serverParsedDeviceInfo.deviceBrand,
-        deviceModel: serverParsedDeviceInfo.deviceModel,
-        friendlyModel: serverParsedDeviceInfo.friendlyModel
-      };
-
-      console.log('📱 用户设备信息解析结果:', {
-        username: user.username,
-        deviceId: finalDeviceInfo.deviceId,
-        deviceBrand: finalDeviceInfo.deviceBrand,
-        deviceModel: finalDeviceInfo.deviceModel,
-        browser: finalDeviceInfo.browserName,
-        os: finalDeviceInfo.osName,
-        deviceType: finalDeviceInfo.deviceType,
-        isMobile: finalDeviceInfo.isMobile,
-        ipAddress: finalDeviceInfo.ipAddress
-      });
-
-      // 保存设备信息到数据库
-      deviceRecord = await UserDevice.findOrCreateDevice(user.id, finalDeviceInfo);
-
-      // 设置当前设备
-      await UserDevice.setCurrentDevice(user.id, finalDeviceInfo.deviceId);
-
-      // 清理旧设备记录（保留最近10个）
-      await UserDevice.cleanupOldDevices(user.id, 10);
-
-    } catch (deviceError) {
-      console.error('设备信息处理失败:', deviceError);
-      // 设备信息处理失败不影响登录
-    }
-
     // 生成token
     const token = jwt.sign(
       { userId: user.id, username: user.username, role: user.role },
@@ -377,14 +315,7 @@ app.post('/api/user/login', async (req, res) => {
           name: user.name,
           role: user.role,
           avatar: user.avatar
-        },
-        deviceInfo: deviceRecord ? {
-          deviceId: deviceRecord.device_id,
-          deviceBrand: deviceRecord.device_brand,
-          deviceModel: deviceRecord.device_model,
-          deviceType: deviceRecord.device_type,
-          lastLoginAt: deviceRecord.last_login_at
-        } : null
+        }
       },
       message: '登录成功'
     });
@@ -1693,10 +1624,6 @@ app.post('/api/douyin/webhook', (req, res) => {
   });
 });
 
-// 抖音API代理端点 - 获取client_token - 已删除
-// app.post('/api/douyin/token', async (req, res) => {
-//   // Token API调用已删除
-// });
 
 // 抖音广告数据代理 - 使用client_token
 app.get('/api/douyin/ads', async (req, res) => {
@@ -1718,34 +1645,6 @@ app.get('/api/douyin/ads', async (req, res) => {
       });
     }
 
-    // 示例：获取广告计划数据 - 已删除
-    // const adsResponse = await axios.get('https://developer.toutiao.com/api/v1.0/qianchuan/campaign/list/', {
-    //   params: {
-    //     advertiser_id: advertiserId,
-    //     page: req.query.page || 1,
-    //     page_size: req.query.page_size || 20
-    //   },
-    //   headers: {
-    //     'Access-Token': clientToken,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   timeout: 15000
-    // });
-
-    // console.log('✅ 获取广告数据成功');
-
-    // res.json({
-    //   code: 0,
-    //   message: 'success',
-    //   data: adsResponse.data.data || {
-    //     list: [],
-    //     total: 0
-    //   },
-    //   token_info: {
-    //     expires_in: tokenResponse.data.data.expires_in,
-    //     token_type: 'client_token'
-    //   }
-    // });
 
     // 返回空数据响应
     res.json({
@@ -1781,108 +1680,6 @@ app.get('/api/douyin/ads', async (req, res) => {
 
 
 
-// 测试应用连接API
-app.post('/api/douyin/test-connection', async (req, res) => {
-  console.log('🔗 测试应用连接请求');
-  console.log('📥 原始请求体:', req.body);
-  console.log('📥 请求头:', req.headers);
-
-  try {
-    const { appid, secret, appSecret: directAppSecret } = req.body;
-    const appSecret = directAppSecret || secret; // 支持两种字段名
-    console.log('🔑 解析参数:', { appid, appSecret: appSecret ? '***' : 'undefined' });
-
-    if (!appid || !appSecret) {
-      return res.status(400).json({
-        code: 400,
-        message: '缺少必要的参数：appid或appSecret'
-      });
-    }
-
-    console.log('🔑 测试应用连接:', { appid: appid.substring(0, 10) + '...' });
-
-    // 调用抖音小游戏token API进行测试
-    const tokenRequestData = {
-      appid: appid,
-      secret: appSecret,
-      grant_type: 'client_credential'
-    };
-
-    console.log('📤 Token测试请求参数:', JSON.stringify(tokenRequestData, null, 2));
-
-    const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
-      timeout: 10000,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'DouyinGameAds-TestConnection/1.0'
-      }
-    });
-
-    console.log('📥 Token测试响应:', JSON.stringify(tokenResponse.data, null, 2));
-
-    if (tokenResponse.data.err_no === 0 && tokenResponse.data.data && tokenResponse.data.data.access_token) {
-      console.log('✅ 应用连接测试成功');
-
-      res.json({
-        code: 0,
-        message: '连接成功！应用配置有效',
-        data: {
-          minigame_access_token: tokenResponse.data.data.access_token,
-          expires_in: tokenResponse.data.data.expires_in,
-          tested_at: new Date().toISOString()
-        }
-      });
-    } else {
-      console.log('❌ 应用连接测试失败:', tokenResponse.data.err_tips || tokenResponse.data.err_msg);
-
-      res.status(400).json({
-        code: 400,
-        message: '连接失败',
-        error: tokenResponse.data.err_tips || tokenResponse.data.err_msg || '未知错误',
-        details: tokenResponse.data
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ 测试应用连接时出错:', error);
-
-    if (error.response) {
-      console.error('📄 抖音API响应错误:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-
-      // 根据HTTP状态码提供更具体的错误信息
-      let errorMessage = '连接失败';
-      if (error.response.status === 401) {
-        errorMessage = 'App ID或App Secret无效';
-      } else if (error.response.status === 403) {
-        errorMessage = '应用权限不足或已被禁用';
-      } else if (error.response.status === 429) {
-        errorMessage = '请求过于频繁，请稍后重试';
-      }
-
-      res.status(400).json({
-        code: 400,
-        message: errorMessage,
-        error: error.response.data,
-        http_status: error.response.status
-      });
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(500).json({
-        code: 500,
-        message: '网络连接失败，请检查网络设置',
-        error: '无法连接到抖音API服务器'
-      });
-    } else {
-      res.status(500).json({
-        code: 500,
-        message: '测试服务暂时不可用，请稍后重试',
-        error: error.message || '未知错误'
-      });
-    }
-  }
-});
 
 // Token刷新函数
 async function refreshAdAccessToken() {
@@ -2049,97 +1846,6 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
   }
 });
 
-// 测试直接API调用
-app.get('/api/douyin/test-direct-api', async (req, res) => {
-  console.log('🧪 测试直接API调用请求');
-
-  try {
-    const { advertiser_id, id_type, promotion_id } = req.query;
-
-    if (!advertiser_id || !id_type || !promotion_id) {
-      return res.status(400).json({
-        error: '缺少参数',
-        message: '请提供 advertiser_id, id_type, promotion_id 参数'
-      });
-    }
-
-    console.log('📋 测试参数:', { advertiser_id, id_type, promotion_id });
-
-    // 从请求头获取access_token
-    const accessToken = req.headers['access-token'] || req.headers['Access-Token'];
-    if (!accessToken) {
-      return res.status(400).json({
-        error: '缺少认证',
-        message: '请提供 Access-Token 请求头'
-      });
-    }
-
-    console.log('🔑 使用access_token进行测试');
-
-    // 构建直接API URL
-    const directUrl = `https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/`;
-    const params = {
-      advertiser_id: advertiser_id,
-      id_type: id_type,
-      promotion_id: promotion_id
-    };
-
-    console.log('📤 直接调用抖音API:', directUrl);
-    console.log('📤 请求参数:', JSON.stringify(params, null, 2));
-
-    // 直接调用抖音API
-    const response = await axios.get(directUrl, {
-      params: params,
-      headers: {
-        'Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      },
-      timeout: 15000
-    });
-
-    console.log('📥 抖音API原始响应:', JSON.stringify(response.data, null, 2));
-
-    res.json({
-      code: 0,
-      message: '直接API测试成功',
-      originalResponse: response.data,
-      requestInfo: {
-        url: directUrl,
-        params: params,
-        accessToken: accessToken
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ 直接API测试失败:', error.message);
-
-    if (error.response) {
-      console.error('📄 抖音API错误响应:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-
-      res.status(error.response.status).json({
-        error: '抖音API调用失败',
-        message: error.response.data?.message || error.message,
-        details: error.response.data,
-        requestInfo: {
-          url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
-          params: req.query
-        }
-      });
-    } else {
-      res.status(500).json({
-        error: '网络请求失败',
-        message: error.message || '无法连接到抖音API',
-        requestInfo: {
-          url: 'https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/',
-          params: req.query
-        }
-      });
-    }
-  }
-});
 
 // 广告预览二维码获取API
 app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
@@ -2167,7 +1873,6 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     console.log('📅 Token最后刷新时间:', adTokenLastRefresh.toLocaleString('zh-CN'));
 
     // 如果token过期，可以在这里添加动态获取逻辑
-    // TODO: 实现token刷新机制
 
     // 步骤2: 调用广告预览二维码API
     console.log('📍 步骤2: 获取广告预览二维码');
@@ -3152,7 +2857,6 @@ app.get('/openid/report', async (req, res) => {
     console.log('📝 解析的监测数据:', monitorData);
 
     // 步骤1: 将数据保存到数据库（可选）
-    // TODO: 将数据保存到数据库
     // 这里可以根据需要保存到专门的广告监测表中
     // 例如：await saveAdMonitorData(monitorData);
 
@@ -3419,15 +3123,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 测试POST请求的端点
-app.post('/api/test-post', (req, res) => {
-  console.log('📥 测试POST请求:', req.body);
-  res.json({
-    success: true,
-    received: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Token状态查询端点
 app.get('/api/douyin/token-status', (req, res) => {
@@ -3555,36 +3250,6 @@ app.get('/api/douyin/token-history', authenticateJWT, async (req, res) => {
   }
 });
 
-// 手动触发Token刷新端点
-app.post('/api/douyin/refresh-token', async (req, res) => {
-  console.log('🔄 手动触发Token刷新请求');
-
-  try {
-    const result = await refreshAdAccessToken();
-
-    res.json({
-      code: 0,
-      message: 'Token刷新成功',
-      data: {
-        access_token: result.access_token,
-        refresh_token: result.refresh_token,
-        expires_in: result.expires_in,
-        refreshed_at: new Date().toISOString()
-      },
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ 手动Token刷新失败:', error.message);
-
-    res.status(500).json({
-      code: 500,
-      message: 'Token刷新失败',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-  }
-});
 
 // 格式化剩余时间
 function formatTimeUntilRefresh(milliseconds) {
@@ -3596,7 +3261,6 @@ function formatTimeUntilRefresh(milliseconds) {
 
   return `${hours}小时${minutes}分钟${seconds}秒`;
 }
-// 用户登录API 已在上方实现
 
 // 错误处理中间件
 app.use((error, req, res, next) => {

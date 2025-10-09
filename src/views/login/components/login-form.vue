@@ -69,7 +69,6 @@
   import { useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
   import type { LoginData } from '@/api/user';
-  import { webDeviceInfoCollector } from '@/utils/web-device-info';
 
   const router = useRouter();
   const { t } = useI18n();
@@ -88,23 +87,6 @@
     password: loginConfig.value.password,
   });
 
-  // 设备信息
-  const deviceInfo = ref(null);
-
-  // 组件挂载时收集设备信息
-  onMounted(() => {
-    try {
-      deviceInfo.value = webDeviceInfoCollector.initialize();
-      console.log('📱 登录页面设备信息收集成功:', {
-        brand: deviceInfo.value?.deviceBrand,
-        model: deviceInfo.value?.deviceModel,
-        browser: deviceInfo.value?.browserName,
-        os: deviceInfo.value?.osName
-      });
-    } catch (error) {
-      console.error('❌ 设备信息收集失败:', error);
-    }
-  });
 
   const handleSubmit = async ({
     errors,
@@ -119,18 +101,13 @@
       try {
         console.log('开始登录...', values);
 
-        // 准备登录数据，包含设备信息
+        // 准备登录数据
         const loginData = {
-          ...(values as LoginData),
-          deviceInfo: deviceInfo.value
+          ...(values as LoginData)
         };
 
-        console.log('登录数据（包含设备信息）:', {
-          username: loginData.username,
-          deviceBrand: loginData.deviceInfo?.deviceBrand,
-          deviceModel: loginData.deviceInfo?.deviceModel,
-          browser: loginData.deviceInfo?.browserName,
-          os: loginData.deviceInfo?.osName
+        console.log('登录数据:', {
+          username: loginData.username
         });
 
         await userStore.login(loginData);
