@@ -83,13 +83,11 @@ const useUserStore = defineStore('user', {
 
     // 测试IP获取功能
     async testIPFetching() {
-      console.log('🧪 开始测试IP获取功能...');
       try {
         await this.fetchDeviceInfo();
-        console.log('🧪 测试完成，当前设备信息:', this.deviceInfo);
         return this.deviceInfo;
       } catch (error) {
-        console.error('🧪 测试失败:', error);
+        console.error('测试失败:', error);
         return null;
       }
     },
@@ -97,8 +95,6 @@ const useUserStore = defineStore('user', {
     // 获取设备信息
     async fetchDeviceInfo() {
       try {
-        console.log('开始获取用户设备信息...');
-
         // 检查缓存，如果最近获取过则跳过
         const cachedDeviceInfo = localStorage.getItem('deviceInfo');
         const cacheTime = localStorage.getItem('deviceInfoTime');
@@ -111,11 +107,8 @@ const useUserStore = defineStore('user', {
             const cachedData = JSON.parse(cachedDeviceInfo);
             // 如果缓存中的IP不是"未知"且城市也不是"未知"，则使用缓存
             if (cachedData.ip && cachedData.ip !== '未知' && cachedData.city && cachedData.city !== '未知') {
-              console.log('使用缓存的设备信息');
               this.deviceInfo = cachedData;
               return;
-            } else {
-              console.log('缓存中的数据无效，重新获取');
             }
           }
         }

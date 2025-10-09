@@ -34,12 +34,11 @@ const conversionCallbackService = require('./services/conversion-callback-servic
 
 // 角色映射：兼容以前的角色类型，默认迁移为内部角色
 const roleMapping = {
-  'admin': 'internal_boss',
-  'super_viewer': 'external_boss',
-  'viewer': 'external_user',
+  'admin': 'admin',
+  'super_viewer': 'internal_boss',
+  'viewer': 'internal_user',
   'user': 'internal_user',
-  'moderator': 'internal_service', // 审核员映射到内客服
-  'boss': 'internal_boss', // 兼容旧的boss角色
+  'moderator': 'internal_service', // 审核员映射到内部客服
 };
 
 // 获取映射后的角色
@@ -625,8 +624,8 @@ app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
 
     // 检查权限：只有管理员可以删除用户
-    const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    const originalRole = currentUser.role;
+    if (originalRole !== 'admin') {
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以删除用户'
@@ -862,13 +861,13 @@ app.post('/api/game/assign', authenticateJWT, async (req, res) => {
    const currentUser = req.user;
    const { userId, gameId, role = 'viewer' } = req.body;
 
-   // 检查权限：只有管理员和老板可以分配游戏权限
+   // 检查权限：管理员、老板和客服可以分配游戏权限
    const mappedRole = getMappedRole(currentUser.role);
-   const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+   const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
    if (!allowedRoles.includes(mappedRole)) {
      return res.status(403).json({
        code: 403,
-       message: '权限不足，只有管理员和老板可以分配游戏权限'
+       message: '权限不足，只有管理员、老板和客服可以分配游戏权限'
      });
    }
 
@@ -941,13 +940,13 @@ app.delete('/api/game/remove/:userId/:gameId', authenticateJWT, async (req, res)
    const currentUser = req.user;
    const { userId, gameId } = req.params;
 
-   // 检查权限：只有管理员和老板可以移除游戏权限
+   // 检查权限：管理员、老板和客服可以移除游戏权限
    const mappedRole = getMappedRole(currentUser.role);
-   const allowedRoles = ['admin', 'internal_boss', 'external_boss'];
+   const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
    if (!allowedRoles.includes(mappedRole)) {
      return res.status(403).json({
        code: 403,
-       message: '权限不足，只有管理员和老板可以移除游戏权限'
+       message: '权限不足，只有管理员、老板和客服可以移除游戏权限'
      });
    }
 
@@ -1828,7 +1827,7 @@ app.post('/api/douyin/test-connection', async (req, res) => {
         code: 0,
         message: '连接成功！应用配置有效',
         data: {
-          minigame_access_token: tokenResponse.data.data.access_token.substring(0, 20) + '...',
+          minigame_access_token: tokenResponse.data.data.access_token,
           expires_in: tokenResponse.data.data.expires_in,
           tested_at: new Date().toISOString()
         }
@@ -2030,8 +2029,8 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
       code: 0,
       message: '广告投放Token刷新成功',
       data: {
-        access_token: result.access_token.substring(0, 20) + '...',
-        refresh_token: result.refresh_token.substring(0, 20) + '...',
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
         expires_in: result.expires_in,
         refreshed_at: new Date().toISOString()
       },
@@ -2107,7 +2106,7 @@ app.get('/api/douyin/test-direct-api', async (req, res) => {
       requestInfo: {
         url: directUrl,
         params: params,
-        accessToken: accessToken.substring(0, 20) + '...'
+        accessToken: accessToken
       }
     });
 
@@ -2234,7 +2233,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
               message: 'success',
               data: retryResponse.data.data,
               token_info: {
-                ad_access_token: accessToken.substring(0, 20) + '...',
+                ad_access_token: accessToken,
                 expires_in: newTokenData.expires_in,
                 note: '使用刷新后的广告投放access_token'
               },
@@ -2544,7 +2543,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
               message: 'success',
               data: retryResponse.data.data,
               token_info: {
-                ad_access_token: accessToken.substring(0, 20) + '...',
+                ad_access_token: accessToken,
                 expires_in: newTokenData.expires_in,
                 note: '使用刷新后的广告投放access_token'
               },
@@ -3446,8 +3445,8 @@ app.get('/api/douyin/token-status', (req, res) => {
     code: 0,
     message: 'success',
     data: {
-      ad_access_token: adAccessToken ? adAccessToken.substring(0, 20) + '...' : null,
-      ad_refresh_token: adRefreshToken ? adRefreshToken.substring(0, 20) + '...' : null,
+      ad_access_token: adAccessToken,
+      ad_refresh_token: adRefreshToken,
       ad_token_last_refresh: adTokenLastRefresh ? adTokenLastRefresh.toISOString() : null,
       ad_token_expires_at: adTokenExpiresAt ? adTokenExpiresAt.toISOString() : null,
       next_check: nextCheckTime.toISOString(),
@@ -3567,8 +3566,8 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
       code: 0,
       message: 'Token刷新成功',
       data: {
-        access_token: result.access_token.substring(0, 20) + '...',
-        refresh_token: result.refresh_token.substring(0, 20) + '...',
+        access_token: result.access_token,
+        refresh_token: result.refresh_token,
         expires_in: result.expires_in,
         refreshed_at: new Date().toISOString()
       },

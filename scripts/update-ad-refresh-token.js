@@ -43,7 +43,7 @@ async function updateAdRefreshToken(newRefreshToken) {
     });
 
     console.log('✅ 广告投放Refresh Token更新成功!');
-    console.log(`🔑 新Token: ${newRefreshToken.substring(0, 20)}...`);
+    console.log(`🔑 新Token: ${newRefreshToken}`);
 
     // 验证更新结果
     const updatedToken = await Token.getActiveToken('refresh_token');

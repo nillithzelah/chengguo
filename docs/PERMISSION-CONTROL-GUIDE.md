@@ -1,272 +1,80 @@
-# 权限控制实现指南
+# 用户级别权限系统指南
 
-## 概述
-本文档记录了基于Vue Router的权限控制实现机制，用于控制不同用户角色对页面的访问权限。
+## 角色层级结构
 
-## 核心原理
-
-### 1. 路由配置层面的权限控制
-在路由配置中通过 `meta.roles` 定义允许访问的角色：
-
-```typescript
-// src/router/routes/modules/ad.ts
-const AD: AppRouteRecordRaw = {
-  path: '/ad',
-  name: 'ad',
-  component: DEFAULT_LAYOUT,
-  meta: {
-    locale: 'menu.ad',
-    requiresAuth: true,
-    icon: 'icon-advertisement',
-    order: 2,
-  },
-  children: [
-    // 管理员ECPM数据管理 - 只有管理员和超级查看者可以访问
-    {
-      path: 'ecpm-simple',
-      name: 'EcpmSimple',
-      component: () => import('@/views/ad/ecpm-simple/index.vue'),
-      meta: {
-        locale: 'menu.ad.ecpm.simple',
-        requiresAuth: true,
-        roles: ['admin', 'super_viewer'], // 关键：定义允许的角色
-      },
-    },
-    // 用户ECPM数据查看 - 所有登录用户都可以访问
-    {
-      path: 'ecpm-user',
-      name: 'EcpmUser',
-      component: () => import('@/views/ad/ecpm-user/index.vue'),
-      meta: {
-        locale: 'menu.ad.ecpm.user',
-        requiresAuth: true,
-        roles: ['*'], // 允许所有用户访问
-      },
-    },
-  ],
-};
+```
+管理 (admin) - 最高权限
+├── 内部老板 (internal_boss) - 管理内部业务
+│   ├── 内部客服 (internal_service) - 内部客户服务
+│   │   └── 内用户 (internal_user) - 内部用户
+│   └── 内用户 (internal_user) - 内部用户
+└── 外部老板 (external_boss) - 管理外部业务
+    ├── 外部客服 (external_service) - 外部客户服务
+    │   └── 外用户 (external_user) - 外部用户
+    └── 外用户 (external_user) - 外部用户
 ```
 
-### 2. 权限检查逻辑
-在权限钩子中实现角色匹配逻辑：
+## 权限控制逻辑
 
-```typescript
-// src/hooks/permission.ts
-export default function usePermission() {
-  const userStore = useUserStore();
-  return {
-    accessRouter(route: RouteLocationNormalized | RouteRecordRaw) {
-      return (
-        !route.meta?.requiresAuth ||           // 不需要认证
-        !route.meta?.roles ||                  // 没有角色限制
-        route.meta?.roles?.includes('*') ||    // 允许所有角色
-        route.meta?.roles?.includes(userStore.role) // 当前用户角色匹配
-      );
-    },
-    // ... 其他权限方法
-  };
-}
-```
+### 用户管理权限
 
-### 3. 菜单过滤机制
-在菜单树生成时过滤无权限的菜单项：
+- **管理 (admin)**: 可以管理所有用户（创建、编辑、删除）
+- **内部老板 (internal_boss)**: 可以管理内部客服和内用户
+- **外部老板 (external_boss)**: 可以管理外部客服和外用户
+- **内部客服 (internal_service)**: 可以管理内用户
+- **外部客服 (external_service)**: 可以管理外用户
+- **用户 (internal_user, external_user)**: 无管理权限
 
-```typescript
-// src/components/menu/use-menu-tree.ts
-const menuTree = computed(() => {
-  const copyRouter = cloneDeep(appRoute.value) as RouteRecordNormalized[];
+### 游戏分配权限
 
-  function travel(_routes: RouteRecordRaw[], layer: number) {
-    if (!_routes) return null;
+- **管理 → 老板**: 管理可以分配游戏给内部老板和外部老板
+- **老板 → 客服**: 老板可以分配游戏给自己的客服
+- **客服 → 用户**: 客服可以分配游戏给自己的用户
 
-    const collector: any = _routes.map((element) => {
-      // 核心：权限检查，如果无权限则返回null（菜单项被过滤）
-      if (!permission.accessRouter(element)) {
-        return null;
-      }
+### 页面访问权限
 
-      // ... 其他菜单处理逻辑
-    });
-    return collector.filter(Boolean); // 过滤掉null项
-  }
-  return travel(copyRouter, 0);
-});
-```
-
-### 4. 路由守卫保护
-在路由守卫中进行最终的权限验证：
-
-```typescript
-// src/router/guard/permission.ts
-export default function setupPermissionGuard(router: Router) {
-  router.beforeEach(async (to, from, next) => {
-    const userStore = useUserStore();
-    const Permission = usePermission();
-    const permissionsAllow = Permission.accessRouter(to);
-
-    if (permissionsAllow) {
-      next();
-    } else {
-      // 权限不足，重定向到有权限的页面
-      const destination = Permission.findFirstPermissionRoute(appRoutes, userStore.role) || NOT_FOUND;
-      next(destination);
-    }
-  });
-}
-```
+- **管理**: 所有页面
+- **老板**: 用户管理、游戏管理相关页面
+- **客服**: 用户管理（限自己下级）、游戏分配页面
+- **用户**: 基本功能页面
 
 ## 角色定义
-系统支持的角色类型：
-- `admin`: 管理员
-- `super_viewer`: 超级查看者
-- `viewer`: 查看者
-- `user`: 普通用户
-- `*`: 所有用户（通配符）
 
-## 角色映射（兼容旧系统）
+| 角色代码 | 显示名称 | 权限级别 | 可创建角色 | 可编辑角色 |
+|---------|---------|---------|-----------|-----------|
+| admin | 管理 | 最高 | 所有角色 | 所有角色 |
+| internal_boss | 内部老板 | 高 | 内部客服、内用户 | 内部客服、内用户 |
+| external_boss | 外部老板 | 高 | 外部客服、外用户 | 外部客服、外用户 |
+| internal_service | 内部客服 | 中 | 内用户 | 内用户 |
+| external_service | 外部客服 | 中 | 外用户 | 外用户 |
+| internal_user | 内用户 | 低 | 无 | 无 |
+| external_user | 外用户 | 低 | 无 | 无 |
 
-为确保向后兼容，系统支持旧角色名称自动映射到新角色：
+## 技术实现
 
-```typescript
-const roleMapping: Record<string, string> = {
-  'admin': 'admin',                    // 保持不变
-  'super_viewer': 'internal_boss',     // 旧超级查看者映射为内老板
-  'viewer': 'internal_user',           // 旧查看者映射为内用户
-  'user': 'internal_user',             // 旧用户映射为内用户
-  'moderator': 'internal_service',     // 审核角色映射为内客服
-};
-```
-
-### 映射说明
-- **admin**: 直接使用新系统的 admin 角色
-- **super_viewer**: 映射为 internal_boss，拥有老板级权限
-- **viewer**: 映射为 internal_user，普通用户权限
-- **user**: 映射为 internal_user，普通用户权限
-- **moderator**: 映射为 internal_service，客服级权限
-
-此映射确保旧系统用户可以无缝过渡到新权限系统，无需手动更新数据库中的角色字段。
-
-## 实现步骤
-
-### 步骤1: 配置路由权限
-在路由定义中添加 `meta.roles`：
+### 前端角色类型定义
 
 ```typescript
-{
-  path: 'admin-only-page',
-  name: 'AdminOnlyPage',
-  component: () => import('@/views/admin-only-page/index.vue'),
-  meta: {
-    locale: 'menu.admin.only',
-    requiresAuth: true,
-    roles: ['admin'], // 只允许管理员访问
-  },
-}
+export type RoleType = '' | '*' | 'admin' | 'internal_boss' | 'internal_service' | 'internal_user' | 'external_boss' | 'external_service' | 'external_user';
 ```
 
-### 步骤2: 确保权限钩子正确实现
-权限钩子需要正确检查用户角色：
+### 权限检查函数
 
-```typescript
-// 确保 userStore.role 正确设置
-const userStore = useUserStore();
-console.log('当前用户角色:', userStore.role); // 应该输出如 'admin', 'user' 等
-```
+- `canCreateUser`: 检查当前用户是否可以创建新用户
+- `canViewUsers`: 检查当前用户是否可以查看用户列表
+- `checkCanEditUser`: 检查是否可以编辑特定用户
+- `checkCanDeleteUser`: 检查是否可以删除用户（仅admin）
 
-### 步骤3: 验证菜单过滤
-检查菜单组件是否正确导入了权限钩子：
+### 角色颜色映射
 
-```typescript
-// src/components/menu/use-menu-tree.ts
-import usePermission from '@/hooks/permission'; // 确保正确导入
-```
+- admin: 红色
+- internal_boss/external_boss: 紫色
+- internal_service/external_service: 橙色
+- internal_user/external_user: 蓝色
 
-### 步骤4: 测试权限控制
-1. 以不同角色用户登录
-2. 检查菜单是否正确显示/隐藏
-3. 尝试直接访问受限URL，确认重定向行为
+## 注意事项
 
-## 最佳实践
-
-### 1. 角色命名规范
-- 使用小写英文单词
-- 多个单词用下划线连接
-- 保持一致性
-
-### 2. 权限配置原则
-- 遵循最小权限原则
-- 敏感功能只分配给必要角色
-- 使用 `*` 通配符时要谨慎
-
-### 3. 错误处理
-- 无权限访问时提供友好的提示
-- 记录权限检查失败的日志
-- 确保重定向到合适的页面
-
-### 4. 性能优化
-- 在菜单生成时进行权限过滤，避免运行时重复检查
-- 缓存权限检查结果
-- 合理使用通配符减少检查次数
-
-## 常见问题
-
-### Q: 菜单项不显示怎么办？
-A: 检查以下几点：
-1. 路由的 `meta.roles` 配置是否正确
-2. 用户角色是否正确设置
-3. 权限钩子的逻辑是否正确
-4. 菜单组件是否正确导入了权限钩子
-
-### Q: 直接访问URL没有重定向怎么办？
-A: 检查路由守卫是否正确配置：
-1. 确保 `setupPermissionGuard` 被调用
-2. 检查 `Permission.accessRouter(to)` 的返回值
-3. 确认重定向逻辑正确
-
-### Q: 如何添加新角色？
-A: 按以下步骤：
-1. 在角色定义中添加新角色
-2. 更新相关路由的 `meta.roles`
-3. 测试权限控制是否正常工作
-
-## 扩展功能
-
-### 动态权限
-如果需要支持动态权限（从服务器获取），可以扩展权限钩子：
-
-```typescript
-// 支持从服务器获取权限列表
-const serverPermissions = ref([]);
-const hasPermission = (permission: string) => {
-  return serverPermissions.value.includes(permission);
-};
-```
-
-### 页面级权限控制
-在组件内部进行更细粒度的权限控制：
-
-```vue
-<template>
-  <div>
-    <!-- 只有管理员可见 -->
-    <button v-if="userStore.role === 'admin'">
-      管理员功能
-    </button>
-
-    <!-- 多个角色可见 -->
-    <button v-if="['admin', 'super_viewer'].includes(userStore.role)">
-      高级功能
-    </button>
-  </div>
-</template>
-```
-
-## 总结
-这种基于路由 `meta.roles` 的权限控制机制具有以下优势：
-- 集中化配置：权限在路由层面统一管理
-- 自动化过滤：菜单自动根据权限显示/隐藏
-- 路由保护：防止直接URL访问
-- 易于维护：角色和权限逻辑分离
-- 可扩展性：支持动态权限和细粒度控制
-
-这种实现方式已成为项目的标准权限控制模式，适用于所有需要角色权限控制的场景。
+1. 用户不能编辑自己的账号信息
+2. 只有admin可以删除用户
+3. 权限检查在前端和后端都要进行
+4. 角色层级关系必须严格遵守，避免权限泄露

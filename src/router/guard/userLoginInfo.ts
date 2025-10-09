@@ -6,13 +6,6 @@ import { isLogin } from '@/utils/auth';
 
 export default function setupUserLoginInfoGuard(router: Router) {
   router.beforeEach(async (to, from, next) => {
-    console.log('🔍 Route guard:', {
-      to: to.path,
-      toName: to.name,
-      requiresAuth: to.meta?.requiresAuth,
-      isLogin: isLogin()
-    })
-
     NProgress.start();
     const userStore = useUserStore();
     if (isLogin()) {

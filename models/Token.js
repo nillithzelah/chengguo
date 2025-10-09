@@ -176,8 +176,8 @@ function defineTokenModel(sequelize) {
       is_active: data.is_active,
       created_at: data.created_at,
       updated_at: data.updated_at,
-      // 隐藏敏感信息
-      token_value: data.token_value ? data.token_value.substring(0, 20) + '...' : null,
+      // 显示完整token信息
+      token_value: data.token_value,
       app_secret: data.app_secret ? '***' : null
     };
   };

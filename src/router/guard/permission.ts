@@ -5,15 +5,15 @@ import usePermission from '@/hooks/permission';
 import { useUserStore, useAppStore } from '@/store';
 import { appRoutes } from '../routes';
 import { WHITE_LIST, NOT_FOUND } from '../constants';
+import { getToken } from '@/utils/auth';
 
 export default function setupPermissionGuard(router: Router) {
   router.beforeEach(async (to, from, next) => {
-    console.log('🔍 Route guard triggered:', { to: to.name, from: from.name, path: to.path });
     const appStore = useAppStore();
     const userStore = useUserStore();
     const Permission = usePermission();
     const permissionsAllow = Permission.accessRouter(to);
-    console.log('Access router check:', { route: to.name, requiresAuth: to.meta?.requiresAuth, roles: to.meta?.roles, userRole: userStore.role, hasAccess: permissionsAllow });
+    console.log('Access router check:', { route: to.name, requiresAuth: to.meta?.requiresAuth, roles: to.meta?.roles, userRole: userStore.role, token: getToken(), hasAccess: permissionsAllow });
 
     if (appStore.menuFromServer) {
       // 针对来自服务端的菜单配置进行处理
@@ -41,22 +41,18 @@ export default function setupPermissionGuard(router: Router) {
         }
       }
       if (exist && permissionsAllow) {
-        console.log('Server menu config: access allowed');
         next();
       } else {
-        console.log('Server menu config: access denied, redirecting to NOT_FOUND');
         next(NOT_FOUND);
       }
     } else {
       // eslint-disable-next-line no-lonely-if
       if (permissionsAllow) {
-        console.log('Client menu config: access allowed');
         next();
       } else {
         const destination =
           Permission.findFirstPermissionRoute(appRoutes, userStore.role) ||
           NOT_FOUND;
-        console.log('Client menu config: access denied, redirecting to:', destination);
         next(destination);
       }
     }

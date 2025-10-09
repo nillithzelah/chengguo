@@ -106,7 +106,7 @@ async function initializeDatabase() {
       {
         username: 'internal_service',
         password: 'service123',
-        name: '内客服',
+        name: '内部客服',
         email: 'internal_service@chengguo.com',
         role: 'internal_service',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_service'
@@ -114,7 +114,7 @@ async function initializeDatabase() {
       {
         username: 'internal_boss',
         password: 'boss123',
-        name: '内老板',
+        name: '内部老板',
         email: 'internal_boss@chengguo.com',
         role: 'internal_boss',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_boss'
@@ -130,7 +130,7 @@ async function initializeDatabase() {
       {
         username: 'external_service',
         password: 'eservice123',
-        name: '外客服',
+        name: '外部客服',
         email: 'external_service@chengguo.com',
         role: 'external_service',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_service'
@@ -138,7 +138,7 @@ async function initializeDatabase() {
       {
         username: 'external_boss',
         password: 'eboss123',
-        name: '外老板',
+        name: '外部老板',
         email: 'external_boss@chengguo.com',
         role: 'external_boss',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_boss'
@@ -295,11 +295,11 @@ async function initializeDatabase() {
     console.log('📝 使用说明:');
     console.log('   - 管理员账号: admin / admin123');
     console.log('   - 内用户账号: internal_user / user123');
-    console.log('   - 内客服账号: internal_service / service123');
-    console.log('   - 内老板账号: internal_boss / boss123');
+    console.log('   - 内部客服账号: internal_service / service123');
+    console.log('   - 内部老板账号: internal_boss / boss123');
     console.log('   - 外用户账号: external_user / euser123');
-    console.log('   - 外客服账号: external_service / eservice123');
-    console.log('   - 外老板账号: external_boss / eboss123');
+    console.log('   - 外部客服账号: external_service / eservice123');
+    console.log('   - 外部老板账号: external_boss / eboss123');
     console.log('');
     console.log('🔧 如需重新初始化数据库，请运行:');
     console.log('   node scripts/init-db.js --force');

@@ -17,10 +17,10 @@ async function createTestUsers() {
     // 定义测试用户数据
     const testUsers = [
       { username: 'admin', password: 'admin123', name: '系统管理员', role: 'admin' },
-      { username: 'internal_boss', password: 'boss123', name: '内老板', role: 'internal_boss' },
-      { username: 'external_boss', password: 'boss123', name: '外老板', role: 'external_boss' },
-      { username: 'internal_service', password: 'service123', name: '内客服', role: 'internal_service' },
-      { username: 'external_service', password: 'service123', name: '外客服', role: 'external_service' },
+      { username: 'internal_boss', password: 'boss123', name: '内部老板', role: 'internal_boss' },
+      { username: 'external_boss', password: 'boss123', name: '外部老板', role: 'external_boss' },
+      { username: 'internal_service', password: 'service123', name: '内部客服', role: 'internal_service' },
+      { username: 'external_service', password: 'service123', name: '外部客服', role: 'external_service' },
       { username: 'internal_user', password: 'user123', name: '内用户', role: 'internal_user' },
       { username: 'external_user', password: 'user123', name: '外用户', role: 'external_user' },
     ];

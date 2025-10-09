@@ -41,7 +41,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.admin',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss'], // 管理员、超级查看者、老板可以访问
+        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'], // 管理员、超级查看者、老板、客服可以访问
       },
     },
   ],

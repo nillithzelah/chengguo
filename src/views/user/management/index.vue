@@ -14,14 +14,14 @@
       <a-button
         v-if="canCreateUser"
         type="primary"
-        @click="() => { console.log('新增用户按钮被点击'); openCreateModal(); }"
+        @click="openCreateModal"
       >
         <template #icon>
           <icon-plus />
         </template>
         新增用户
       </a-button>
-      <a-button @click="() => { console.log('刷新按钮被点击'); refreshUserList(); }">
+      <a-button @click="refreshUserList">
         <template #icon>
           <icon-refresh />
         </template>
@@ -74,7 +74,7 @@
             v-if="checkCanEditUser(record)"
             type="text"
             size="small"
-            @click="() => { console.log('编辑按钮被点击，用户ID:', record.id); editUser(record); }"
+            @click="() => editUser(record)"
           >
             <template #icon>
               <icon-edit />
@@ -86,7 +86,7 @@
             type="text"
             size="small"
             danger
-            @click="() => { console.log('删除按钮被点击，用户ID:', record.id); confirmDeleteUser(record); }"
+            @click="() => confirmDeleteUser(record)"
           >
             <template #icon>
               <icon-delete />
@@ -193,7 +193,7 @@
           <button @click="resetCreateForm" class="btn btn-secondary" :disabled="createLoading">取消</button>
           <button
             v-if="availableRoles.length > 0"
-            @click="() => { console.log('新增用户模态框确认按钮被点击'); handleCreateUser(); }"
+            @click="handleCreateUser"
             :disabled="!createForm.username || !createForm.password || !createForm.confirmPassword || !createForm.name || createForm.password !== createForm.confirmPassword || createForm.password.length < 6 || createLoading"
             :title="getCreateButtonTooltip()"
             class="btn btn-primary"
@@ -302,7 +302,7 @@
         <div class="modal-footer">
           <button @click="() => { showEditModal = false; editUserInfo = null; }" class="btn btn-secondary" :disabled="editLoading">取消</button>
           <button
-            @click="() => { console.log('编辑用户模态框确认按钮被点击'); handleEditUser(); }"
+            @click="handleEditUser"
             :disabled="!editForm.name || editLoading"
             class="btn btn-primary"
           >
@@ -316,10 +316,9 @@
     <a-modal
       v-model:open="showDeleteModal"
       title="确认删除"
-      @ok="() => { console.log('删除确认模态框确认按钮被点击'); handleDeleteUser(); }"
-      @cancel="() => { console.log('删除确认模态框取消按钮被点击'); cancelDelete(); }"
+      @ok="handleDeleteUser"
+      @cancel="cancelDelete"
       :confirm-loading="deleteLoading"
-      @after-open-change="(visible) => console.log('删除模态框显示状态变化:', visible)"
     >
       <div class="delete-confirm">
         <p>确定要删除用户 <strong>{{ deleteUserInfo?.username }}</strong> 吗？</p>
@@ -378,14 +377,24 @@ const availableRoles = computed(() => {
       { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' }
     ];
-  } else if (['internal_boss', 'internal_service', 'super_viewer', 'moderator'].includes(currentRole || '')) {
-    // 内部用户可以创建外部用户
+  } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
+    // 内部老板可以创建内部客服和内用户
     return [
-      { value: 'external_user', label: '外部普通用户' },
-      { value: 'external_service', label: '外部客服' }
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_user', label: '内部普通用户' }
     ];
-  } else if (['external_boss', 'external_service', 'viewer', 'user'].includes(currentRole || '')) {
-    // 外部用户只能创建普通外部用户
+  } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
+    // 内部客服只能创建内部普通用户
+    return [
+      { value: 'internal_user', label: '内部普通用户' }
+    ];
+  } else if (['external_boss', 'viewer'].includes(currentRole || '')) {
+    // 外部老板只能创建外部普通用户
+    return [
+      { value: 'external_user', label: '外部普通用户' }
+    ];
+  } else if (['external_service', 'user'].includes(currentRole || '')) {
+    // 外部客服和用户只能创建普通外部用户
     return [
       { value: 'external_user', label: '外部普通用户' }
     ];
@@ -394,7 +403,7 @@ const availableRoles = computed(() => {
   return [];
 });
 
-// 可编辑的用户角色（根据当前用户角色限制）
+// 可编辑的用户角色（根据当前用户角色限制，与创建权限一致）
 const getEditableRoles = () => {
   const currentRole = userStore.userInfo?.role;
   if (currentRole === 'admin') {
@@ -405,18 +414,27 @@ const getEditableRoles = () => {
       { value: 'external_boss', label: '外部老板' },
       { value: 'internal_user', label: '内部普通用户' },
       { value: 'internal_service', label: '内部客服' },
-      { value: 'internal_boss', label: '内部老板' },
-      { value: 'admin', label: '管理员' }
+      { value: 'internal_boss', label: '内部老板' }
     ];
-  } else if (['internal_boss', 'internal_service', 'super_viewer', 'moderator'].includes(currentRole || '')) {
-    // 内部用户可以编辑外部用户角色
+  } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
+    // 内部老板可以编辑内部客服和内部用户
+    return [
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_user', label: '内部普通用户' }
+    ];
+  } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
+    // 内部客服只能编辑内部普通用户
+    return [
+      { value: 'internal_user', label: '内部普通用户' }
+    ];
+  } else if (['external_boss', 'viewer'].includes(currentRole || '')) {
+    // 外部老板可以编辑外部用户
     return [
       { value: 'external_user', label: '外部普通用户' },
-      { value: 'external_service', label: '外部客服' },
-      { value: 'external_boss', label: '外部老板' }
+      { value: 'external_service', label: '外部客服' }
     ];
-  } else if (['external_boss', 'external_service', 'viewer', 'user'].includes(currentRole || '')) {
-    // 外部用户只能编辑为普通外部用户
+  } else if (['external_service', 'user'].includes(currentRole || '')) {
+    // 外部客服和用户只能编辑普通外部用户
     return [
       { value: 'external_user', label: '外部普通用户' }
     ];
@@ -542,12 +560,6 @@ const pagination = reactive({
 
 // 权限检查
 const checkCanEditUser = (user: UserListItem) => {
-  console.log('checkCanEditUser: 当前用户信息', userStore.userInfo);
-  console.log('checkCanEditUser: 用户角色', userStore.userInfo?.role);
-  console.log('checkCanEditUser: 目标用户ID', user.id);
-  console.log('checkCanEditUser: 目标用户角色', user.role);
-  console.log('checkCanEditUser: 当前用户ID', userStore.userInfo?.accountId);
-
   const currentUserRole = userStore.userInfo?.role;
   const targetUserRole = user.role;
   const currentUserId = Number(userStore.userInfo?.accountId);
@@ -555,54 +567,32 @@ const checkCanEditUser = (user: UserListItem) => {
 
   // 不能编辑自己
   if (targetUserId === currentUserId) {
-    console.log('checkCanEditUser: 不能编辑自己');
     return false;
   }
 
   // admin可以编辑所有用户
   if (currentUserRole === 'admin') {
-    console.log('checkCanEditUser: admin可以编辑所有用户');
     return true;
   }
 
   // internal_boss可以编辑内部和外部用户
   if (currentUserRole === 'internal_boss') {
-    const canEdit = targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
-    console.log('checkCanEditUser: internal_boss可以编辑内部和外部用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
   }
 
   // internal_service可以编辑内部用户和外部普通用户
   if (currentUserRole === 'internal_service') {
-    const canEdit = targetUserRole === 'internal_user' || targetUserRole === 'external_user';
-    console.log('checkCanEditUser: internal_service可以编辑内部普通用户和外部普通用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole === 'internal_user' || targetUserRole === 'external_user';
   }
 
   // external_boss可以编辑外部用户
   if (currentUserRole === 'external_boss') {
-    const canEdit = targetUserRole.startsWith('external_');
-    console.log('checkCanEditUser: external_boss可以编辑外部用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole.startsWith('external_');
   }
 
   // external_service可以编辑外部普通用户
   if (currentUserRole === 'external_service') {
-    const canEdit = targetUserRole === 'external_user';
-    console.log('checkCanEditUser: external_service可以编辑外部普通用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole === 'external_user';
   }
 
   // 兼容旧角色名称的权限检查 - 旧角色已迁移，但保留向后兼容
@@ -610,54 +600,29 @@ const checkCanEditUser = (user: UserListItem) => {
   const roleStr = currentUserRole as string; // 避免类型检查错误，允许旧角色名
   if (roleStr === 'super_viewer') {
     // super_viewer等同于internal_boss，可以编辑所有内部和外部用户
-    const canEdit = targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
-    console.log('checkCanEditUser: super_viewer(兼容internal_boss)可以编辑内部和外部用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole.startsWith('internal_') || targetUserRole.startsWith('external_');
   }
 
   if (roleStr === 'moderator') {
     // moderator等同于internal_service，可以编辑内部普通用户和外部普通用户
-    const canEdit = targetUserRole === 'internal_user' || targetUserRole === 'external_user';
-    console.log('checkCanEditUser: moderator(兼容internal_service)可以编辑普通用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole === 'internal_user' || targetUserRole === 'external_user';
   }
 
   if (roleStr === 'viewer') {
     // viewer等同于internal_user，只能编辑外部普通用户（按原有逻辑）
-    const canEdit = targetUserRole === 'external_user';
-    console.log('checkCanEditUser: viewer(兼容internal_user)只能编辑外部普通用户', {
-      targetRole: targetUserRole,
-      canEdit
-    });
-    return canEdit;
+    return targetUserRole === 'external_user';
   }
 
   // 其他角色不能编辑用户
-  console.log('checkCanEditUser: 其他角色不能编辑用户');
   return false;
 };
 
 const checkCanDeleteUser = (user: UserListItem) => {
-  console.log('checkCanDeleteUser: 当前用户信息', userStore.userInfo);
-  console.log('checkCanDeleteUser: 当前用户ID', userStore.userInfo?.accountId);
-  console.log('checkCanDeleteUser: 目标用户ID', user.id);
-  console.log('checkCanDeleteUser: 当前用户角色', userStore.userInfo?.role);
-
   // 只有admin可以删除用户，且不能删除自己
   const isAdmin = userStore.userInfo?.role === 'admin';
   const isNotSelf = user.id !== Number(userStore.userInfo?.accountId);
 
-  console.log('checkCanDeleteUser: 是否为管理员', isAdmin);
-  console.log('checkCanDeleteUser: 是否不是自己', isNotSelf);
-  const result = isAdmin && isNotSelf;
-  console.log('checkCanDeleteUser: 最终结果', result);
-  return result;
+  return isAdmin && isNotSelf;
 };
 
 // 获取角色颜色
@@ -717,15 +682,34 @@ const loadUserList = async () => {
     if (currentUserRole === 'admin') {
       // admin可以看到所有用户
       userList.value = users;
-    } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
-      // 老板只能看到自己创建的用户
-      userList.value = users.filter(user => user.created_by === currentUserId);
-    } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
-      // 客服只能看到自己创建的用户
-      userList.value = users.filter(user => user.created_by === currentUserId);
+    } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
+      // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
+      const managedUserIds = getManagedUserIds(users, currentUserId);
+      userList.value = users.filter(user => managedUserIds.includes(user.id));
     } else {
       // 其他角色看不到用户列表
       userList.value = [];
+    }
+
+    // 递归获取当前用户可以管理的用户ID列表
+    function getManagedUserIds(allUsers: any[], managerId: number): number[] {
+      const managedIds = new Set<number>();
+      const queue = [managerId];
+
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        managedIds.add(currentId);
+
+        // 找到所有由当前用户创建的用户（处理类型不匹配问题）
+        const children = allUsers.filter(user => Number(user.created_by) === currentId);
+        children.forEach(child => {
+          if (!managedIds.has(child.id)) {
+            queue.push(child.id);
+          }
+        });
+      }
+
+      return Array.from(managedIds);
     }
 
     pagination.total = userList.value.length;
@@ -744,7 +728,6 @@ const refreshUserList = () => {
 
 // 处理表格变化
 const handleTableChange = (newPagination: any) => {
-  console.log('表格变化:', newPagination);
   // 更新分页参数
   pagination.current = newPagination.current;
   pagination.pageSize = newPagination.pageSize;
@@ -768,78 +751,56 @@ const editUser = (user: UserListItem) => {
 
 // 确认删除用户
 const confirmDeleteUser = async (user: UserListItem) => {
-  console.log('confirmDeleteUser: 函数被调用，用户:', user);
-
   // 使用浏览器原生confirm对话框
   const confirmed = confirm(`确定要删除用户 "${user.username}" 吗？\n\n此操作不可撤销，将永久删除该用户及其所有相关数据。`);
 
   if (confirmed) {
-    console.log('confirmDeleteUser: 用户确认删除');
     await handleDeleteUserDirect(user);
-  } else {
-    console.log('confirmDeleteUser: 用户取消删除');
   }
 };
 
 // 取消删除
 const cancelDelete = () => {
-  console.log('cancelDelete: 函数被调用');
   deleteUserInfo.value = null;
   showDeleteModal.value = false;
-  console.log('cancelDelete: 函数执行完成');
 };
 
 // 执行删除用户（直接处理）
 const handleDeleteUserDirect = async (user: UserListItem) => {
-  console.log('handleDeleteUserDirect: 开始删除用户，ID:', user.id);
   deleteLoading.value = true;
 
   try {
-    console.log('handleDeleteUserDirect: 调用deleteUser API');
     await deleteUser(user.id);
-    console.log('handleDeleteUserDirect: API调用成功');
     Message.success('用户删除成功');
-    console.log('handleDeleteUserDirect: 刷新用户列表');
     // 刷新用户列表
     loadUserList();
   } catch (error) {
-    console.error('handleDeleteUserDirect: 删除用户失败:', error);
+    console.error('删除用户失败:', error);
     Message.error('删除用户失败');
   } finally {
-    console.log('handleDeleteUserDirect: 设置loading为false');
     deleteLoading.value = false;
   }
 };
 
 // 执行删除用户（模态框版本，保留以备不时之需）
 const handleDeleteUser = async () => {
-  console.log('handleDeleteUser: 函数被调用');
-  console.log('handleDeleteUser: deleteUserInfo:', deleteUserInfo.value);
-
   if (!deleteUserInfo.value) {
-    console.log('handleDeleteUser: deleteUserInfo为空，直接返回');
     return;
   }
 
-  console.log('handleDeleteUser: 开始删除用户，ID:', deleteUserInfo.value.id);
   deleteLoading.value = true;
 
   try {
-    console.log('handleDeleteUser: 调用deleteUser API');
     await deleteUser(deleteUserInfo.value.id);
-    console.log('handleDeleteUser: API调用成功');
     Message.success('用户删除成功');
-    console.log('handleDeleteUser: 关闭模态框');
     showDeleteModal.value = false;
     deleteUserInfo.value = null;
-    console.log('handleDeleteUser: 刷新用户列表');
     // 刷新用户列表
     loadUserList();
   } catch (error) {
-    console.error('handleDeleteUser: 删除用户失败:', error);
+    console.error('删除用户失败:', error);
     Message.error('删除用户失败');
   } finally {
-    console.log('handleDeleteUser: 设置loading为false');
     deleteLoading.value = false;
   }
 };
@@ -848,11 +809,6 @@ const handleDeleteUser = async () => {
 
 // 打开创建用户模态框
 const openCreateModal = () => {
-  console.log('openCreateModal: 打开创建用户模态框');
-  console.log('openCreateModal: 当前用户角色:', userStore.userInfo?.role);
-  console.log('openCreateModal: availableRoles:', availableRoles.value);
-  console.log('openCreateModal: availableRoles.length:', availableRoles.value.length);
-
   // 重置表单
   createForm.username = '';
   createForm.password = '';
@@ -861,14 +817,11 @@ const openCreateModal = () => {
   createForm.email = '';
   // 设置默认角色为第一个可用的角色
   createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
-  console.log('openCreateModal: 设置默认角色为:', createForm.role);
   showCreateModal.value = true;
-  console.log('openCreateModal: 模态框已打开');
 };
 
 // 重置创建表单
 const resetCreateForm = () => {
-  console.log('resetCreateForm: 重置创建表单');
   createForm.username = '';
   createForm.password = '';
   createForm.confirmPassword = '';
@@ -877,15 +830,11 @@ const resetCreateForm = () => {
   // 设置默认角色为第一个可用的角色
   createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
   showCreateModal.value = false;
-  console.log('resetCreateForm: 表单重置完成');
 };
 
 // 处理编辑用户
 const handleEditUser = async () => {
-  console.log('handleEditUser: 开始编辑用户');
-
   if (!editUserInfo.value) {
-    console.log('handleEditUser: editUserInfo为空');
     return;
   }
 
@@ -952,10 +901,7 @@ const handleEditUser = async () => {
       updateData.password = editForm.password;
     }
 
-    console.log('handleEditUser: 调用updateUser API', editUserInfo.value.id, updateData);
     await updateUser(editUserInfo.value.id, updateData);
-
-    console.log('handleEditUser: 用户编辑成功');
 
     Message.success(`用户"${editForm.name}"信息更新成功！`);
 
@@ -965,7 +911,7 @@ const handleEditUser = async () => {
     // 重新加载用户列表
     loadUserList();
   } catch (error) {
-    console.error('handleEditUser: 编辑用户失败:', error);
+    console.error('编辑用户失败:', error);
 
     // 处理不同的错误类型
     if (error.response?.data?.message) {
@@ -976,15 +922,12 @@ const handleEditUser = async () => {
       Message.error('编辑用户失败，请稍后重试');
     }
   } finally {
-    console.log('handleEditUser: 设置loading为false');
     editLoading.value = false;
   }
 };
 
 // 处理创建用户
 const handleCreateUser = async () => {
-  console.log('handleCreateUser: 开始创建用户');
-
   const currentRole = userStore.userInfo?.role;
 
   // 检查权限：admin、internal_boss、internal_service、external_boss、external_service可以创建用户
@@ -993,9 +936,9 @@ const handleCreateUser = async () => {
     return;
   }
 
-  // 检查internal_service只能创建internal_user或external_user角色
-  if (['internal_service', 'moderator'].includes(currentRole || '') && !['internal_user', 'external_user'].includes(createForm.role)) {
-    Message.error('您只能创建内部普通用户或外部普通用户账号');
+  // 检查internal_service只能创建internal_user角色
+  if (['internal_service', 'moderator'].includes(currentRole || '') && createForm.role !== 'internal_user') {
+    Message.error('您只能创建内部普通用户账号');
     return;
   }
 
@@ -1046,10 +989,7 @@ const handleCreateUser = async () => {
       created_by: currentUser?.accountId ? Number(currentUser.accountId) : undefined
     };
 
-    console.log('handleCreateUser: 调用createUser API', userDataWithCreator);
     await createUser(userDataWithCreator);
-
-    console.log('handleCreateUser: 用户创建成功');
 
     Message.success(`用户"${createForm.name}"创建成功！\n用户名: ${createForm.username}\n密码: ${createForm.password}`);
 
@@ -1059,7 +999,7 @@ const handleCreateUser = async () => {
     // 重新加载用户列表以获取完整的用户数据（包括正确的ID）
     loadUserList();
   } catch (error) {
-    console.error('handleCreateUser: 创建用户失败:', error);
+    console.error('创建用户失败:', error);
 
     // 处理不同的错误类型
     if (error.response?.data?.message) {
@@ -1070,7 +1010,6 @@ const handleCreateUser = async () => {
       Message.error('创建用户失败，请稍后重试');
     }
   } finally {
-    console.log('handleCreateUser: 设置loading为false');
     createLoading.value = false;
   }
 };

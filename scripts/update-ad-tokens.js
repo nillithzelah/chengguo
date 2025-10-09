@@ -51,14 +51,14 @@ async function updateAdTokens() {
     const currentRefreshToken = await Token.getActiveToken('refresh_token');
 
     if (currentAccessToken) {
-      console.log(`   当前Access Token: ${currentAccessToken.token_value.substring(0, 20)}...`);
+      console.log(`   当前Access Token: ${currentAccessToken.token_value}`);
       console.log(`   最后刷新: ${currentAccessToken.last_refresh_at ? currentAccessToken.last_refresh_at.toLocaleString('zh-CN') : '未知'}`);
     } else {
       console.log('   当前Access Token: 未设置');
     }
 
     if (currentRefreshToken) {
-      console.log(`   当前Refresh Token: ${currentRefreshToken.token_value.substring(0, 20)}...`);
+      console.log(`   当前Refresh Token: ${currentRefreshToken.token_value}`);
       console.log(`   最后刷新: ${currentRefreshToken.last_refresh_at ? currentRefreshToken.last_refresh_at.toLocaleString('zh-CN') : '未知'}`);
     } else {
       console.log('   当前Refresh Token: 未设置');
@@ -101,8 +101,8 @@ async function updateAdTokens() {
 
     // 7. 显示更新后的完整信息
     console.log('\n📋 更新后的Token信息:');
-    console.log(`   Access Token: ${newAccessToken.substring(0, 20)}...`);
-    console.log(`   Refresh Token: ${newRefreshToken.substring(0, 20)}...`);
+    console.log(`   Access Token: ${newAccessToken}`);
+    console.log(`   Refresh Token: ${newRefreshToken}`);
     console.log(`   更新时间: ${new Date().toLocaleString('zh-CN')}`);
     console.log(`   Access Token过期时间: ${new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleString('zh-CN')}`);
 

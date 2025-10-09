@@ -64,7 +64,7 @@ async function updateTokenDirect(tokenType, newTokenValue) {
     });
 
     console.log(`✅ ${tokenType}更新成功!`);
-    console.log(`🔑 新Token: ${newTokenValue.substring(0, 20)}...`);
+    console.log(`🔑 新Token: ${newTokenValue}`);
 
     // 验证更新结果
     const [results] = await sequelize.query(`

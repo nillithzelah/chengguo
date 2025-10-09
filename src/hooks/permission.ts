@@ -1,5 +1,6 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { useUserStore } from '@/store';
+import { getToken } from '@/utils/auth';
 
 export default function usePermission() {
   const userStore = useUserStore();
@@ -30,6 +31,7 @@ export default function usePermission() {
         requiresAuth: route.meta?.requiresAuth,
         roles: route.meta?.roles,
         userRole: userStore.role,
+        token: getToken(),
         mappedRole,
         hasAccess
       });

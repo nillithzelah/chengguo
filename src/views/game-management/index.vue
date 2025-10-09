@@ -20,7 +20,7 @@
         <div class="filter-item">
           <label>按用户筛选</label>
           <select v-model="selectedUserId" @change="filterGamesByUser" class="form-input">
-            <option value="">显示所有游戏</option>
+            <option v-if="canModify" value="">显示所有游戏</option>
             <option
               v-for="user in users"
               :key="user.id"
@@ -42,7 +42,7 @@
     </div>
 
     <!-- 游戏列表 -->
-    <div class="games-section">
+    <div v-if="isInitialized" class="games-section">
       <div class="section-header">
         <h3>游戏列表</h3>
         <div class="section-info">
@@ -334,14 +334,6 @@
             </select>
           </div>
 
-          <div class="form-item">
-            <label>权限角色</label>
-            <select v-model="assignData.role" class="form-input">
-              <option value="viewer">查看者</option>
-              <option value="editor">编辑者</option>
-              <option value="owner">所有者</option>
-            </select>
-          </div>
         </div>
 
         <div class="modal-footer">
@@ -492,6 +484,7 @@ const editing = ref(false);
 const testing = ref(false);
 const assigning = ref(false);
 const testResult = ref(null);
+const isInitialized = ref(false);
 
 // 广告测试相关
 const adTesting = ref(false);
@@ -504,7 +497,7 @@ const canModify = computed(() => isAdmin.value); // 只有admin可以修改（�
 const canAssign = computed(() => {
   const role = userStore.role;
   return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
-}); // 老板和客服可以分配游戏
+}); // 管理员、老板和客服可以分配游戏
 
 // 工具函数
 const formatDate = (dateStr) => {
@@ -530,6 +523,7 @@ const filterGamesByUser = async () => {
         if (result.code === 20000) {
           const userGameIds = result.data.games.map(userGame => userGame.game.id);
           filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
+          isInitialized.value = true;
           return;
         }
       }
@@ -538,8 +532,15 @@ const filterGamesByUser = async () => {
     }
   }
 
-  // 如果没有选择用户或获取失败，显示所有游戏
-  filterGames();
+  // 如果没有选择用户或获取失败，根据用户权限决定显示内容
+  if (canModify.value) {
+    // 管理员显示所有游戏
+    filterGames();
+  } else {
+    // 非管理员显示空列表
+    filteredGames.value = [];
+    isInitialized.value = true;
+  }
 };
 
 const filterGames = () => {
@@ -551,6 +552,7 @@ const filterGames = () => {
   }
 
   filteredGames.value = filtered;
+  isInitialized.value = true;
 };
 
 const getRoleDisplayName = (role) => {
@@ -587,23 +589,8 @@ const loadGames = async () => {
       if (result.code === 20000) {
         let gameList = result.data.games;
 
-        // 根据当前用户角色过滤游戏列表
-        const currentUserRole = userStore.userInfo?.role;
-        const currentUserId = Number(userStore.userInfo?.accountId);
-
-        if (currentUserRole === 'admin') {
-          // admin可以看到所有游戏
-          games.value = gameList;
-        } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
-          // 老板只能看到自己创建的游戏
-          games.value = gameList.filter(game => game.created_by === currentUserId);
-        } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
-          // 客服只能看到自己创建的游戏
-          games.value = gameList.filter(game => game.created_by === currentUserId);
-        } else {
-          // 其他角色看不到游戏列表
-          games.value = [];
-        }
+        // 暂时不进行权限过滤，直接显示所有游戏
+        games.value = gameList;
 
         console.log('✅ 游戏列表加载成功:', games.value.length, '个游戏');
         filteredGames.value = [...games.value]; // 更新筛选结果
@@ -621,7 +608,7 @@ const loadGames = async () => {
 const loadUsers = async () => {
   console.log('📡 游戏管理页面开始加载用户列表...');
   try {
-    const response = await fetch('/api/user/basic-list', {
+    const response = await fetch('/api/user/list', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -643,15 +630,34 @@ const loadUsers = async () => {
         if (currentUserRole === 'admin') {
           // admin可以看到所有用户
           users.value = userList;
-        } else if (['internal_boss', 'external_boss'].includes(currentUserRole || '')) {
-          // 老板只能看到自己创建的用户
-          users.value = userList.filter(user => user.created_by === currentUserId);
-        } else if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
-          // 客服只能看到自己创建的用户
-          users.value = userList.filter(user => user.created_by === currentUserId);
+        } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
+          // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
+          const managedUserIds = getManagedUserIds(userList, currentUserId);
+          users.value = userList.filter(user => managedUserIds.includes(user.id));
         } else {
           // 其他角色看不到用户列表
           users.value = [];
+        }
+
+        // 递归获取当前用户可以管理的用户ID列表
+        function getManagedUserIds(allUsers: any[], managerId: number): number[] {
+          const managedIds = new Set<number>();
+          const queue = [managerId];
+
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            managedIds.add(currentId);
+
+            // 找到所有由当前用户创建的用户（处理类型不匹配问题）
+            const children = allUsers.filter(user => Number(user.created_by) === currentId);
+            children.forEach(child => {
+              if (!managedIds.has(child.id)) {
+                queue.push(child.id);
+              }
+            });
+          }
+
+          return Array.from(managedIds);
         }
 
         console.log('✅ 用户列表加载成功:', users.value.length, '个用户');
@@ -1015,8 +1021,8 @@ const openAssignModal = (game) => {
 };
 
 const assignGameToUser = async () => {
-  if (!assignData.userId || !assignData.role) {
-    alert('请选择用户和权限角色');
+  if (!assignData.userId) {
+    alert('请选择用户');
     return;
   }
 
@@ -1225,12 +1231,21 @@ onMounted(async () => {
   console.log('📋 isAdmin:', isAdmin.value);
   console.log('📋 canModify:', canModify.value);
 
+  // 初始化为空列表，避免闪烁
+  filteredGames.value = [];
+
   // 直接调用数据加载，不依赖路由监听
   await loadGames();
   await loadUsers();
 
-  // 初始化筛选结果
-  filteredGames.value = [...games.value];
+  // 设置默认筛选：管理员显示所有游戏，其他用户默认筛选自己的游戏
+  if (!canModify.value && userStore.userInfo?.accountId) {
+    selectedUserId.value = userStore.userInfo.accountId.toString();
+    await filterGamesByUser();
+  } else {
+    // 管理员显示所有游戏
+    filterGames();
+  }
 });
 
 // 监听路由变化，当路由变化时重新加载数据
@@ -1246,12 +1261,17 @@ watch(
       setTimeout(async () => {
         await loadGames();
         await loadUsers();
-        // 重新初始化筛选结果
-        filteredGames.value = [...games.value];
+        // 重新应用筛选
+        if (!canModify.value && userStore.userInfo?.accountId) {
+          selectedUserId.value = userStore.userInfo.accountId.toString();
+          await filterGamesByUser();
+        } else {
+          filterGames();
+        }
       }, 100);
     }
   },
-  { immediate: true }
+  { immediate: false } // 移除immediate，避免重复初始化
 );
 </script>
 

@@ -49,12 +49,12 @@ async function initializeTokens() {
     const activeRefreshToken = await Token.getActiveToken('refresh_token');
 
     if (activeAccessToken) {
-      console.log(`   Access Token: ${activeAccessToken.token_value.substring(0, 20)}...`);
+      console.log(`   Access Token: ${activeAccessToken.token_value}`);
       console.log(`   最后刷新: ${activeAccessToken.last_refresh_at ? activeAccessToken.last_refresh_at.toLocaleString('zh-CN') : '未知'}`);
     }
 
     if (activeRefreshToken) {
-      console.log(`   Refresh Token: ${activeRefreshToken.token_value.substring(0, 20)}...`);
+      console.log(`   Refresh Token: ${activeRefreshToken.token_value}`);
       console.log(`   最后刷新: ${activeRefreshToken.last_refresh_at ? activeRefreshToken.last_refresh_at.toLocaleString('zh-CN') : '未知'}`);
     }
 

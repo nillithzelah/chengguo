@@ -43,7 +43,7 @@ async function updateAdAccessToken(newAccessToken) {
     });
 
     console.log('✅ 广告投放Access Token更新成功!');
-    console.log(`🔑 新Token: ${newAccessToken.substring(0, 20)}...`);
+    console.log(`🔑 新Token: ${newAccessToken}`);
 
     // 验证更新结果
     const updatedToken = await Token.getActiveToken('access_token');

@@ -44,10 +44,6 @@
         </select>
         <span v-if="userLoading" class="loading-text">加载中...</span>
       </div>
-      <!-- 调试信息 -->
-      <div class="debug-info" style="margin-top: 10px; font-size: 12px; color: #666;">
-        调试: 用户列表数量: {{ (() => { console.log('🎨 [模板] 渲染用户列表数量:', userList.length); return userList.length; })() }}, 选中用户ID: "{{ (() => { console.log('🎨 [模板] 渲染选中用户ID:', selectedUserId); return selectedUserId; })() }}"
-      </div>
     </div>
 
     <!-- 用户信息显示 -->
@@ -84,11 +80,6 @@
           </a-button>
         </template>
 
-        <!-- 调试信息 -->
-        <div style="margin-bottom: 16px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
-          调试: 游戏列表数量: {{ gameList.length }}, 加载状态: {{ gameLoading }}
-        </div>
-
         <a-table
           :columns="gameColumns"
           :data="gameList"
@@ -103,22 +94,13 @@
             </div>
           </template>
 
-          <template #role="{ record }">
-            <a-tag
-              :color="getGameRoleColor(record.role)"
-              size="small"
-            >
-              {{ getGameRoleText(record.role) }}
-            </a-tag>
-          </template>
-
           <template #assigned_at="{ record }">
-            {{ formatDate(record.assigned_at) }}
+            {{ formatDate(record.assignedAt) }}
           </template>
 
           <template #assigned_by="{ record }">
-            <div v-if="record.assigned_by">
-              {{ record.assigned_by.name }} ({{ record.assigned_by.username }})
+            <div v-if="record.assignedBy">
+              {{ record.assignedBy.name }} ({{ record.assignedBy.username }})
             </div>
             <div v-else class="text-muted">系统分配</div>
           </template>
@@ -170,10 +152,6 @@
             </a-popconfirm>
           </template>
         </a-table>
-
-        <div v-if="gameList.length === 0 && !gameLoading" class="no-games">
-          <a-empty description="该用户暂无游戏权限" />
-        </div>
       </a-card>
     </div>
 
@@ -341,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { IconRefresh, IconDelete } from '@arco-design/web-vue/es/icon';
@@ -384,24 +362,26 @@ const newGame = reactive({
 // 用户Store
 const userStore = useUserStore();
 
+// 用户权限检查
+const isAdmin = computed(() => userStore.userInfo?.role === 'admin');
+const canModify = computed(() => isAdmin.value); // 只有admin可以修改（创建、编辑、删除）
+const canAssign = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
+}); // 管理员、老板和客服可以分配游戏
+
 // 游戏表格列配置
-const gameColumns = [
+const gameColumns = computed(() => [
   {
     title: '游戏信息',
     slotName: 'game_name',
     width: 250
   },
-  {
-    title: '权限角色',
-    dataIndex: 'role',
-    slotName: 'role',
-    width: 120
-  },
-  {
+  ...(canModify.value ? [{
     title: '广告信息',
     slotName: 'ad_info',
     width: 200
-  },
+  }] : []),
   {
     title: '分配时间',
     dataIndex: 'assigned_at',
@@ -426,7 +406,7 @@ const gameColumns = [
     slotName: 'actions',
     width: 120
   }
-];
+]);
 
 // 获取角色颜色
 const getRoleColor = (role: string) => {
@@ -488,7 +468,10 @@ const getGameRoleText = (role: string) => {
 
 // 格式化日期
 const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleString('zh-CN');
+  if (!dateStr) return '未分配';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '无效日期';
+  return date.toLocaleString('zh-CN');
 };
 
 // 加载用户列表
@@ -501,63 +484,80 @@ const loadUserList = async () => {
   console.log('📡 [API] 设置userLoading为true');
 
   try {
-    console.log('📡 [API] 调用getUserBasicList API...');
+    console.log('📡 [API] 调用getUserList API...');
     const startTime = Date.now();
-    const response = await getUserBasicList();
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    console.log('📡 [API] API响应接收成功，耗时:', duration, 'ms');
-    console.log('📡 [API] 响应数据结构:', {
-      hasData: !!response.data,
-      hasUsers: !!(response.data?.users),
-      usersCount: response.data?.users?.length || 0,
-      total: response.data?.total || 0
+    const response = await fetch('/api/user/list', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
     });
 
-    let users = response.data.users;
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 20000) {
+        let users = result.data.users;
+        const endTime = Date.now();
+        const duration = endTime - startTime;
 
-    // 根据当前用户角色过滤用户列表
-    const currentUserRole = userStore.userInfo?.role;
-    const currentUserId = Number(userStore.userInfo?.accountId);
-
-    if (currentUserRole === 'admin') {
-      // admin可以看到所有用户
-      userList.value = users;
-    } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
-      // 老板和客服可以看到所有用户（暂时，权限检查在后端进行）
-      userList.value = users;
-    } else {
-      // 其他角色看不到用户列表
-      userList.value = [];
-    }
-
-    // 递归获取当前用户可以管理的用户ID列表
-    function getManagedUserIds(allUsers: any[], managerId: number): number[] {
-      const managedIds = new Set<number>();
-      const queue = [managerId];
-
-      while (queue.length > 0) {
-        const currentId = queue.shift()!;
-        managedIds.add(currentId);
-
-        // 找到所有由当前用户创建的用户
-        const children = allUsers.filter(user => user.created_by === currentId);
-        children.forEach(child => {
-          if (!managedIds.has(child.id)) {
-            queue.push(child.id);
-          }
+        console.log('📡 [API] API响应接收成功，耗时:', duration, 'ms');
+        console.log('📡 [API] 响应数据结构:', {
+          hasData: !!result.data,
+          hasUsers: !!(result.data?.users),
+          usersCount: result.data?.users?.length || 0,
+          total: result.data?.total || 0
         });
+
+        // 根据当前用户角色过滤用户列表
+        const currentUserRole = userStore.userInfo?.role;
+        const currentUserId = Number(userStore.userInfo?.accountId);
+
+        if (currentUserRole === 'admin') {
+          // admin可以看到所有用户
+          userList.value = users;
+        } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
+          // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
+          const managedUserIds = getManagedUserIds(users, currentUserId);
+          userList.value = users.filter(user => managedUserIds.includes(user.id));
+        } else {
+          // 其他角色看不到用户列表
+          userList.value = [];
+        }
+
+        // 递归获取当前用户可以管理的用户ID列表
+        function getManagedUserIds(allUsers: any[], managerId: number): number[] {
+          const managedIds = new Set<number>();
+          const queue = [managerId];
+
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            managedIds.add(currentId);
+
+            // 找到所有由当前用户创建的用户（处理类型不匹配问题）
+            const children = allUsers.filter(user => Number(user.created_by) === currentId);
+            children.forEach(child => {
+              if (!managedIds.has(child.id)) {
+                queue.push(child.id);
+              }
+            });
+          }
+
+          return Array.from(managedIds);
+        }
+
+        console.log('✅ [API] 用户列表加载成功:', userList.value.length, '个用户');
+        console.log('✅ [API] 用户列表详情:', userList.value.map(u => ({ id: u.id, username: u.username, role: u.role })));
+
+        console.log('✅ [API] 响应式数据已更新，userList长度:', userList.value.length);
+      } else {
+        console.log('❌ [API] 用户列表API返回错误:', result.message);
+        Message.error('加载用户列表失败');
       }
-
-      return Array.from(managedIds);
+    } else {
+      console.log('❌ [API] 用户列表API请求失败，状态码:', response.status);
+      Message.error('加载用户列表失败');
     }
-
-    console.log('✅ [API] 用户列表加载成功:', userList.value.length, '个用户');
-    console.log('✅ [API] 用户列表详情:', userList.value.map(u => ({ id: u.id, username: u.username, role: u.role })));
-
-    console.log('✅ [API] 响应式数据已更新，userList长度:', userList.value.length);
-
   } catch (error) {
     console.error('❌ [API] 加载用户列表失败:', error);
     console.error('❌ [API] 错误详情:', {
@@ -919,7 +919,7 @@ const saveNewGame = async () => {
       return;
     }
 
-    console.log('✅ 游戏配置验证通过，Token:', validation.token.substring(0, 20) + '...');
+    console.log('✅ 游戏配置验证通过，Token:', validation.token);
 
     // 第一步：保存游戏到数据库
     console.log('💾 开始保存游戏到数据库...');
@@ -956,7 +956,7 @@ const saveNewGame = async () => {
         const assignData = {
           userId: parseInt(selectedUserId.value),
           gameId: savedGame.id, // 使用真实的游戏ID
-          role: 'owner' as 'owner' | 'editor' | 'viewer' // 默认分配所有者权限
+          role: 'viewer' as 'owner' | 'editor' | 'viewer' // 默认分配查看者权限
         };
         console.log('📤 发送分配请求数据:', assignData);
 
@@ -977,7 +977,7 @@ const saveNewGame = async () => {
       }
     }
 
-    alert(`游戏配置验证成功并已保存！\n游戏名称: ${newGame.name}\nApp ID: ${newGame.appid}\n已为用户 ${selectedUser.value?.name} 分配所有者权限`);
+    alert(`游戏配置验证成功并已保存！\n游戏名称: ${newGame.name}\nApp ID: ${newGame.appid}\n已为用户 ${selectedUser.value?.name} 分配查看者权限`);
 
     // 关闭模态框
     closeGameModal();
@@ -1065,7 +1065,7 @@ const checkPermissionsAndLoadData = () => {
     gameListLength: gameList.value.length
   });
 
-  // 检查用户权限：允许admin、内老板、外老板、内客服、外客服访问
+  // 检查用户权限：允许admin、内部老板、外部老板、内部客服、外部客服访问
   // 兼容旧角色名：super_viewer -> internal_boss, moderator -> internal_service
   const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'super_viewer', 'moderator'];
   console.log('📋 [权限检查] 允许的角色:', allowedRoles);

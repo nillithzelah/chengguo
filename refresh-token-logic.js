@@ -100,8 +100,8 @@ function getTokenStatus() {
   const timeUntilRefresh = nextRefreshTime.getTime() - Date.now();
 
   return {
-    current_access_token: currentAccessToken.substring(0, 20) + '...',
-    current_refresh_token: currentRefreshToken.substring(0, 20) + '...',
+    current_access_token: currentAccessToken,
+    current_refresh_token: currentRefreshToken,
     last_refresh: tokenLastRefresh.toISOString(),
     next_refresh: nextRefreshTime.toISOString(),
     time_until_refresh_seconds: Math.max(0, Math.floor(timeUntilRefresh / 1000)),
