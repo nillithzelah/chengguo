@@ -9,11 +9,8 @@ import {
   DataZoomComponent,
   GraphicComponent,
 } from 'echarts/components';
-import Chart from './chart/index.vue';
-import Breadcrumb from './breadcrumb/index.vue';
 
-// Manually introduce ECharts modules to reduce packing size
-
+// 手动引入 ECharts 模块以减少打包体积
 use([
   CanvasRenderer,
   BarChart,
@@ -27,9 +24,27 @@ use([
   GraphicComponent,
 ]);
 
+// 自动注册组件
+const componentModules = import.meta.glob('./**/index.vue', { eager: true });
+
 export default {
   install(Vue: App) {
-    Vue.component('Chart', Chart);
-    Vue.component('Breadcrumb', Breadcrumb);
+    // 自动注册所有组件
+    Object.entries(componentModules).forEach(([path, componentModule]) => {
+      try {
+        const componentName = path
+          .split('/')
+          .pop()
+          ?.replace('.vue', '') || 'Unknown';
+
+        // 类型断言确保componentModule是正确的类型
+        const module = componentModule as { default: any };
+        if (module.default) {
+          Vue.component(componentName, module.default);
+        }
+      } catch (error) {
+        console.warn(`Failed to register component from ${path}:`, error);
+      }
+    });
   },
 };

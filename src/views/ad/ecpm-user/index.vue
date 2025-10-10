@@ -139,8 +139,36 @@
          </div>
        </div>
 
-       <div class="table-container">
-         <table class="data-table">
+       <!-- 加载状态 -->
+       <LoadingState
+         v-if="loading"
+         text="正在加载eCPM数据..."
+         :show-progress="true"
+         :progress="loadingProgress"
+       />
+
+       <!-- 错误状态 -->
+       <ErrorState
+         v-else-if="error"
+         :title="'数据加载失败'"
+         :message="error"
+         :show-retry="true"
+         @retry="loadData"
+       />
+
+       <!-- 数据表格 -->
+       <div v-else class="table-container">
+         <DataTable
+           :data="tableData"
+           :loading="loading"
+           :binding="binding"
+           :unbinding="unbinding"
+           :can-manage-users="userStore.userInfo?.role === 'admin'"
+           :current-app-name="getCurrentAppName()"
+           @bind-user="bindUser"
+           @unbind-user="unbindUser"
+         />
+       </div>
            <thead>
              <tr>
                <th>事件时间</th>
@@ -321,6 +349,24 @@
  import { ref, reactive, onMounted, watch, computed } from 'vue';
  import useUserStore from '@/store/modules/user';
  import QRCode from 'qrcode';
+
+ // 日志函数
+ const logger = {
+   debug: (message: string, ...args: any[]) => {
+     if (process.env.NODE_ENV === 'development') {
+       console.log(`🐛 [DEBUG] ${message}`, ...args);
+     }
+   },
+   info: (message: string, ...args: any[]) => {
+     console.log(`ℹ️  [INFO] ${message}`, ...args);
+   },
+   warn: (message: string, ...args: any[]) => {
+     console.warn(`⚠️  [WARN] ${message}`, ...args);
+   },
+   error: (message: string, ...args: any[]) => {
+     console.error(`❌ [ERROR] ${message}`, ...args);
+   }
+ };
 
  // 获取用户Store实例
  const userStore = useUserStore();
@@ -547,12 +593,12 @@
  // 应用列表管理函数（从数据库获取当前用户的应用）
  const loadAppList = async () => {
    try {
-     console.log('🔄 加载应用列表...');
+     logger.info('开始加载应用列表');
 
      // 获取当前用户信息
      const userStore = useUserStore();
      const currentUser = userStore.userInfo;
-     console.log('👤 当前用户:', currentUser);
+     logger.debug('当前用户信息:', { name: currentUser?.name, role: currentUser?.role });
 
      const allApps = [];
 

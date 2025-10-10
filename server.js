@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
@@ -93,8 +92,12 @@ UserOpenId.belongsTo(User, {
   onDelete: 'CASCADE'
 });
 
-// JWT secret key - In production, use a strong secret key from environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// JWT secret key - 强制要求环境变量，必须设置强密钥
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ 请设置JWT_SECRET环境变量');
+  process.exit(1);
+}
 
 // 抖音API Token管理 - 从数据库加载
 let adAccessToken = null; // 广告投放access_token
@@ -224,12 +227,40 @@ const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' })); // 增加限制并重新启用
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 日志级别控制
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info'; // debug, info, warn, error
+
+// 日志函数
+const logger = {
+  debug: (message, ...args) => {
+    if (['debug', 'info'].includes(LOG_LEVEL)) {
+      console.log(`🐛 [DEBUG] ${message}`, ...args);
+    }
+  },
+  info: (message, ...args) => {
+    if (['debug', 'info'].includes(LOG_LEVEL)) {
+      console.log(`ℹ️  [INFO] ${message}`, ...args);
+    }
+  },
+  warn: (message, ...args) => {
+    if (['debug', 'info', 'warn'].includes(LOG_LEVEL)) {
+      console.warn(`⚠️  [WARN] ${message}`, ...args);
+    }
+  },
+  error: (message, ...args) => {
+    console.error(`❌ [ERROR] ${message}`, ...args);
+  }
+};
 
 // 日志中间件
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  logger.info(`${req.method} ${req.url}`, {
+    ip: req.ip,
+    userAgent: req.headers['user-agent']?.substring(0, 100)
+  });
   next();
 });
 
@@ -261,38 +292,31 @@ app.post('/api/user/login', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({
-        code: 400,
-        message: '用户名和密码不能为空'
-      });
+      return errorResponse(res, 400, '用户名和密码不能为空', null, 400);
     }
+
+    logger.info('用户登录尝试:', { username });
 
     // 从数据库查找用户
     const user = await User.findByUsername(username);
 
     if (!user) {
-      return res.status(401).json({
-        code: 50008,
-        message: '用户名或密码错误'
-      });
+      logger.warn('登录失败 - 用户不存在:', { username });
+      return errorResponse(res, 401, '用户名或密码错误', null, 50008);
     }
 
     // 验证密码
     const isValidPassword = await user.validatePassword(password);
 
     if (!isValidPassword) {
-      return res.status(401).json({
-        code: 50008,
-        message: '用户名或密码错误'
-      });
+      logger.warn('登录失败 - 密码错误:', { username });
+      return errorResponse(res, 401, '用户名或密码错误', null, 50008);
     }
 
     // 检查用户是否激活
     if (!user.is_active) {
-      return res.status(401).json({
-        code: 50008,
-        message: '账号已被禁用'
-      });
+      logger.warn('登录失败 - 账号已禁用:', { username });
+      return errorResponse(res, 401, '账号已被禁用', null, 50008);
     }
 
     // 更新最后登录时间
@@ -305,27 +329,22 @@ app.post('/api/user/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    res.json({
-      code: 20000,
-      data: {
-        token,
-        userInfo: {
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          role: user.role,
-          avatar: user.avatar
-        }
-      },
-      message: '登录成功'
-    });
+    logger.info('用户登录成功:', { username, userId: user.id });
+
+    return successResponse(res, {
+      token,
+      userInfo: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar
+      }
+    }, '登录成功');
 
   } catch (error) {
-    console.error('登录错误:', error);
-    res.status(500).json({
-      code: 500,
-      message: '服务器内部错误'
-    });
+    logger.error('登录过程发生错误:', error);
+    return errorResponse(res, 500, '服务器内部错误', error, 500);
   }
 });
 
@@ -373,19 +392,13 @@ app.post('/api/user/create', authenticateJWT, async (req, res) => {
     const { username, password, name, role } = req.body;
 
     if (!username || !password || !name) {
-      return res.status(400).json({
-        code: 400,
-        message: '用户名、密码和显示名称不能为空'
-      });
+      return errorResponse(res, 400, '用户名、密码和显示名称不能为空', null, 400);
     }
 
     // 检查用户名是否已存在
     const existingUser = await User.findByUsername(username);
     if (existingUser) {
-      return res.status(400).json({
-        code: 400,
-        message: '用户名已存在'
-      });
+      return errorResponse(res, 400, '用户名已存在', null, 400);
     }
 
     // 创建新用户，记录创建者
@@ -397,19 +410,15 @@ app.post('/api/user/create', authenticateJWT, async (req, res) => {
       created_by: currentUser.userId
     });
 
-    console.log('✅ 新用户创建成功:', username);
+    logger.info('新用户创建成功:', { username, createdBy: currentUser.username });
 
-    res.json({
-      code: 20000,
-      data: {
-        id: newUser.id,
-        username: newUser.username,
-        name: newUser.name,
-        role: newUser.role,
-        created_at: newUser.created_at
-      },
-      message: '用户创建成功'
-    });
+    return successResponse(res, {
+      id: newUser.id,
+      username: newUser.username,
+      name: newUser.name,
+      role: newUser.role,
+      created_at: newUser.created_at
+    }, '用户创建成功');
 
   } catch (error) {
     console.error('创建用户错误:', error);
@@ -600,22 +609,10 @@ app.delete('/api/user/delete/:id', authenticateJWT, async (req, res) => {
 });
 
 // 获取所有用户列表 (仅管理员)
-app.get('/api/user/list', authenticateJWT, async (req, res) => {
+app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, res) => {
   try {
     const currentUser = req.user;
-    console.log('📋 用户列表API - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
-
-    // 检查权限：管理员、老板和客服可以查看用户列表（排除普通用户）
-    const mappedRole = getMappedRole(currentUser.role);
-    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
-    if (!allowedRoles.includes(mappedRole)) {
-      console.log('❌ 用户列表API - 权限不足:', { role: currentUser.role, mappedRole, allowedRoles });
-      return res.status(403).json({
-        code: 403,
-        message: '权限不足，只有管理员、老板和客服可以查看用户列表'
-      });
-    }
-    console.log('✅ 用户列表API - 权限检查通过');
+    logger.info('用户列表查询请求:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
 
     // 根据用户角色过滤用户数据
     let whereCondition = {};
@@ -1522,46 +1519,35 @@ app.post('/api/qr-scan/username-by-openid', async (req, res) => {
       });
     }
 
-    console.log('🔍 根据OpenID获取用户名:', { openId: open_id, aid, query_type });
+    logger.debug('根据OpenID获取用户名:', { openId: open_id, aid, query_type });
 
     // 从数据库查询绑定关系
     const userOpenId = await UserOpenId.findByOpenId(open_id);
 
     if (userOpenId && userOpenId.user) {
       const username = userOpenId.user.name || userOpenId.user.username;
-      console.log('✅ 根据OpenID找到用户名:', username, '(open_id:', open_id + ')');
+      logger.info('找到用户名绑定关系:', { username, openId: open_id });
 
-      res.json({
-        code: 20000,
-        data: {
-          username: username,
-          user_id: userOpenId.user.id,
-          open_id: open_id,
-          bound_at: userOpenId.bound_at
-        },
-        message: '查询成功'
-      });
+      return successResponse(res, {
+        username: username,
+        user_id: userOpenId.user.id,
+        open_id: open_id,
+        bound_at: userOpenId.bound_at
+      }, '查询成功');
     } else {
-      console.log('⚠️ 未找到绑定关系，返回默认用户名');
+      logger.warn('未找到OpenID绑定关系:', { openId: open_id });
 
-      res.json({
-        code: 20000,
-        data: {
-          username: '未绑定用户',
-          user_id: null,
-          open_id: open_id,
-          bound_at: null
-        },
-        message: '未找到绑定关系'
-      });
+      return successResponse(res, {
+        username: '未绑定用户',
+        user_id: null,
+        open_id: open_id,
+        bound_at: null
+      }, '未找到绑定关系');
     }
 
   } catch (error) {
-    console.error('❌ 查询用户名错误:', error);
-    res.status(500).json({
-      code: 500,
-      message: '服务器内部错误'
-    });
+    logger.error('查询用户名过程出错:', error);
+    return errorResponse(res, 500, '服务器内部错误', error, 500);
   }
 });
 
@@ -1625,58 +1611,15 @@ app.post('/api/douyin/webhook', (req, res) => {
 });
 
 
-// 抖音广告数据代理 - 使用client_token
-app.get('/api/douyin/ads', async (req, res) => {
-  try {
-    console.log('📋 获取抖音广告数据请求');
-
-    // Token获取已删除 - 使用模拟token
-    const clientToken = 'mock_token_deleted';
-    console.log('✅ 使用模拟token（Token API已删除）');
-
-    // 使用client_token获取广告数据
-    // 这里可以根据实际需求调用不同的抖音API
-    const advertiserId = req.query.advertiser_id || process.env.VITE_DOUYIN_ADVERTISER_ID;
-
-    if (!advertiserId) {
-      return res.status(400).json({
-        error: '缺少参数',
-        message: '请提供advertiser_id参数或配置环境变量'
-      });
-    }
-
-
-    // 返回空数据响应
-    res.json({
-      code: 0,
-      message: 'success',
-      data: {
-        list: [],
-        total: 0
-      },
-      token_info: {
-        expires_in: 7200,
-        token_type: 'client_token'
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ 获取广告数据失败:', error);
-
-    if (error.response) {
-      console.error('📄 抖音API响应:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-    }
-
-    res.status(500).json({
-      error: '获取广告数据失败',
-      message: error.message || '网络请求失败',
-      code: error.response?.status || 'API_ERROR'
-    });
-  }
-});
+// 抖音广告数据API - 已废弃，建议使用新的广告报告API
+// app.get('/api/douyin/ads', async (req, res) => {
+//   // 此API已被巨量引擎广告报告API替代，请使用 /api/douyin/ad-report
+//   res.status(410).json({
+//     error: 'API已废弃',
+//     message: '请使用 /api/douyin/ad-report 接口',
+//     code: 'DEPRECATED'
+//   });
+// });
 
 
 
@@ -1686,9 +1629,14 @@ async function refreshAdAccessToken() {
   try {
     console.log('🔄 开始刷新广告投放access_token...');
 
-    // 从环境变量获取配置，如果没有则使用默认值
-    const appId = process.env.VITE_DOUYIN_APP_ID || '1843500894701081';
-    const appSecret = process.env.VITE_DOUYIN_APP_SECRET || '7ad00307b2596397ceeee3560ca8bfc9b3622476';
+    // 从环境变量获取配置，强制要求设置
+    const appId = process.env.VITE_DOUYIN_APP_ID;
+    const appSecret = process.env.VITE_DOUYIN_APP_SECRET;
+
+    if (!appId || !appSecret) {
+      logger.error('缺少抖音API配置，请设置 VITE_DOUYIN_APP_ID 和 VITE_DOUYIN_APP_SECRET 环境变量');
+      throw new Error('抖音API配置不完整');
+    }
 
     const refreshRequestData = {
       app_id: appId, // 应用ID
@@ -3262,21 +3210,84 @@ function formatTimeUntilRefresh(milliseconds) {
   return `${hours}小时${minutes}分钟${seconds}秒`;
 }
 
+// 统一的响应格式函数
+const createResponse = (success, data, message, code = null) => {
+  const response = {
+    success,
+    message,
+    data,
+    timestamp: new Date().toISOString()
+  };
+
+  if (code !== null) {
+    response.code = code;
+  }
+
+  return response;
+};
+
+// 统一的错误响应函数
+const errorResponse = (res, statusCode, message, error = null, code = null) => {
+  const response = createResponse(false, null, message, code || statusCode);
+
+  if (error && process.env.NODE_ENV === 'development') {
+    response.error = error.message;
+    response.stack = error.stack;
+  }
+
+  return res.status(statusCode).json(response);
+};
+
+// 统一的成功响应函数
+const successResponse = (res, data, message = '操作成功', code = 20000) => {
+  return res.status(200).json(createResponse(true, data, message, code));
+};
+
+// 权限检查中间件
+const requireRoles = (allowedRoles) => {
+  return (req, res, next) => {
+    const currentUser = req.user;
+    if (!currentUser) {
+      return errorResponse(res, 401, '未认证', null, 50008);
+    }
+
+    const mappedRole = getMappedRole(currentUser.role);
+    if (!allowedRoles.includes(mappedRole)) {
+      return errorResponse(res, 403, '权限不足', null, 403);
+    }
+
+    next();
+  };
+};
+
+// 管理员权限检查中间件
+const requireAdmin = requireRoles(['admin']);
+
+// 管理员和老板权限检查中间件
+const requireAdminOrBoss = requireRoles(['admin', 'internal_boss', 'external_boss']);
+
+// 管理员、老板和客服权限检查中间件
+const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service']);
+
 // 错误处理中间件
 app.use((error, req, res, next) => {
   console.error('服务器错误:', error);
-  res.status(500).json({
-    error: '内部服务器错误',
-    message: error.message
-  });
+
+  // 处理特定的错误类型
+  if (error.name === 'ValidationError') {
+    return errorResponse(res, 400, '数据验证失败', error, 400);
+  }
+
+  if (error.name === 'UnauthorizedError') {
+    return errorResponse(res, 401, '未授权访问', error, 401);
+  }
+
+  return errorResponse(res, 500, '服务器内部错误', error, 500);
 });
 
 // 404处理
 app.use((req, res) => {
-  res.status(404).json({
-    error: '接口不存在',
-    path: req.url
-  });
+  errorResponse(res, 404, '接口不存在', null, 404);
 });
 
 // 初始化数据库并启动服务器

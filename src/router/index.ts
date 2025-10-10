@@ -13,7 +13,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: 'login',
+      redirect: '/login',
     },
     {
       path: '/login',
@@ -21,6 +21,7 @@ const router = createRouter({
       component: () => import('@/views/login/index.vue'),
       meta: {
         requiresAuth: false,
+        title: '登录',
       },
     },
     {
@@ -29,6 +30,7 @@ const router = createRouter({
       component: () => import('@/views/login/login-form.vue'),
       meta: {
         requiresAuth: false,
+        title: '登录表单',
       },
     },
     {
@@ -37,14 +39,32 @@ const router = createRouter({
       component: () => import('@/views/login/register-form.vue'),
       meta: {
         requiresAuth: false,
+        title: '注册',
       },
     },
     ...appRoutes,
     REDIRECT_MAIN,
     NOT_FOUND_ROUTE,
   ],
-  scrollBehavior() {
-    return { top: 0 };
+  scrollBehavior(to, from, savedPosition) {
+    // 如果有保存的滚动位置，返回该位置
+    if (savedPosition) {
+      return savedPosition;
+    }
+
+    // 如果目标路由有hash，滚动到对应元素
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: 'smooth',
+      };
+    }
+
+    // 默认滚动到顶部
+    return {
+      top: 0,
+      behavior: 'smooth',
+    };
   },
 });
 
