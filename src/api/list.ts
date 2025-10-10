@@ -43,14 +43,7 @@ export interface ServiceRecord {
   enable?: boolean;
   expires?: boolean;
 }
-export function queryInspectionList() {
-  return axios.get('/api/list/quality-inspection');
-}
-
-export function queryTheServiceList() {
-  return axios.get('/api/list/the-service');
-}
-
-export function queryRulesPresetList() {
-  return axios.get('/api/list/rules-preset');
-}
+// 以下接口已被移除，因为在项目中未被使用：
+// - queryInspectionList() -> /api/list/quality-inspection
+// - queryTheServiceList() -> /api/list/the-service
+// - queryRulesPresetList() -> /api/list/rules-preset

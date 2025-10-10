@@ -286,6 +286,32 @@ const authenticateJWT = (req, res, next) => {
   }
 };
 
+// 权限检查中间件
+const requireRoles = (allowedRoles) => {
+  return (req, res, next) => {
+    const currentUser = req.user;
+    if (!currentUser) {
+      return errorResponse(res, 401, '未认证', null, 50008);
+    }
+
+    const mappedRole = getMappedRole(currentUser.role);
+    if (!allowedRoles.includes(mappedRole)) {
+      return errorResponse(res, 403, '权限不足', null, 403);
+    }
+
+    next();
+  };
+};
+
+// 管理员权限检查中间件
+const requireAdmin = requireRoles(['admin']);
+
+// 管理员和老板权限检查中间件
+const requireAdminOrBoss = requireRoles(['admin', 'internal_boss', 'external_boss']);
+
+// 管理员、老板和客服权限检查中间件
+const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service']);
+
 // 用户登录
 app.post('/api/user/login', async (req, res) => {
   try {
@@ -438,41 +464,11 @@ app.post('/api/user/logout', (req, res) => {
   });
 });
 
-// 个人中心相关API - 返回空数据以避免前端报错
-app.post('/api/user/my-project/list', (req, res) => {
-  res.json({
-    code: 20000,
-    data: [],
-    message: '获取成功'
-  });
-});
-
-app.post('/api/user/latest-activity', (req, res) => {
-  res.json({
-    code: 20000,
-    data: [],
-    message: '获取成功'
-  });
-});
-
-app.post('/api/user/my-team/list', (req, res) => {
-  res.json({
-    code: 20000,
-    data: [],
-    message: '获取成功'
-  });
-});
-
-app.post('/api/user/certification', (req, res) => {
-  res.json({
-    code: 20000,
-    data: {
-      enterpriseInfo: {},
-      record: []
-    },
-    message: '获取成功'
-  });
-});
+// 以下接口已被移除，因为只返回空数据，无实际业务价值：
+// - /api/user/my-project/list
+// - /api/user/latest-activity
+// - /api/user/my-team/list
+// - /api/user/certification
 
 // 更新用户 (仅管理员)
 app.put('/api/user/update/:id', authenticateJWT, async (req, res) => {
@@ -616,6 +612,9 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
 
     // 根据用户角色过滤用户数据
     let whereCondition = {};
+
+    // 获取映射后的角色
+    const mappedRole = getMappedRole(currentUser.role);
 
     // admin、internal_boss、external_boss可以看到所有用户
     if (['admin', 'internal_boss', 'external_boss'].includes(mappedRole)) {
@@ -1950,6 +1949,90 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
   }
 });
 
+// 测试连接API - 获取小游戏access_token
+app.post('/api/douyin/test-connection', async (req, res) => {
+  console.log('🔗 测试连接API请求');
+
+  try {
+    const { appid, secret } = req.body;
+
+    if (!appid || !secret) {
+      return res.status(400).json({
+        error: '缺少参数',
+        message: '请提供 appid 和 secret 参数'
+      });
+    }
+
+    console.log('🎮 测试连接游戏:', appid);
+
+    // 获取小游戏access_token
+    console.log('🔑 获取小游戏access_token...');
+    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/v2/token');
+
+    const tokenRequestData = {
+      appid: appid,
+      secret: secret,
+      grant_type: 'client_credential'
+    };
+
+    console.log('📤 请求参数:', JSON.stringify(tokenRequestData, null, 2));
+
+    const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
+      timeout: 10000,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'DouyinGameAds-Test/1.0'
+      }
+    });
+
+    console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
+
+    if (tokenResponse.data.err_no !== 0) {
+      console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
+      return res.status(500).json({
+        error: '小游戏Token获取失败',
+        message: tokenResponse.data.err_tips,
+        details: tokenResponse.data
+      });
+    }
+
+    const minigameAccessToken = tokenResponse.data.data.access_token;
+    console.log('✅ 小游戏Token获取成功');
+
+    res.json({
+      code: 0,
+      message: 'success',
+      data: {
+        minigame_access_token: minigameAccessToken,
+        expires_in: tokenResponse.data.data.expires_in
+      },
+      request_log: {
+        token_request: {
+          url: 'https://minigame.zijieapi.com/mgplatform/api/apps/v2/token',
+          params: tokenRequestData,
+          response: tokenResponse.data
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ 测试连接失败:', error.message);
+
+    if (error.response) {
+      console.error('📄 API响应错误:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      error: '获取access_token失败',
+      message: error.message || '网络请求失败',
+      code: error.response?.status || 'API_ERROR'
+    });
+  }
+});
+
 // 小游戏eCPM数据获取API - 根据游戏App ID获取对应的access_token
 app.get('/api/douyin/ecpm', async (req, res) => {
   console.log('🚀 ===== 开始eCPM数据获取流程 =====');
@@ -3242,32 +3325,6 @@ const errorResponse = (res, statusCode, message, error = null, code = null) => {
 const successResponse = (res, data, message = '操作成功', code = 20000) => {
   return res.status(200).json(createResponse(true, data, message, code));
 };
-
-// 权限检查中间件
-const requireRoles = (allowedRoles) => {
-  return (req, res, next) => {
-    const currentUser = req.user;
-    if (!currentUser) {
-      return errorResponse(res, 401, '未认证', null, 50008);
-    }
-
-    const mappedRole = getMappedRole(currentUser.role);
-    if (!allowedRoles.includes(mappedRole)) {
-      return errorResponse(res, 403, '权限不足', null, 403);
-    }
-
-    next();
-  };
-};
-
-// 管理员权限检查中间件
-const requireAdmin = requireRoles(['admin']);
-
-// 管理员和老板权限检查中间件
-const requireAdminOrBoss = requireRoles(['admin', 'internal_boss', 'external_boss']);
-
-// 管理员、老板和客服权限检查中间件
-const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service']);
 
 // 错误处理中间件
 app.use((error, req, res, next) => {

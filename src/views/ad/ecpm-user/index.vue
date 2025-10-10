@@ -169,95 +169,6 @@
            @unbind-user="unbindUser"
          />
        </div>
-           <thead>
-             <tr>
-               <th>事件时间</th>
-               <th style="min-width: 100px;">应用</th>
-               <th>来源</th>
-               <th style="min-width: 120px;">用户名</th>
-               <th>用户ID</th>
-               <th>广告ID</th>
-               <th>绑定操作</th>
-               <!-- <th>二维码</th> -->
-               <!-- <th>IP</th> -->
-               <!-- <th>城市</th> -->
-               <th>收益(元)</th>
-             </tr>
-           </thead>
-           <tbody>
-             <tr v-if="loading">
-               <td colspan="8" class="loading-cell">
-                 <div class="loading-spinner"></div>
-                 加载中...
-               </td>
-             </tr>
-             <tr v-else-if="tableData.length === 0">
-               <td colspan="8" class="empty-cell">
-                 暂无数据
-               </td>
-             </tr>
-             <tr v-else v-for="item in tableData" :key="item.id">
-               <td>{{ formatDateTime(item.event_time) }}</td>
-               <td class="app-name-cell">{{ getCurrentAppName() }}</td>
-               <td>{{ item.source || '未知' }}</td>
-               <td class="username-cell">{{ item.username }}</td>
-               <td>{{ item.open_id }}</td>
-               <td>{{ item.aid }}</td>
-               <td>
-                 <div class="bind-action-cell">
-                   <!-- 解绑按钮：只有管理员和审核员可以解绑 -->
-                   <button
-                     v-if="userStore.userInfo?.role === 'admin' && item.isBound"
-                     @click="unbindUser(item)"
-                     class="btn btn-small btn-danger"
-                     :disabled="unbinding"
-                   >
-                     {{ unbinding ? '解绑中...' : '解绑用户' }}
-                   </button>
-                   <!-- 绑定按钮：普通用户只能绑定 -->
-                   <button
-                     v-else-if="!item.isBound"
-                     @click="bindUser(item)"
-                     class="btn btn-small btn-success"
-                     :disabled="binding"
-                   >
-                     {{ binding ? '绑定中...' : '绑定用户' }}
-                   </button>
-                   <!-- 已绑定状态 -->
-                   <button
-                     v-else
-                     class="btn btn-small btn-secondary"
-                     disabled
-                   >
-                     已被绑定
-                   </button>
-                 </div>
-               </td>
-               <!-- <td>
-                 <div class="qr-code-cell">
-                   <img
-                     v-if="item.qrCode"
-                     :src="item.qrCode"
-                     alt="广告二维码"
-                     class="qr-code-image"
-                     @click="showQrModalFunc(item)"
-                   />
-                   <button
-                     v-else
-                     @click="generateQrCode(item)"
-                     class="btn btn-small btn-outline"
-                   >
-                     生成二维码
-                   </button>
-                 </div>
-               </td> -->
-               <!-- <td>{{ item.ip || '未知' }}</td> -->
-               <!-- <td>{{ item.city || '未知' }}</td> -->
-               <td>¥{{ item.revenue }}</td>
-             </tr>
-           </tbody>
-         </table>
-       </div>
      </div>
 
      <!-- 二维码显示模态框 -->
@@ -374,6 +285,7 @@
 
  // 响应式数据
  const loading = ref(false);
+ const loadingProgress = ref(0);
  const error = ref(null);
  const tableData = ref([]);
 
