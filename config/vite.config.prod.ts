@@ -11,17 +11,13 @@ export default mergeConfig(
     plugins: [
       configCompressPlugin('gzip'),
       configVisualizerPlugin(),
-      configArcoResolverPlugin(),
+      // configArcoResolverPlugin(), // 临时禁用Arco按需引入，避免循环依赖
       // configImageminPlugin(), // 禁用以避免服务器GUI错误
     ],
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            arco: ['@arco-design/web-vue'],
-            chart: ['echarts', 'vue-echarts'],
-            vue: ['vue', 'vue-router', 'pinia', '@vueuse/core', 'vue-i18n'],
-          },
+          manualChunks: undefined, // 禁用手动分块，使用默认分块策略
         },
       },
       chunkSizeWarningLimit: 2000,

@@ -1,7 +1,7 @@
 <template>
   <div class="table-section">
     <div class="table-header">
-      <h3>eCPM数据明细</h3>
+      <h3>ECPM数据明细</h3>
       <div class="table-info">
         <div>共 {{ data.length }} 条记录</div>
       </div>

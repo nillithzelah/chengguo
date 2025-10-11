@@ -1,13 +1,13 @@
 <template>
-   <div class="ecpm-page">
-     <div class="page-header">
-       <div class="header-content">
-         <div>
-            <h1>用户ECPM数据查看</h1>
-            <p>查看当前用户的小游戏广告eCPM数据统计</p>
-          </div>
-       </div>
-     </div>
+    <div class="ecpm-page">
+      <div class="page-header">
+        <div class="header-content">
+          <div>
+             <h1>用户ECPM数据查看</h1>
+             <p>查看当前用户的小游戏广告eCPM数据统计</p>
+           </div>
+        </div>
+      </div>
 
      <!-- 调试信息面板 -->
      <div class="debug-section" v-if="debugInfo.length > 0">
@@ -132,12 +132,6 @@
 
      <!-- 数据表格 -->
      <div class="table-section">
-       <div class="table-header">
-         <h3>eCPM数据明细</h3>
-         <div class="table-info">
-           <div>共 {{ tableData.length }} 条记录</div>
-         </div>
-       </div>
 
        <!-- 加载状态 -->
        <LoadingState
@@ -260,6 +254,9 @@
  import { ref, reactive, onMounted, watch, computed } from 'vue';
  import useUserStore from '@/store/modules/user';
  import QRCode from 'qrcode';
+ import LoadingState from '@/components/common/LoadingState.vue';
+ import ErrorState from '@/components/common/ErrorState.vue';
+ import DataTable from './components/DataTable.vue';
 
  // 日志函数
  const logger = {
@@ -2276,66 +2273,79 @@
    left: 0;
    right: 0;
    bottom: 0;
-   background: rgba(0, 0, 0, 0.5);
+   background: rgba(0, 0, 0, 0.6);
+   backdrop-filter: blur(8px);
    display: flex;
    align-items: center;
    justify-content: center;
    z-index: 1000;
+   animation: fadeIn 0.3s ease-out;
  }
 
  .modal-content {
-   background: white;
-   border-radius: 8px;
-   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-   max-width: 500px;
+   background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+   border-radius: 20px;
+   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+   max-width: 540px;
    width: 90%;
    max-height: 90vh;
    overflow-y: auto;
+   border: 1px solid rgba(102, 126, 234, 0.1);
+   animation: slideInScale 0.4s ease-out;
  }
 
  .modal-header {
-   padding: 20px 24px;
-   border-bottom: 1px solid #f0f0f0;
+   padding: 24px 32px;
+   border-bottom: 1px solid rgba(102, 126, 234, 0.1);
    display: flex;
    justify-content: space-between;
    align-items: center;
+   background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
  }
 
  .modal-header h3 {
    margin: 0;
-   font-size: 18px;
-   font-weight: 600;
+   font-size: 20px;
+   font-weight: 700;
    color: #1d2129;
+   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   -webkit-background-clip: text;
+   -webkit-text-fill-color: transparent;
+   background-clip: text;
  }
 
  .modal-close {
-   background: none;
+   background: rgba(102, 126, 234, 0.1);
    border: none;
-   font-size: 24px;
-   color: #86909c;
+   font-size: 20px;
+   color: #667eea;
    cursor: pointer;
-   padding: 0;
-   width: 24px;
-   height: 24px;
+   padding: 8px;
+   width: 36px;
+   height: 36px;
    display: flex;
    align-items: center;
    justify-content: center;
- }
+   border-radius: 50%;
+   transition: all 0.3s ease;
 
- .modal-close:hover {
-   color: #1d2129;
+   &:hover {
+     background: rgba(102, 126, 234, 0.2);
+     transform: rotate(90deg);
+   }
  }
 
  .modal-body {
-   padding: 24px;
+   padding: 24px 32px;
  }
 
  .modal-footer {
-   padding: 16px 24px;
-   border-top: 1px solid #f0f0f0;
+   padding: 20px 32px;
+   border-top: 1px solid rgba(102, 126, 234, 0.1);
    display: flex;
    justify-content: flex-end;
-   gap: 12px;
+   gap: 16px;
+   background: rgba(102, 126, 234, 0.02);
  }
 
  /* 绑定操作样式 */
@@ -2383,4 +2393,25 @@
    text-align: center;
    font-size: 12px;
  }
+
+/* 动画关键帧 */
+@keyframes fadeIn {
+ from {
+   opacity: 0;
+ }
+ to {
+   opacity: 1;
+ }
+}
+
+@keyframes slideInScale {
+ from {
+   opacity: 0;
+   transform: scale(0.9);
+ }
+ to {
+   opacity: 1;
+   transform: scale(1);
+ }
+}
  </style>

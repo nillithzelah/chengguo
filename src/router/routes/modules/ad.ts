@@ -8,7 +8,7 @@ const AD: AppRouteRecordRaw = {
   meta: {
     locale: 'menu.ad',
     requiresAuth: true,
-    icon: 'icon-advertisement',
+    icon: 'icon-bar-chart',
     order: 2,
     roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
   },

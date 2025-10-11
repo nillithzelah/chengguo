@@ -29,6 +29,43 @@
       </a-button>
     </div>
 
+    <!-- 筛选区域 -->
+    <div class="filter-section">
+      <div class="filter-row">
+        <div class="filter-item">
+          <label>搜索用户：</label>
+          <a-input
+            v-model="searchKeyword"
+            @input="handleSearchChange"
+            placeholder="输入用户名或姓名"
+            class="search-input"
+            allow-clear
+          >
+            <template #prefix>
+              <icon-search />
+            </template>
+          </a-input>
+        </div>
+        <div class="filter-item">
+          <label>角色筛选：</label>
+          <select
+            v-model="roleFilter"
+            @change="handleRoleFilterChange"
+            class="filter-select"
+          >
+            <option value="">全部角色</option>
+            <option
+              v-for="role in filterableRoles"
+              :key="role.value"
+              :value="role.value"
+            >
+              {{ role.label }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- 用户列表 -->
     <a-table
       :columns="columns"
@@ -36,8 +73,31 @@
       :loading="loading"
       :pagination="pagination"
       row-key="id"
+      :scroll="{ x: 1200 }"
       @change="handleTableChange"
     >
+      <template #empty>
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <div class="empty-text">
+            <h3>暂无用户数据</h3>
+            <p>
+              {{ searchKeyword || roleFilter ? '没有找到符合条件的用户' : '系统中还没有用户数据' }}
+            </p>
+            <div v-if="searchKeyword || roleFilter" class="empty-actions">
+              <a-button type="primary" @click="refreshUserList">
+                刷新数据
+              </a-button>
+            </div>
+            <div v-else-if="canCreateUser" class="empty-actions">
+              <a-button type="primary" @click="openCreateModal">
+                创建第一个用户
+              </a-button>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <template #role="{ record }">
         <a-tag
           :color="getRoleColor(record.role)"
@@ -113,13 +173,6 @@
 
           <!-- 有权限时显示表单 -->
           <div v-else>
-            <!-- 角色限制提示 -->
-            <div v-if="userStore.userInfo?.role !== 'admin'" class="permission-info">
-              <p v-if="userStore.userInfo?.role === 'internal_service'">您只能创建内部普通用户或外部普通用户账号。</p>
-              <p v-else-if="userStore.userInfo?.role === 'external_boss'">您只能创建外部用户账号。</p>
-              <p v-else-if="userStore.userInfo?.role === 'external_service'">您只能创建外部普通用户账号。</p>
-              <p v-else>您只能创建指定类型的用户账号。</p>
-            </div>
 
             <div class="form-item">
               <label>用户名</label>
@@ -128,7 +181,12 @@
                 type="text"
                 placeholder="输入用户名（用于登录）"
                 class="form-input"
+                :class="{ 'error': createForm.username && !createFormValidation.username.isValid }"
               />
+              <small style="color: #666; margin-top: 4px;">用户名长度3-50字符，只能包含字母、数字和下划线</small>
+              <small v-if="createForm.username && !createFormValidation.username.isValid" style="color: #ff4d4f; margin-top: 4px;">
+                {{ createFormValidation.username.message }}
+              </small>
             </div>
 
             <div class="form-item">
@@ -138,7 +196,12 @@
                 type="password"
                 placeholder="输入密码"
                 class="form-input"
+                :class="{ 'error': createForm.password && !createFormValidation.password.isValid }"
               />
+              <small style="color: #666; margin-top: 4px;">密码长度至少6位，建议包含字母和数字的组合</small>
+              <small v-if="createForm.password && !createFormValidation.password.isValid" style="color: #ff4d4f; margin-top: 4px;">
+                {{ createFormValidation.password.message }}
+              </small>
             </div>
 
             <div class="form-item">
@@ -148,7 +211,12 @@
                 type="password"
                 placeholder="请再次输入密码"
                 class="form-input"
+                :class="{ 'error': createForm.confirmPassword && !createFormValidation.confirmPassword.isValid }"
               />
+              <small style="color: #666; margin-top: 4px;">请再次输入密码，确保两次输入一致</small>
+              <small v-if="createForm.confirmPassword && !createFormValidation.confirmPassword.isValid" style="color: #ff4d4f; margin-top: 4px;">
+                {{ createFormValidation.confirmPassword.message }}
+              </small>
             </div>
 
             <div class="form-item">
@@ -158,18 +226,14 @@
                 type="text"
                 placeholder="输入用户显示名称"
                 class="form-input"
+                :class="{ 'error': createForm.name && !createFormValidation.name.isValid }"
               />
+              <small style="color: #666; margin-top: 4px;">用户在系统中显示的名称</small>
+              <small v-if="createForm.name && !createFormValidation.name.isValid" style="color: #ff4d4f; margin-top: 4px;">
+                {{ createFormValidation.name.message }}
+              </small>
             </div>
 
-            <div class="form-item">
-              <label>邮箱</label>
-              <input
-                v-model="createForm.email"
-                type="email"
-                placeholder="输入邮箱地址"
-                class="form-input"
-              />
-            </div>
 
             <div class="form-item">
               <label>用户角色</label>
@@ -185,6 +249,7 @@
                   {{ role.label }}
                 </option>
               </select>
+              <small style="color: #666; margin-top: 4px;">选择用户角色，角色决定了用户的权限范围</small>
             </div>
           </div>
         </div>
@@ -232,18 +297,14 @@
               type="text"
               placeholder="输入用户显示名称"
               class="form-input"
+              :class="{ 'error': editForm.name && !editFormValidation.name.isValid }"
             />
+            <small style="color: #666; margin-top: 4px;">用户在系统中显示的名称</small>
+            <small v-if="editForm.name && !editFormValidation.name.isValid" style="color: #ff4d4f; margin-top: 4px;">
+              {{ editFormValidation.name.message }}
+            </small>
           </div>
 
-          <div class="form-item">
-            <label>邮箱</label>
-            <input
-              v-model="editForm.email"
-              type="email"
-              placeholder="输入邮箱地址"
-              class="form-input"
-            />
-          </div>
 
           <div class="form-item">
             <label>新密码（可选）</label>
@@ -252,9 +313,13 @@
               type="password"
               placeholder="留空表示不修改密码"
               class="form-input"
+              :class="{ 'error': editForm.password && !editFormValidation.password.isValid }"
             />
             <small style="color: #666; margin-top: 4px;">
-              密码长度至少6位，留空表示不修改密码
+              密码长度至少6位，建议包含字母和数字的组合，留空表示不修改密码
+            </small>
+            <small v-if="editForm.password && !editFormValidation.password.isValid" style="color: #ff4d4f; margin-top: 4px;">
+              {{ editFormValidation.password.message }}
             </small>
           </div>
 
@@ -265,7 +330,14 @@
               type="password"
               placeholder="再次输入新密码"
               class="form-input"
+              :class="{ 'error': editForm.confirmPassword && !editFormValidation.confirmPassword.isValid }"
             />
+            <small style="color: #666; margin-top: 4px;">
+              请再次输入新密码，确保两次输入一致
+            </small>
+            <small v-if="editForm.confirmPassword && !editFormValidation.confirmPassword.isValid" style="color: #ff4d4f; margin-top: 4px;">
+              {{ editFormValidation.confirmPassword.message }}
+            </small>
           </div>
 
           <div class="form-item">
@@ -335,10 +407,12 @@ import {
   IconPlus,
   IconRefresh,
   IconEdit,
-  IconDelete
+  IconDelete,
+  IconSearch
 } from '@arco-design/web-vue/es/icon';
 import { getUserList, deleteUser, createUser, updateUser, type UserListItem } from '@/api/user';
 import useUserStore from '@/store/modules/user';
+import Breadcrumb from '@/components/breadcrumb/index.vue';
 
 // 响应式数据
 const loading = ref(false);
@@ -351,6 +425,11 @@ const showDeleteModal = ref(false);
 const userList = ref<UserListItem[]>([]);
 const deleteUserInfo = ref<UserListItem | null>(null);
 const editUserInfo = ref<UserListItem | null>(null);
+
+// 筛选相关
+const roleFilter = ref('');
+const searchKeyword = ref('');
+const originalUserList = ref<UserListItem[]>([]); // 保存原始用户列表
 
 
 // 用户Store
@@ -443,6 +522,12 @@ const getEditableRoles = () => {
   return [];
 };
 
+// 可筛选的角色选项（与可创建的角色权限一致）
+const filterableRoles = computed(() => {
+  // 直接使用可创建的角色作为可筛选的角色
+  return availableRoles.value;
+});
+
 // 获取创建按钮的提示信息
 const getCreateButtonTooltip = () => {
   if (createLoading.value) {
@@ -464,19 +549,53 @@ const getCreateButtonTooltip = () => {
   return '创建用户';
 };
 
+// 表单验证计算属性
+const createFormValidation = computed(() => ({
+  username: {
+    isValid: createForm.username.length >= 3 && createForm.username.length <= 50 && /^[a-zA-Z0-9_]+$/.test(createForm.username),
+    message: createForm.username && !(/^[a-zA-Z0-9_]+$/.test(createForm.username)) ? '用户名只能包含字母、数字和下划线' :
+             createForm.username && (createForm.username.length < 3 || createForm.username.length > 50) ? '用户名长度应在3-50字符之间' : ''
+  },
+  password: {
+    isValid: !createForm.password || createForm.password.length >= 6,
+    message: createForm.password && createForm.password.length < 6 ? '密码长度至少6位' : ''
+  },
+  confirmPassword: {
+    isValid: !createForm.confirmPassword || createForm.password === createForm.confirmPassword,
+    message: createForm.confirmPassword && createForm.password !== createForm.confirmPassword ? '两次输入的密码不一致' : ''
+  },
+  name: {
+    isValid: createForm.name.trim().length > 0,
+    message: createForm.name && !createForm.name.trim() ? '请输入用户姓名' : ''
+  }
+}));
+
+const editFormValidation = computed(() => ({
+  password: {
+    isValid: !editForm.password || editForm.password.length >= 6,
+    message: editForm.password && editForm.password.length < 6 ? '密码长度至少6位' : ''
+  },
+  confirmPassword: {
+    isValid: !editForm.confirmPassword || editForm.password === editForm.confirmPassword,
+    message: editForm.confirmPassword && editForm.password !== editForm.confirmPassword ? '两次输入的密码不一致' : ''
+  },
+  name: {
+    isValid: editForm.name.trim().length > 0,
+    message: editForm.name && !editForm.name.trim() ? '请输入用户姓名' : ''
+  }
+}));
+
 // 表单数据
 const createForm = reactive({
   username: '',
   password: '',
   confirmPassword: '',
   name: '',
-  email: '',
   role: 'user'
 });
 
 const editForm = reactive({
   name: '',
-  email: '',
   password: '',
   confirmPassword: '',
   role: 'user',
@@ -490,62 +609,74 @@ const columns = [
   {
     title: 'ID',
     dataIndex: 'id',
-    width: 80
+    width: 80,
+    minWidth: 60
   },
   {
     title: '用户名',
     dataIndex: 'username',
-    width: 120
+    width: 120,
+    minWidth: 100,
+    ellipsis: true
   },
   {
     title: '姓名',
     dataIndex: 'name',
-    width: 120
-  },
-  {
-    title: '邮箱',
-    dataIndex: 'email',
-    width: 200
+    width: 120,
+    minWidth: 100,
+    ellipsis: true
   },
   {
     title: '密码',
     dataIndex: 'password',
     width: 150,
-    slotName: 'password'
+    minWidth: 120,
+    slotName: 'password',
+    ellipsis: true
   },
   {
     title: '角色',
     dataIndex: 'role',
     slotName: 'role',
-    width: 100
+    width: 120,
+    minWidth: 100
   },
   {
     title: '创建者',
     dataIndex: 'creator_name',
-    width: 120
+    width: 120,
+    minWidth: 100,
+    ellipsis: true
   },
   {
     title: '状态',
     dataIndex: 'is_active',
     slotName: 'status',
-    width: 80
+    width: 80,
+    minWidth: 70
   },
   {
     title: '最后登录',
     dataIndex: 'last_login_at',
     slotName: 'last_login_at',
-    width: 160
+    width: 160,
+    minWidth: 140,
+    ellipsis: true
   },
   {
     title: '创建时间',
     dataIndex: 'created_at',
     slotName: 'created_at',
-    width: 160
+    width: 160,
+    minWidth: 140,
+    ellipsis: true
   },
   {
     title: '操作',
     slotName: 'action',
-    width: 150
+    width: 150,
+    minWidth: 130,
+    fixed: 'right'
   }
 ];
 
@@ -713,9 +844,33 @@ const loadUserList = async () => {
     }
 
     pagination.total = userList.value.length;
-  } catch (error) {
+
+    // 保存原始用户列表用于筛选
+    originalUserList.value = [...userList.value];
+
+    // 重新应用筛选
+    applyFilters();
+  } catch (error: any) {
     console.error('加载用户列表失败:', error);
-    Message.error('加载用户列表失败');
+
+    // 更详细的错误处理
+    if (error.code === 'NETWORK_ERROR') {
+      Message.error('网络连接失败，请检查网络连接后重试');
+    } else if (error.response?.status === 403) {
+      Message.error('您没有权限访问用户列表');
+    } else if (error.response?.status === 401) {
+      Message.error('登录已过期，请重新登录');
+      // 可以在这里添加跳转到登录页面的逻辑
+    } else if (error.response?.data?.message) {
+      Message.error(error.response.data.message);
+    } else {
+      Message.error('加载用户列表失败，请稍后重试');
+    }
+
+    // 清空用户列表
+    userList.value = [];
+    originalUserList.value = [];
+    pagination.total = 0;
   } finally {
     loading.value = false;
   }
@@ -726,6 +881,41 @@ const refreshUserList = () => {
   loadUserList();
 };
 
+// 处理搜索变化
+const handleSearchChange = () => {
+  applyFilters();
+};
+
+// 处理角色筛选变化
+const handleRoleFilterChange = () => {
+  applyFilters();
+};
+
+
+// 应用所有筛选
+const applyFilters = () => {
+  let filteredUsers = [...originalUserList.value];
+
+  // 应用搜索筛选
+  if (searchKeyword.value.trim()) {
+    const keyword = searchKeyword.value.toLowerCase().trim();
+    filteredUsers = filteredUsers.filter(user =>
+      user.username.toLowerCase().includes(keyword) ||
+      user.name.toLowerCase().includes(keyword)
+    );
+  }
+
+  // 应用角色筛选
+  if (roleFilter.value) {
+    filteredUsers = filteredUsers.filter(user => user.role === roleFilter.value);
+  }
+
+  userList.value = filteredUsers;
+  // 更新分页
+  pagination.total = userList.value.length;
+  pagination.current = 1; // 重置到第一页
+};
+
 // 处理表格变化
 const handleTableChange = (newPagination: any) => {
   // 更新分页参数
@@ -734,13 +924,16 @@ const handleTableChange = (newPagination: any) => {
   // 前端分页不需要重新加载数据
 };
 
+
+
+
+
 // 编辑用户
 const editUser = (user: UserListItem) => {
   editUserInfo.value = user;
 
   // 填充编辑表单
   editForm.name = user.name || '';
-  editForm.email = user.email || '';
   editForm.password = '';
   editForm.confirmPassword = '';
   editForm.role = user.role;
@@ -814,7 +1007,6 @@ const openCreateModal = () => {
   createForm.password = '';
   createForm.confirmPassword = '';
   createForm.name = '';
-  createForm.email = '';
   // 设置默认角色为第一个可用的角色
   createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
   showCreateModal.value = true;
@@ -826,7 +1018,6 @@ const resetCreateForm = () => {
   createForm.password = '';
   createForm.confirmPassword = '';
   createForm.name = '';
-  createForm.email = '';
   // 设置默认角色为第一个可用的角色
   createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
   showCreateModal.value = false;
@@ -847,14 +1038,6 @@ const handleEditUser = async () => {
       return;
     }
 
-    // 邮箱验证（如果填写了邮箱）
-    if (editForm.email.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(editForm.email)) {
-        Message.error('请输入有效的邮箱地址');
-        return;
-      }
-    }
 
     // 权限验证：internal_service只能将用户角色改为internal_user或external_user
     if (currentRole === 'internal_service' && !['internal_user', 'external_user'].includes(editForm.role)) {
@@ -891,10 +1074,10 @@ const handleEditUser = async () => {
 
     const updateData: any = {
       name: editForm.name.trim(),
-      email: editForm.email.trim(),
       role: editForm.role,
       is_active: editForm.is_active
     };
+
 
     // 如果提供了密码，则包含在更新数据中
     if (editForm.password.trim()) {
@@ -910,14 +1093,34 @@ const handleEditUser = async () => {
 
     // 重新加载用户列表
     loadUserList();
-  } catch (error) {
+  } catch (error: any) {
     console.error('编辑用户失败:', error);
 
-    // 处理不同的错误类型
-    if (error.response?.data?.message) {
+    // 更详细的错误处理
+    if (error.code === 'NETWORK_ERROR') {
+      Message.error('网络连接失败，请检查网络连接后重试');
+    } else if (error.response?.status === 400) {
+      // 客户端错误，显示具体的验证错误
+      if (error.response.data?.errors) {
+        const errorMessages = Object.values(error.response.data.errors).flat();
+        Message.error(errorMessages.join('；'));
+      } else if (error.response.data?.message) {
+        Message.error(error.response.data.message);
+      } else {
+        Message.error('输入信息有误，请检查后重试');
+      }
+    } else if (error.response?.status === 403) {
+      Message.error('您没有权限编辑此用户');
+    } else if (error.response?.status === 404) {
+      Message.error('用户不存在，可能已被删除');
+      // 刷新列表
+      loadUserList();
+    } else if (error.response?.status === 409) {
+      Message.error('邮箱已被其他用户使用');
+    } else if (error.response?.status === 401) {
+      Message.error('登录已过期，请重新登录');
+    } else if (error.response?.data?.message) {
       Message.error(error.response.data.message);
-    } else if (error.message) {
-      Message.error(error.message);
     } else {
       Message.error('编辑用户失败，请稍后重试');
     }
@@ -991,21 +1194,48 @@ const handleCreateUser = async () => {
 
     await createUser(userDataWithCreator);
 
-    Message.success(`用户"${createForm.name}"创建成功！\n用户名: ${createForm.username}\n密码: ${createForm.password}`);
+    Message.success({
+      content: `用户"${createForm.name}"创建成功！`,
+      duration: 3000
+    });
+
+    // 显示用户凭据信息
+    setTimeout(() => {
+      Message.info({
+        content: `用户名: ${createForm.username}\n密码: ${createForm.password}`,
+        duration: 5000
+      });
+    }, 500);
 
     showCreateModal.value = false;
     resetCreateForm();
 
     // 重新加载用户列表以获取完整的用户数据（包括正确的ID）
     loadUserList();
-  } catch (error) {
+  } catch (error: any) {
     console.error('创建用户失败:', error);
 
-    // 处理不同的错误类型
-    if (error.response?.data?.message) {
+    // 更详细的错误处理
+    if (error.code === 'NETWORK_ERROR') {
+      Message.error('网络连接失败，请检查网络连接后重试');
+    } else if (error.response?.status === 400) {
+      // 客户端错误，显示具体的验证错误
+      if (error.response.data?.errors) {
+        const errorMessages = Object.values(error.response.data.errors).flat();
+        Message.error(errorMessages.join('；'));
+      } else if (error.response.data?.message) {
+        Message.error(error.response.data.message);
+      } else {
+        Message.error('输入信息有误，请检查后重试');
+      }
+    } else if (error.response?.status === 403) {
+      Message.error('您没有权限创建此类型的用户');
+    } else if (error.response?.status === 409) {
+      Message.error('用户名已存在，请选择其他用户名');
+    } else if (error.response?.status === 401) {
+      Message.error('登录已过期，请重新登录');
+    } else if (error.response?.data?.message) {
       Message.error(error.response.data.message);
-    } else if (error.message) {
-      Message.error(error.message);
     } else {
       Message.error('创建用户失败，请稍后重试');
     }
@@ -1029,29 +1259,68 @@ onMounted(() => {
 
 <style scoped lang="less">
 .container {
-  padding: 20px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
+  animation: fadeIn 0.6s ease-out;
 }
 
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  animation: slideInFromTop 0.8s ease-out;
 
   h2 {
-    margin: 0 0 8px 0;
-    font-size: 24px;
-    font-weight: 600;
+    margin: 0 0 12px 0;
+    font-size: 32px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    &::before {
+      content: "👥";
+      font-size: 36px;
+    }
   }
 
   p {
     margin: 0;
-    color: var(--color-text-3);
+    color: #86909c;
+    font-size: 16px;
+    font-weight: 400;
   }
 }
 
 .action-bar {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   display: flex;
-  gap: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  animation: slideInFromLeft 0.8s ease-out 0.2s both;
+
+  :deep(.arco-btn) {
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+  }
 }
+
 
 .delete-confirm {
   .warning-text {
@@ -1098,54 +1367,66 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  max-width: 500px;
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  max-width: 520px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  animation: slideInScale 0.4s ease-out;
 }
 
 .modal-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 24px 32px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   color: #1d2129;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .modal-close {
-  background: none;
+  background: rgba(102, 126, 234, 0.1);
   border: none;
-  font-size: 24px;
-  color: #86909c;
+  font-size: 20px;
+  color: #667eea;
   cursor: pointer;
-  padding: 0;
-  width: 24px;
-  height: 24px;
+  padding: 8px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
+  border-radius: 50%;
+  transition: all 0.3s ease;
 
-.modal-close:hover {
-  color: #1d2129;
+  &:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: rotate(90deg);
+  }
 }
 
 .modal-body {
@@ -1164,65 +1445,279 @@ onMounted(() => {
 .form-item {
   display: flex;
   flex-direction: column;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .form-item label {
   display: block;
-  font-weight: 500;
+  font-weight: 600;
   color: #1d2129;
   margin-bottom: 8px;
+  font-size: 14px;
 }
 
 .form-input {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+  padding: 12px 16px;
+  border: 2px solid #e5e6eb;
+  border-radius: 12px;
   font-size: 14px;
-}
+  transition: all 0.3s ease;
+  background: white;
 
-.form-input:focus {
-  outline: none;
-  border-color: #165dff;
-  box-shadow: 0 0 0 2px rgba(22, 93, 255, 0.1);
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    transform: translateY(-1px);
+  }
+
+  &.error {
+    border-color: #ff4d4f;
+
+    &:focus {
+      border-color: #ff4d4f;
+      box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.1);
+    }
+  }
+
+  &::placeholder {
+    color: #c9cdd4;
+  }
 }
 
 .form-input select {
   cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
 }
 
 /* 按钮样式 */
 .btn {
-  padding: 8px 16px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .btn-primary {
-  background: #165dff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0e42d2;
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
 }
 
 .btn-secondary {
-  background: #f2f3f5;
+  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+  color: #4e5969;
+  border: 1px solid #d9d9d9;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e8e8e8 0%, #d0d0d0 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.filter-section {
+  margin-bottom: 24px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+}
+
+.filter-item label {
+  font-weight: 600;
+  color: #1d2129;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.filter-select {
+  width: 100%;
+  height: 40px; /* 明确设置高度，与Arco Input组件一致 */
+  padding: 8px 16px; /* 调整padding以配合高度 */
+  border: 2px solid #e5e6eb;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  background: white;
+  cursor: pointer;
+  box-sizing: border-box; /* 确保padding不影响总高度 */
+
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    transform: translateY(-1px);
+  }
+}
+
+.search-input {
+  width: 100%;
+  height: 40px; /* 确保与下拉框高度一致 */
+}
+
+
+/* 空状态样式 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
   color: #1d2129;
 }
 
-.btn-secondary:hover {
-  background: #e5e6eb;
+.empty-text p {
+  margin: 0 0 24px 0;
+  color: #86909c;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* 表格响应式样式 */
+:deep(.arco-table) {
+  .arco-table-td {
+    padding: 12px 8px;
+  }
+
+  .arco-table-th {
+    padding: 12px 8px;
+    font-weight: 600;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+  }
+}
+
+/* 小屏幕优化 */
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-item {
+    min-width: auto;
+    margin-bottom: 12px;
+  }
+
+  .action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+}
+
+@media (max-width: 576px) {
+  .container {
+    padding: 16px;
+  }
+
+  .page-header {
+    padding: 20px;
+  }
+
+  .page-header h2 {
+    font-size: 24px;
+  }
+
+  :deep(.arco-table) {
+    font-size: 12px;
+
+    .arco-table-td,
+    .arco-table-th {
+      padding: 8px 4px;
+    }
+  }
+}
+
+/* 动画关键帧 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

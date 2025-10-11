@@ -507,7 +507,7 @@ app.put('/api/user/update/:id', authenticateJWT, async (req, res) => {
     // 更新用户信息
     const updateData = {};
     if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
+    if (email !== undefined && email.trim() !== '') updateData.email = email.trim();
     if (role !== undefined) updateData.role = role;
     if (is_active !== undefined) updateData.is_active = is_active;
 

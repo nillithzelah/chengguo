@@ -33,15 +33,6 @@ const router = createRouter({
         title: '登录表单',
       },
     },
-    {
-      path: '/register',
-      name: 'register',
-      component: () => import('@/views/login/register-form.vue'),
-      meta: {
-        requiresAuth: false,
-        title: '注册',
-      },
-    },
     ...appRoutes,
     REDIRECT_MAIN,
     NOT_FOUND_ROUTE,

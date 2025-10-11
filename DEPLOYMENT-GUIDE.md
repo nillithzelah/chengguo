@@ -1,149 +1,211 @@
-# 🚀 Token数据库功能部署指南
+# Douyin Admin 部署指南
 
-## 📋 部署概述
+## 📋 概述
 
-本次更新实现了抖音API Token的数据库存储和自动刷新功能，主要改进包括：
+本指南介绍如何将本地开发环境中的代码部署到生产服务器。
 
-- ✅ Token持久化存储（重启服务器不丢失）
-- ✅ 自动刷新机制（每10分钟自动刷新）
-- ✅ Token历史记录（记录每次刷新事件）
-- ✅ 数据库自动创建（无需手动建表）
+## 🔑 SSH 配置
 
-## 📁 需要上传的文件
+### 1. 生成SSH密钥（已在服务器完成）
+
+服务器已生成SSH密钥对：
+- 私钥：`/root/.ssh/id_rsa_douyin`
+- 公钥：`/root/.ssh/id_rsa_douyin.pub`
+
+### 2. 下载私钥到本地
+
+```powershell
+# 在Windows PowerShell中执行
+scp root@47.115.94.203:~/.ssh/id_rsa_douyin $env:USERPROFILE\.ssh\
+scp root@47.115.94.203:~/.ssh/id_rsa_douyin.pub $env:USERPROFILE\.ssh\
+```
+
+### 3. 配置SSH客户端
+
+创建或编辑 `~/.ssh/config` 文件：
 
 ```
-server.js                    # 主服务器文件（已更新）
-models/Token.js             # Token数据库模型
-scripts/init-tokens.js      # Token初始化脚本
-config/database.js          # 数据库配置（已更新）
-.gitignore                  # Git忽略文件（已更新）
+Host douyin-server
+    HostName 47.115.94.203
+    User root
+    IdentityFile ~/.ssh/id_rsa_douyin
+    IdentitiesOnly yes
 ```
 
-## 🔧 部署步骤
-
-### 1. 上传文件到服务器
-
-在本地项目目录执行：
+### 4. 测试连接
 
 ```bash
-scp server.js models/Token.js scripts/init-tokens.js config/database.js .gitignore root@47.115.94.203:/var/www/douyin-admin-master/
+# 使用Git Bash测试连接
+ssh douyin-server
+
+# 应该显示：
+# Welcome to Ubuntu 20.04.6 LTS...
+# root@iZwz985ddhar8km30lcu4nZ:~#
 ```
 
-**服务器信息：**
-- IP: `47.115.94.203`
-- 用户名: `root`
-- 项目路径: `/var/www/douyin-admin-master`
+## 🚀 部署方法
 
-⚠️ **安全提醒**: 请勿在文档中存储密码信息。使用环境变量或密钥管理工具。
+### 方法1：使用部署脚本（推荐）
 
-### 2. 在服务器上重启应用
+#### **后端部署：**
+```bash
+# 在项目根目录执行
+./deploy_script.sh
+```
 
-连接到服务器后执行：
+#### **前端部署：**
+```bash
+# Windows环境
+./deploy-frontend.bat
+
+# Linux/Mac环境
+./deploy-frontend.sh
+```
+
+### 方法2：手动SCP上传
+
+#### **后端文件：**
+```bash
+# 上传核心文件
+scp -i ~/.ssh/id_rsa_douyin src/views/user/management/index.vue root@47.115.94.203:/var/www/douyin-admin-master/src/views/user/management/
+
+# 上传脚本
+scp -i ~/.ssh/id_rsa_douyin backup_script.sh root@47.115.94.203:/var/www/
+scp -i ~/.ssh/id_rsa_douyin deploy_script.sh root@47.115.94.203:/var/www/
+```
+
+#### **前端文件：**
+```bash
+# 构建前端
+npm run build
+
+# 上传dist目录
+scp -i ~/.ssh/id_rsa_douyin -r dist/* root@47.115.94.203:/var/www/html/
+```
+
+### 方法3：使用rsync增量同步
 
 ```bash
-# 进入项目目录
+rsync -avz -e "ssh -i ~/.ssh/id_rsa_douyin" \
+  --exclude='.git/' \
+  --exclude='node_modules/' \
+  --exclude='*.log' \
+  ./ \
+  root@47.115.94.203:/var/www/douyin-admin-master/
+```
+
+## 🔧 服务器端操作
+
+### 设置脚本权限
+
+```bash
+# 在服务器上执行
 cd /var/www/douyin-admin-master
-
-# 停止当前运行的服务器
-pkill -f "node server.js"
-
-# 安装依赖（如果有新依赖）
-npm install
-
-# 启动服务器
-nohup node server.js > server.log 2>&1 &
-
-# 等待3秒
-sleep 3
-
-# 检查服务器是否启动成功
-ps aux | grep "node server.js"
-
-# 测试健康检查
-curl -s http://localhost:3000/api/health
+chmod +x backup_script.sh
+chmod +x deploy_script.sh
 ```
 
-### 3. 验证部署成功
+### 重启服务
 
 ```bash
-# 检查Token状态
-curl -s "http://localhost:3000/api/douyin/token-status"
+# PM2重启
+pm2 restart douyin-admin
 
-# 检查Token历史记录（需要管理员权限）
-curl -s -H "Authorization: Bearer YOUR_JWT_TOKEN" "http://localhost:3000/api/douyin/token-history"
+# 或systemd重启
+systemctl restart douyin-admin
+
+# 检查状态
+pm2 status
 ```
 
-## 🔍 功能验证
+## 📁 项目结构
 
-### 自动刷新测试
-- 系统会每10分钟自动刷新一次Token
-- 查看 `server.log` 文件确认自动刷新日志
-- 检查 `token-refresh-history.log` 文件确认历史记录
-
-### API测试
-- `GET /api/douyin/token-status` - 查看Token状态
-- `POST /api/douyin/refresh-token` - 手动刷新Token
-- `GET /api/douyin/tokens` - 查看所有Token记录（管理员）
-- `GET /api/douyin/token-history` - 查看Token历史（管理员）
-
-## 📊 数据库表结构
-
-系统会自动创建 `tokens` 表：
-
-```sql
-CREATE TABLE tokens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  token_type ENUM('access_token', 'refresh_token'),
-  token_value TEXT NOT NULL,
-  expires_at DATETIME,
-  last_refresh_at DATETIME,
-  is_active BOOLEAN DEFAULT 1,
-  app_id VARCHAR(50),
-  app_secret VARCHAR(100),
-  description VARCHAR(255),
-  created_at DATETIME,
-  updated_at DATETIME
-);
+```
+/var/www/douyin-admin-master/
+├── src/
+│   └── views/
+│       └── user/
+│           └── management/
+│               └── index.vue          # 用户管理页面（已优化）
+├── backup_script.sh                   # 备份脚本
+├── deploy_script.sh                   # 部署脚本
+└── ...其他文件
 ```
 
-## ⚠️ 注意事项
+## 🎯 已完成的优化
 
-1. **备份重要文件**：部署前建议备份服务器上的重要文件
-2. **数据库兼容性**：系统支持SQLite和PostgreSQL
-3. **自动初始化**：首次启动时会自动创建表和初始化数据
-4. **日志文件**：`token-refresh-history.log` 包含敏感信息，请妥善保管
+### 用户管理页面优化
+- ✅ 修复角色筛选bug
+- ✅ 添加用户搜索功能（用户名、姓名）
+- ✅ 优化表格响应式设计
+- ✅ 改进错误处理和用户反馈
+- ✅ 优化空状态显示
+- ✅ 移除不必要的UI元素
 
-## 🎯 部署完成标志
+### 部署工具
+- ✅ 自动化部署脚本
+- ✅ 服务器备份脚本
+- ✅ SSH无密码配置
 
-- ✅ 服务器成功启动（端口3000）
-- ✅ 健康检查返回 `{"status":"ok"}`
-- ✅ Token状态API正常响应
-- ✅ 自动刷新定时器启动（每10分钟）
-- ✅ 数据库表自动创建
+## 🔍 故障排除
 
-## 🔧 故障排除
-
-### 如果服务器启动失败
+### SSH连接问题
 ```bash
-# 查看错误日志
-tail -f server.log
+# 测试连接
+ssh -v douyin-server
 
-# 检查端口占用
-netstat -tlnp | grep :3000
-
-# 强制停止进程
-pkill -9 -f "node server.js"
+# 检查密钥权限
+ls -la ~/.ssh/id_rsa_douyin
+chmod 600 ~/.ssh/id_rsa_douyin
 ```
 
-### 如果数据库连接失败
+### 部署脚本问题
 ```bash
-# 检查数据库文件权限
-ls -la database.sqlite
+# 检查脚本权限
+ls -la deploy_script.sh
 
-# 重新初始化数据库
-node scripts/init-db.js --force
+# 直接运行
+bash deploy_script.sh
 ```
 
----
+### 服务重启问题
+```bash
+# 检查PM2状态
+pm2 list
 
-**部署完成后，Token管理系统将完全自动化运行，无需手动干预！** 🎉
+# 查看日志
+pm2 logs douyin-admin --lines 20
+```
+
+## 📊 验证部署
+
+### 检查文件
+```bash
+# 服务器上检查
+ls -la /var/www/douyin-admin-master/src/views/user/management/index.vue
+stat /var/www/douyin-admin-master/src/views/user/management/index.vue
+```
+
+### 检查服务
+```bash
+# 检查端口
+netstat -tlnp | grep :端口号
+
+# 测试API
+curl http://localhost:端口号/api/health
+```
+
+## 📝 更新日志
+
+### v1.0.0 - 2025-10-11
+- 初始部署配置完成
+- 用户管理页面全面优化
+- SSH自动化部署配置
+
+## 📞 技术支持
+
+如遇问题，请检查：
+1. SSH密钥配置是否正确
+2. 服务器权限是否充足
+3. 服务是否正常运行
+4. 日志是否有错误信息
