@@ -89,6 +89,7 @@ function defineTokenModel(sequelize) {
   Token.setToken = async function(tokenType, tokenValue, options = {}) {
     const {
       expiresAt,
+      refreshTokenExpiresAt,
       appId,
       appSecret,
       description
@@ -100,11 +101,14 @@ function defineTokenModel(sequelize) {
       { where: { token_type: tokenType } }
     );
 
+    // 根据token类型选择正确的过期时间参数
+    const expiresAtValue = tokenType === 'refresh_token' ? refreshTokenExpiresAt : expiresAt;
+
     // 创建新的活跃token
     return await this.create({
       token_type: tokenType,
       token_value: tokenValue,
-      expires_at: expiresAt,
+      expires_at: expiresAtValue,
       last_refresh_at: new Date(),
       app_id: appId,
       app_secret: appSecret,
@@ -115,19 +119,25 @@ function defineTokenModel(sequelize) {
 
   // 类方法：更新token
   Token.updateToken = async function(tokenType, tokenValue, options = {}) {
-    const { expiresAt } = options;
+    const { expiresAt, refreshTokenExpiresAt } = options;
+
+    // 根据token类型选择正确的过期时间参数
+    const expiresAtValue = tokenType === 'refresh_token' ? refreshTokenExpiresAt : expiresAt;
 
     const token = await this.getActiveToken(tokenType);
     if (token) {
       return await token.update({
         token_value: tokenValue,
-        expires_at: expiresAt,
+        expires_at: expiresAtValue,
         last_refresh_at: new Date(),
         updated_at: new Date()
       });
     } else {
       // 如果没有活跃token，创建新的
-      return await this.setToken(tokenType, tokenValue, options);
+      return await this.setToken(tokenType, tokenValue, {
+        ...options,
+        expiresAt: expiresAtValue
+      });
     }
   };
 

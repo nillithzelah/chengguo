@@ -1659,7 +1659,9 @@ async function refreshAdAccessToken() {
       const newAccessToken = refreshResponse.data.data.access_token;
       const newRefreshToken = refreshResponse.data.data.refresh_token;
       const expiresIn = refreshResponse.data.data.expires_in;
+      const refreshTokenExpiresIn = refreshResponse.data.data.refresh_token_expires_in;
       const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      const refreshTokenExpiresAt = refreshTokenExpiresIn ? new Date(Date.now() + refreshTokenExpiresIn * 1000) : null;
 
       // 更新数据库中的token
       await Token.updateToken('access_token', newAccessToken, {
@@ -1669,7 +1671,7 @@ async function refreshAdAccessToken() {
       });
 
       await Token.updateToken('refresh_token', newRefreshToken, {
-        expiresAt: null, // refresh_token通常没有明确的过期时间
+        refreshTokenExpiresAt, // refresh_token有过期时间
         appId: appId,
         appSecret: appSecret
       });
