@@ -1693,6 +1693,17 @@ async function refreshAdAccessToken() {
       };
     } else {
       console.error('❌ 广告投放Token刷新失败:', refreshResponse.data.message);
+
+      // 检查是否是refresh_token失效的错误
+      if (refreshResponse.data.message?.includes('refresh_token') &&
+          (refreshResponse.data.message?.includes('invalid') ||
+           refreshResponse.data.message?.includes('expired') ||
+           refreshResponse.data.message?.includes('失效'))) {
+        const errorMsg = 'refresh_token已失效，请重新进行OAuth授权获取新的refresh_token';
+        console.error('🔄 检测到refresh_token失效，需要重新授权');
+        throw new Error(errorMsg);
+      }
+
       throw new Error(refreshResponse.data.message || 'Token刷新失败');
     }
   } catch (error) {
@@ -1784,9 +1795,99 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
   } catch (error) {
     console.error('❌ 手动广告投放Token刷新失败:', error.message);
 
+    // 检查是否是refresh_token失效的错误
+    let errorMessage = '广告投放Token刷新失败';
+    let statusCode = 500;
+
+    if (error.message?.includes('refresh_token') &&
+        (error.message?.includes('invalid') ||
+         error.message?.includes('expired') ||
+         error.message?.includes('失效'))) {
+      errorMessage = 'refresh_token已失效，请重新进行OAuth授权获取新的refresh_token';
+      statusCode = 401; // Unauthorized
+    }
+
+    res.status(statusCode).json({
+      code: statusCode,
+      message: errorMessage,
+      error: error.message,
+      timestamp: new Date().toISOString(),
+      solution: statusCode === 401 ? '请访问巨量引擎开发者平台重新进行OAuth授权，获取新的refresh_token并更新到系统配置中' : null
+    });
+  }
+});
+
+// 手动更新refresh_token端点 (仅管理员)
+app.post('/api/douyin/update-refresh-token', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以更新refresh_token
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以更新refresh_token'
+      });
+    }
+
+    const { refresh_token } = req.body;
+
+    if (!refresh_token) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供新的refresh_token'
+      });
+    }
+
+    console.log('🔄 管理员手动更新refresh_token');
+
+    // 更新数据库中的refresh_token
+    await Token.updateToken('refresh_token', refresh_token, {
+      appId: process.env.VITE_DOUYIN_APP_ID,
+      appSecret: process.env.VITE_DOUYIN_APP_SECRET
+    });
+
+    // 更新全局变量
+    adRefreshToken = refresh_token;
+    adTokenLastRefresh = new Date();
+
+    // 立即尝试刷新access_token
+    try {
+      const result = await refreshAdAccessToken();
+
+      res.json({
+        code: 0,
+        message: 'refresh_token更新成功，并成功刷新access_token',
+        data: {
+          refresh_token_updated: true,
+          access_token_refreshed: true,
+          access_token: result.access_token,
+          expires_in: result.expires_in,
+          updated_at: new Date().toISOString()
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (refreshError) {
+      res.json({
+        code: 0,
+        message: 'refresh_token更新成功，但access_token刷新失败，请稍后重试',
+        data: {
+          refresh_token_updated: true,
+          access_token_refreshed: false,
+          error: refreshError.message,
+          updated_at: new Date().toISOString()
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ 更新refresh_token失败:', error.message);
+
     res.status(500).json({
       code: 500,
-      message: '广告投放Token刷新失败',
+      message: '更新refresh_token失败',
       error: error.message,
       timestamp: new Date().toISOString()
     });
@@ -1811,6 +1912,16 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
 
     console.log('📋 请求参数:', { advertiser_id, id_type, promotion_id });
 
+    // 验证并修正id_type参数
+    let correctedIdType = id_type;
+    if (id_type === 'ID_TYPE_PROMOTION') {
+      correctedIdType = 'PROMOTION';
+      console.log('🔧 修正id_type参数: ID_TYPE_PROMOTION -> PROMOTION');
+    } else if (id_type === 'ID_TYPE_AD') {
+      correctedIdType = 'AD';
+      console.log('🔧 修正id_type参数: ID_TYPE_AD -> AD');
+    }
+
     // 步骤1: 使用已知的有效access_token
     console.log('📍 步骤1: 获取有效的广告投放access_token');
 
@@ -1827,7 +1938,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
 
     const qrParams = {
       advertiser_id: advertiser_id,
-      id_type: id_type,
+      id_type: correctedIdType,
       promotion_id: promotion_id
     };
 

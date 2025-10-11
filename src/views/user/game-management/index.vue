@@ -258,7 +258,7 @@
 
     <!-- 编辑游戏模态框 -->
     <div v-if="showEditGameModal" class="modal-overlay">
-      <div class="modal-content" @click.stop>
+      <div class="modal-content edit-game-modal" @click.stop>
         <div class="modal-header">
           <h3>编辑游戏</h3>
           <button @click="closeEditGameModal" class="modal-close">&times;</button>
@@ -1878,7 +1878,25 @@ watch(
 
 /* 表单样式 */
 .form-item {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+}
+
+.edit-game-modal .form-item {
+  margin-bottom: 16px;
+}
+
+.edit-game-modal .form-item label {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.edit-game-modal .form-input {
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.edit-game-modal .form-hint small {
+  font-size: 11px;
 }
 
 .form-item label {
@@ -1972,10 +1990,26 @@ watch(
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   max-width: 600px;
   width: 90%;
-  max-height: 90vh;
+  max-height: 80vh;
   overflow-y: auto;
   border: 1px solid rgba(102, 126, 234, 0.1);
   animation: slideInScale 0.4s ease-out;
+}
+
+.edit-game-modal {
+  max-height: 90vh;
+}
+
+.edit-game-modal .modal-header {
+  padding: 20px 24px;
+}
+
+.edit-game-modal .modal-body {
+  padding: 20px 24px;
+}
+
+.edit-game-modal .modal-footer {
+  padding: 16px 24px;
 }
 
 .large-modal {
