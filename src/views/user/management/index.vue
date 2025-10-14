@@ -641,7 +641,27 @@ const filterableRoles = computed(() => {
 
 // 获取所有可筛选的角色（只显示新格式角色）
 const allFilterableRoles = computed(() => {
-  return [...availableRoles.value];
+  // 定义角色权限等级（从高到低，从内到外）
+  const rolePriority = {
+    'admin': 1,
+    'internal_boss': 2,
+    'external_boss': 3,
+    'internal_service': 4,
+    'external_service': 5,
+    'internal_user_1': 6,
+    'internal_user_2': 7,
+    'internal_user_3': 8,
+    'external_user_1': 9,
+    'external_user_2': 10,
+    'external_user_3': 11
+  };
+
+  // 复制并排序角色列表
+  return [...availableRoles.value].sort((a, b) => {
+    const priorityA = rolePriority[a.value] || 999;
+    const priorityB = rolePriority[b.value] || 999;
+    return priorityA - priorityB;
+  });
 });
 
 // 获取创建按钮的提示信息
