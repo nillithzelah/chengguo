@@ -7,10 +7,18 @@ async function checkTableStructure() {
     await sequelize.authenticate();
     console.log('✅ 数据库连接成功');
 
-    const [columns] = await sequelize.query("PRAGMA table_info(games)");
-    console.log('Games table columns:');
-    columns.forEach(col => {
-      console.log(`  ${col.name}: ${col.type}`);
+    // 检查 users 表结构
+    const [userColumns] = await sequelize.query("PRAGMA table_info(users)");
+    console.log('\nUsers table columns:');
+    userColumns.forEach(col => {
+      console.log(`  ${col.name}: ${col.type} ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''}`);
+    });
+
+    // 检查 games 表结构
+    const [gameColumns] = await sequelize.query("PRAGMA table_info(games)");
+    console.log('\nGames table columns:');
+    gameColumns.forEach(col => {
+      console.log(`  ${col.name}: ${col.type} ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''}`);
     });
 
   } catch (error) {

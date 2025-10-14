@@ -375,37 +375,26 @@ const canAssign = computed(() => {
 const gameColumns = computed(() => [
   {
     title: '游戏信息',
-    slotName: 'game_name',
-    width: 250
+    slotName: 'game_name'
   },
   ...(canModify.value ? [{
     title: '广告信息',
-    slotName: 'ad_info',
-    width: 200
+    slotName: 'ad_info'
   }] : []),
   {
     title: '分配时间',
     dataIndex: 'assigned_at',
-    slotName: 'assigned_at',
-    width: 160
+    slotName: 'assigned_at'
   },
   {
     title: '分配人',
     dataIndex: 'assigned_by',
-    slotName: 'assigned_by',
-    width: 150
-  },
-  {
-    title: '游戏状态',
-    dataIndex: 'status',
-    slotName: 'status',
-    width: 100
+    slotName: 'assigned_by'
   },
   {
     title: '操作',
     dataIndex: 'actions',
-    slotName: 'actions',
-    width: 120
+    slotName: 'actions'
   }
 ]);
 
@@ -1799,6 +1788,25 @@ const checkPermissionsAndLoadData = () => {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* 表格样式 */
+:deep(.arco-table-th) {
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%) !important;
+  font-weight: 600;
+  color: #1d2129;
+  border-bottom: 2px solid #e8e8e8;
+}
+
+:deep(.arco-table-td) {
+  border-bottom: 1px solid #f0f0f0;
+  color: #4e5969;
+  padding: 12px 16px;
+}
+
+:deep(.arco-table-tr:hover .arco-table-td) {
+  background: linear-gradient(135deg, #f7f8fa 0%, #f0f2ff 100%);
+  color: #1d2129;
 }
 
 @keyframes slideInFromBottom {

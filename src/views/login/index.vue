@@ -32,6 +32,12 @@
           <div class="feature-text">智能搜索</div>
         </div>
       </div>
+      <div class="game-login-section">
+        <div class="game-item" @click="goToGameLogin">
+          <div class="game-icon">🎮</div>
+          <div class="game-text">游戏库</div>
+        </div>
+      </div>
     </div>
     <!-- <LoginBanner /> -->
   </div>
@@ -64,6 +70,10 @@
 
   const goToLogin = () => {
     router.push('/login-form');
+  };
+
+  const goToGameLogin = () => {
+    window.open('https://m.game985.vip/login', '_blank');
   };
 
   onMounted(() => {
@@ -167,6 +177,46 @@
     justify-content: center;
     gap: 60px;
     flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+
+  .game-login-section {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  .game-item {
+    text-align: center;
+    color: #ffffff;
+    opacity: 0.9;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 20px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 120px;
+
+    &:hover {
+      opacity: 1;
+      transform: translateY(-4px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+      background: rgba(255, 255, 255, 0.15);
+    }
+  }
+
+  .game-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  }
+
+  .game-text {
+    font-size: 16px;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 
   .feature-item {

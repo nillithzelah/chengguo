@@ -43,8 +43,8 @@ function defineUserModel(sequelize) {
     }
   },
   role: {
-    type: DataTypes.ENUM('admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user'),
-    defaultValue: 'external_user',
+    type: DataTypes.ENUM('admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3'),
+    defaultValue: 'external_user_1',
     allowNull: false
   },
   avatar: {
@@ -68,6 +68,15 @@ function defineUserModel(sequelize) {
       key: 'id'
     },
     comment: '创建者用户ID'
+  },
+  parent_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    },
+    comment: '上级用户ID，用于建立用户层级关系'
   },
   created_at: {
     type: DataTypes.DATE,
@@ -98,6 +107,9 @@ function defineUserModel(sequelize) {
     },
     {
       fields: ['created_by']
+    },
+    {
+      fields: ['parent_id']
     }
   ]
 });
@@ -168,18 +180,8 @@ User.prototype.toFrontendFormat = function() {
   };
 };
 
-  // 定义关联关系
-  User.belongsTo(User, {
-    foreignKey: 'created_by',
-    as: 'creator',
-    onDelete: 'SET NULL'
-  });
-
-  User.hasMany(User, {
-    foreignKey: 'created_by',
-    as: 'createdUsers',
-    onDelete: 'SET NULL'
-  });
+  // 定义关联关系 - 移除重复的关联定义，避免与server.js中的冲突
+  // 关联关系已在server.js中定义，这里不再重复定义
 
   return User;
 }

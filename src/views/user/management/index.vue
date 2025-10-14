@@ -55,7 +55,7 @@
           >
             <option value="">全部角色</option>
             <option
-              v-for="role in filterableRoles"
+              v-for="role in allFilterableRoles"
               :key="role.value"
               :value="role.value"
             >
@@ -124,6 +124,10 @@
         {{ formatDate(record.created_at) }}
       </template>
 
+      <template #parent_name="{ record }">
+        {{ record.parent_name || '无' }}
+      </template>
+
       <template #password="{ record }">
         {{ record.password || '******' }}
       </template>
@@ -141,6 +145,21 @@
             </template>
             编辑
           </a-button>
+          <!-- 晋升按钮暂时隐藏，保留代码以便以后恢复 -->
+          <!--
+          <a-button
+            v-if="checkCanPromoteUser(record)"
+            type="text"
+            size="small"
+            style="color: #52c41a;"
+            @click="() => confirmPromoteUser(record)"
+          >
+            <template #icon>
+              <icon-up />
+            </template>
+            晋升
+          </a-button>
+          -->
           <a-button
             v-if="checkCanDeleteUser(record)"
             type="text"
@@ -240,6 +259,7 @@
               <select
                 v-model="createForm.role"
                 class="form-input"
+                @change="handleRoleChange"
               >
                 <option
                   v-for="role in availableRoles"
@@ -250,6 +270,29 @@
                 </option>
               </select>
               <small style="color: #666; margin-top: 4px;">选择用户角色，角色决定了用户的权限范围</small>
+            </div>
+
+            <!-- 上级用户选择 -->
+            <div v-if="showParentSelector" class="form-item">
+              <label>{{ parentSelectorLabel }}</label>
+              <select
+                v-model="createForm.parent_id"
+                class="form-input"
+                :disabled="loadingParentOptions"
+              >
+                <option value="">请选择上级用户</option>
+                <option
+                  v-for="parent in parentOptions"
+                  :key="parent.id"
+                  :value="parent.id"
+                >
+                  {{ parent.display_name }}
+                </option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">{{ parentSelectorHint }}</small>
+              <small v-if="createForm.parent_id && !isValidParentSelection" style="color: #ff4d4f; margin-top: 4px;">
+                请选择正确的上级用户
+              </small>
             </div>
           </div>
         </div>
@@ -397,6 +440,37 @@
         <p class="warning-text">此操作不可撤销，将永久删除该用户及其所有相关数据。</p>
       </div>
     </a-modal>
+
+    <!-- 晋升确认对话框暂时隐藏，保留代码以便以后恢复 -->
+    <!--
+    <a-modal
+      v-model:open="showPromoteModal"
+      title="确认晋升"
+      @ok="handlePromoteUser"
+      @cancel="cancelPromote"
+      :confirm-loading="promoteLoading"
+    >
+      <div class="promote-confirm">
+        <p>确定要晋升用户 <strong>{{ promoteUserInfo?.username }}</strong> 吗？</p>
+        <div class="promote-options">
+          <label class="checkbox-label">
+            <input
+              v-model="promoteWithSubordinates"
+              type="checkbox"
+              class="checkbox-input"
+            />
+            <span class="checkbox-text">同时晋升所有下级用户</span>
+          </label>
+          <small class="promote-hint">
+            如果勾选，该用户的所有下级用户（包括间接下级）都会自动晋升一级
+          </small>
+        </div>
+        <div v-if="promoteWithSubordinates" class="promote-warning">
+          <p class="warning-text">⚠️ 注意：这将同时晋升该用户的所有下级用户，请确认操作！</p>
+        </div>
+      </div>
+    </a-modal>
+    -->
   </div>
 </template>
 
@@ -408,9 +482,10 @@ import {
   IconRefresh,
   IconEdit,
   IconDelete,
-  IconSearch
+  IconSearch,
+  IconUp
 } from '@arco-design/web-vue/es/icon';
-import { getUserList, deleteUser, createUser, updateUser, type UserListItem } from '@/api/user';
+import { getUserList, deleteUser, createUser, updateUser, promoteUsers, type UserListItem } from '@/api/user';
 import useUserStore from '@/store/modules/user';
 import Breadcrumb from '@/components/breadcrumb/index.vue';
 
@@ -419,17 +494,29 @@ const loading = ref(false);
 const createLoading = ref(false);
 const deleteLoading = ref(false);
 const editLoading = ref(false);
+const promoteLoading = ref(false);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
+const showPromoteModal = ref(false);
 const userList = ref<UserListItem[]>([]);
 const deleteUserInfo = ref<UserListItem | null>(null);
 const editUserInfo = ref<UserListItem | null>(null);
+const promoteUserInfo = ref<UserListItem | null>(null);
+const promoteWithSubordinates = ref(true);
 
 // 筛选相关
 const roleFilter = ref('');
 const searchKeyword = ref('');
 const originalUserList = ref<UserListItem[]>([]); // 保存原始用户列表
+
+// 上级用户选择相关
+const showParentSelector = ref(false);
+const parentOptions = ref([]);
+const loadingParentOptions = ref(false);
+const parentSelectorLabel = ref('上级用户');
+const parentSelectorHint = ref('请选择上级用户');
+const isValidParentSelection = ref(true);
 
 
 // 用户Store
@@ -448,10 +535,14 @@ const availableRoles = computed(() => {
   if (currentRole === 'admin') {
     // admin可以创建所有角色
     return [
-      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' },
       { value: 'external_service', label: '外部客服' },
       { value: 'external_boss', label: '外部老板' },
-      { value: 'internal_user', label: '内部普通用户' },
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' },
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' }
@@ -460,22 +551,30 @@ const availableRoles = computed(() => {
     // 内部老板可以创建内部客服和内用户
     return [
       { value: 'internal_service', label: '内部客服' },
-      { value: 'internal_user', label: '内部普通用户' }
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' }
     ];
   } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
     // 内部客服只能创建内部普通用户
     return [
-      { value: 'internal_user', label: '内部普通用户' }
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' }
     ];
   } else if (['external_boss', 'viewer'].includes(currentRole || '')) {
     // 外部老板只能创建外部普通用户
     return [
-      { value: 'external_user', label: '外部普通用户' }
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' }
     ];
   } else if (['external_service', 'user'].includes(currentRole || '')) {
     // 外部客服和用户只能创建普通外部用户
     return [
-      { value: 'external_user', label: '外部普通用户' }
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' }
     ];
   }
   // 其他角色不能创建用户
@@ -488,10 +587,14 @@ const getEditableRoles = () => {
   if (currentRole === 'admin') {
     // admin可以编辑所有角色
     return [
-      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' },
       { value: 'external_service', label: '外部客服' },
       { value: 'external_boss', label: '外部老板' },
-      { value: 'internal_user', label: '内部普通用户' },
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' },
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' }
     ];
@@ -499,33 +602,46 @@ const getEditableRoles = () => {
     // 内部老板可以编辑内部客服和内部用户
     return [
       { value: 'internal_service', label: '内部客服' },
-      { value: 'internal_user', label: '内部普通用户' }
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' }
     ];
   } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
     // 内部客服只能编辑内部普通用户
     return [
-      { value: 'internal_user', label: '内部普通用户' }
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' }
     ];
   } else if (['external_boss', 'viewer'].includes(currentRole || '')) {
     // 外部老板可以编辑外部用户
     return [
-      { value: 'external_user', label: '外部普通用户' },
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' },
       { value: 'external_service', label: '外部客服' }
     ];
   } else if (['external_service', 'user'].includes(currentRole || '')) {
     // 外部客服和用户只能编辑普通外部用户
     return [
-      { value: 'external_user', label: '外部普通用户' }
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' }
     ];
   }
   // 其他角色不能编辑角色
   return [];
 };
 
-// 可筛选的角色选项（与可创建的角色权限一致）
+// 可筛选的角色选项（与可创建的角色权限一致，加上旧角色的兼容性）
 const filterableRoles = computed(() => {
   // 直接使用可创建的角色作为可筛选的角色
   return availableRoles.value;
+});
+
+// 获取所有可筛选的角色（只显示新格式角色）
+const allFilterableRoles = computed(() => {
+  return [...availableRoles.value];
 });
 
 // 获取创建按钮的提示信息
@@ -591,7 +707,8 @@ const createForm = reactive({
   password: '',
   confirmPassword: '',
   name: '',
-  role: 'user'
+  role: 'external_user_1',
+  parent_id: ''
 });
 
 const editForm = reactive({
@@ -609,8 +726,8 @@ const columns = [
   {
     title: 'ID',
     dataIndex: 'id',
-    width: 80,
-    minWidth: 60
+    width: 60,
+    minWidth: 40
   },
   {
     title: '用户名',
@@ -629,8 +746,8 @@ const columns = [
   {
     title: '密码',
     dataIndex: 'password',
-    width: 150,
-    minWidth: 120,
+    width: 100,
+    minWidth: 100,
     slotName: 'password',
     ellipsis: true
   },
@@ -649,11 +766,12 @@ const columns = [
     ellipsis: true
   },
   {
-    title: '状态',
-    dataIndex: 'is_active',
-    slotName: 'status',
-    width: 80,
-    minWidth: 70
+    title: '上级用户',
+    dataIndex: 'parent_name',
+    slotName: 'parent_name',
+    width: 150,
+    minWidth: 120,
+    ellipsis: true
   },
   {
     title: '最后登录',
@@ -756,21 +874,51 @@ const checkCanDeleteUser = (user: UserListItem) => {
   return isAdmin && isNotSelf;
 };
 
+// 检查用户是否可以晋升
+const checkCanPromoteUser = (user: UserListItem) => {
+  // 只有admin和internal_boss可以晋升用户
+  const currentUserRole = userStore.userInfo?.role;
+  const canPromote = ['admin', 'internal_boss'].includes(currentUserRole || '');
+
+  if (!canPromote) {
+    return false;
+  }
+
+  // 用户自己不能晋升自己
+  const isNotSelf = user.id !== Number(userStore.userInfo?.accountId);
+
+  // 检查用户是否可以晋升（不是最高等级）
+  const promotableRoles = [
+    'internal_user_3', 'internal_user_2', 'internal_user_1',
+    'external_user_3', 'external_user_2', 'external_user_1'
+  ];
+
+  const canUserBePromoted = promotableRoles.includes(user.role);
+
+  return isNotSelf && canUserBePromoted;
+};
+
 // 获取角色颜色
 const getRoleColor = (role: string) => {
   const colors = {
     admin: 'red',
     internal_boss: 'purple',
     internal_service: 'orange',
-    internal_user: 'blue',
+    internal_user_1: 'blue',
+    internal_user_2: 'geekblue',
+    internal_user_3: 'arcoblue',
     external_boss: 'green',
     external_service: 'cyan',
-    external_user: 'lime',
+    external_user_1: 'lime',
+    external_user_2: 'green',
+    external_user_3: 'lightgreen',
     // 兼容旧角色名称，默认归类为内部
     super_viewer: 'purple',
     viewer: 'blue',
     moderator: 'orange',
-    user: 'lime'
+    user: 'lime',
+    internal_user: 'blue',
+    external_user: 'lime'
   };
   return colors[role] || 'default';
 };
@@ -781,15 +929,21 @@ const getRoleText = (role: string) => {
     admin: '管理员',
     internal_boss: '内部老板',
     internal_service: '内部客服',
-    internal_user: '内部普通用户',
+    internal_user_1: '内部普通用户1级',
+    internal_user_2: '内部普通用户2级',
+    internal_user_3: '内部普通用户3级',
     external_boss: '外部老板',
     external_service: '外部客服',
-    external_user: '外部普通用户',
+    external_user_1: '外部普通用户1级',
+    external_user_2: '外部普通用户2级',
+    external_user_3: '外部普通用户3级',
     // 兼容旧角色名称，默认归类为内部
     super_viewer: '内部老板',
-    viewer: '内部普通用户',
+    viewer: '内部普通用户1级',
     moderator: '内部客服',
-    user: '外部普通用户'
+    user: '外部普通用户1级',
+    internal_user: '内部普通用户1级',
+    external_user: '外部普通用户1级'
   };
   return texts[role] || role;
 };
@@ -907,7 +1061,38 @@ const applyFilters = () => {
 
   // 应用角色筛选
   if (roleFilter.value) {
-    filteredUsers = filteredUsers.filter(user => user.role === roleFilter.value);
+    filteredUsers = filteredUsers.filter(user => {
+      // 检查直接匹配
+      if (user.role === roleFilter.value) {
+        return true;
+      }
+
+      // 检查角色等价性（包括旧角色名称的兼容性映射）
+      const roleEquivalences = {
+        // 新格式角色与其对应的所有等价角色（包括旧格式）
+        'internal_user_1': ['internal_user_1', 'user', 'viewer', 'internal_user'],
+        'internal_service': ['internal_service', 'moderator'],
+        'internal_boss': ['internal_boss', 'super_viewer'],
+        'external_user_1': ['external_user_1', 'external_user'],
+        'external_service': ['external_service'],
+        'external_boss': ['external_boss'],
+        'admin': ['admin'],
+        'internal_user_2': ['internal_user_2'],
+        'internal_user_3': ['internal_user_3'],
+        'external_user_2': ['external_user_2'],
+        'external_user_3': ['external_user_3'],
+        // 旧格式角色与其对应的所有等价角色
+        'user': ['internal_user_1', 'user', 'viewer', 'internal_user'],
+        'moderator': ['internal_service', 'moderator'],
+        'viewer': ['internal_user_1', 'user', 'viewer', 'internal_user'],
+        'super_viewer': ['internal_boss', 'super_viewer'],
+        'internal_user': ['internal_user_1', 'user', 'viewer', 'internal_user'],
+        'external_user': ['external_user_1', 'external_user']
+      };
+
+      const equivalentRoles = roleEquivalences[roleFilter.value] || [roleFilter.value];
+      return equivalentRoles.includes(user.role);
+    });
   }
 
   userList.value = filteredUsers;
@@ -956,6 +1141,51 @@ const confirmDeleteUser = async (user: UserListItem) => {
 const cancelDelete = () => {
   deleteUserInfo.value = null;
   showDeleteModal.value = false;
+};
+
+// 确认晋升用户
+const confirmPromoteUser = (user: UserListItem) => {
+  console.log('🔼 [晋升] 点击晋升按钮，用户:', user.username, '角色:', user.role);
+  promoteUserInfo.value = user;
+  showPromoteModal.value = true;
+  console.log('🔼 [晋升] 晋升对话框状态设为:', showPromoteModal.value);
+};
+
+// 取消晋升
+const cancelPromote = () => {
+  console.log('🔼 [晋升] 取消晋升对话框');
+  promoteUserInfo.value = null;
+  showPromoteModal.value = false;
+};
+
+// 执行用户晋升
+const handlePromoteUser = async () => {
+  if (!promoteUserInfo.value) {
+    console.error('❌ [晋升] 没有选择要晋升的用户');
+    return;
+  }
+
+  console.log('🔼 [晋升] 开始执行晋升，用户:', promoteUserInfo.value.username);
+  promoteLoading.value = true;
+
+  try {
+    const response = await promoteUsers({
+      userId: promoteUserInfo.value.id,
+      promoteSubordinates: promoteWithSubordinates.value
+    });
+
+    console.log('✅ [晋升] 晋升成功:', response.data);
+    Message.success(`用户晋升成功！共晋升 ${response.data.totalPromoted} 个用户`);
+    showPromoteModal.value = false;
+    promoteUserInfo.value = null;
+    // 重新加载用户列表
+    loadUserList();
+  } catch (error: any) {
+    console.error('❌ [晋升] 晋升失败:', error);
+    Message.error('晋升用户失败，请稍后重试');
+  } finally {
+    promoteLoading.value = false;
+  }
 };
 
 // 执行删除用户（直接处理）
@@ -1007,8 +1237,15 @@ const openCreateModal = () => {
   createForm.password = '';
   createForm.confirmPassword = '';
   createForm.name = '';
+  createForm.parent_id = '';
   // 设置默认角色为第一个可用的角色
-  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
+  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'external_user_1';
+  showParentSelector.value = false;
+  parentOptions.value = [];
+
+  // 根据默认角色初始化上级用户选择器
+  handleRoleChange();
+
   showCreateModal.value = true;
 };
 
@@ -1018,8 +1255,11 @@ const resetCreateForm = () => {
   createForm.password = '';
   createForm.confirmPassword = '';
   createForm.name = '';
+  createForm.parent_id = '';
   // 设置默认角色为第一个可用的角色
-  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'user';
+  createForm.role = availableRoles.value.length > 0 ? availableRoles.value[0].value : 'external_user_1';
+  showParentSelector.value = false;
+  parentOptions.value = [];
   showCreateModal.value = false;
 };
 
@@ -1129,6 +1369,68 @@ const handleEditUser = async () => {
   }
 };
 
+// 处理角色变化
+const handleRoleChange = async () => {
+  const role = createForm.role;
+
+  // 检查是否需要显示上级用户选择器
+  if (role === 'internal_user_1' || role === 'internal_user_2' || role === 'internal_user_3' ||
+      role === 'external_user_1' || role === 'external_user_2' || role === 'external_user_3') {
+    showParentSelector.value = true;
+
+    // 设置选择器标签和提示
+    if (role === 'internal_user_1' || role === 'external_user_1') {
+      parentSelectorLabel.value = '上级客服';
+      parentSelectorHint.value = '1级用户必须选择客服作为上级';
+    } else if (role === 'internal_user_2' || role === 'external_user_2') {
+      parentSelectorLabel.value = '上级1级用户';
+      parentSelectorHint.value = '2级用户必须选择1级用户作为上级';
+    } else if (role === 'internal_user_3' || role === 'external_user_3') {
+      parentSelectorLabel.value = '上级2级用户';
+      parentSelectorHint.value = '3级用户必须选择2级用户作为上级';
+    }
+
+    // 加载上级用户选项
+    await loadParentOptions(role);
+  } else {
+    showParentSelector.value = false;
+    createForm.parent_id = '';
+    parentOptions.value = [];
+  }
+};
+
+// 加载上级用户选项
+const loadParentOptions = async (targetRole: string) => {
+  loadingParentOptions.value = true;
+  try {
+    const response = await fetch('/api/user/parent-options?target_role=' + targetRole, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (data.code === 20000) {
+      parentOptions.value = data.data.parents;
+      // 如果只有一个选项，自动选择
+      if (parentOptions.value.length === 1) {
+        createForm.parent_id = parentOptions.value[0].id.toString();
+      }
+    } else {
+      Message.error(data.message || '加载上级用户选项失败');
+      parentOptions.value = [];
+    }
+  } catch (error) {
+    console.error('加载上级用户选项失败:', error);
+    Message.error('加载上级用户选项失败');
+    parentOptions.value = [];
+  } finally {
+    loadingParentOptions.value = false;
+  }
+};
+
 // 处理创建用户
 const handleCreateUser = async () => {
   const currentRole = userStore.userInfo?.role;
@@ -1140,7 +1442,7 @@ const handleCreateUser = async () => {
   }
 
   // 检查internal_service只能创建internal_user角色
-  if (['internal_service', 'moderator'].includes(currentRole || '') && createForm.role !== 'internal_user') {
+  if (['internal_service', 'moderator'].includes(currentRole || '') && !createForm.role.startsWith('internal_user_')) {
     Message.error('您只能创建内部普通用户账号');
     return;
   }
@@ -1152,8 +1454,14 @@ const handleCreateUser = async () => {
   }
 
   // 检查external_service只能创建external_user角色
-  if (['external_service', 'user'].includes(currentRole || '') && createForm.role !== 'external_user') {
+  if (['external_service', 'user'].includes(currentRole || '') && !createForm.role.startsWith('external_user_')) {
     Message.error('您只能创建外部普通用户账号');
+    return;
+  }
+
+  // 检查上级用户选择
+  if (showParentSelector.value && !createForm.parent_id) {
+    Message.error('请选择上级用户');
     return;
   }
 
@@ -1189,7 +1497,8 @@ const handleCreateUser = async () => {
     const currentUser = userStore.userInfo;
     const userDataWithCreator = {
       ...userData,
-      created_by: currentUser?.accountId ? Number(currentUser.accountId) : undefined
+      created_by: currentUser?.accountId ? Number(currentUser.accountId) : undefined,
+      parent_id: createForm.parent_id ? Number(createForm.parent_id) : undefined
     };
 
     await createUser(userDataWithCreator);
@@ -1329,6 +1638,58 @@ onMounted(() => {
     font-size: 14px;
   }
 }
+
+/* 晋升相关样式暂时隐藏，保留代码以便以后恢复 */
+/*
+.promote-confirm {
+  .promote-options {
+    margin: 16px 0;
+    padding: 12px;
+    background: #f6ffed;
+    border-radius: 6px;
+    border: 1px solid #b7eb8f;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #1d2129;
+    font-weight: 500;
+  }
+
+  .checkbox-input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .promote-hint {
+    display: block;
+    margin-top: 8px;
+    color: #52c41a;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .promote-warning {
+    margin-top: 12px;
+    padding: 8px;
+    background: #fff7e6;
+    border: 1px solid #ffd591;
+    border-radius: 4px;
+
+    .warning-text {
+      color: #d46b08;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+  }
+}
+*/
 
 .permission-warning {
   background: #fff7e6;

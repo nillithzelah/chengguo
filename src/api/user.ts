@@ -214,3 +214,52 @@ export function createGame(data: CreateGameData) {
 export function deleteGame(gameId: number) {
   return axios.delete(`/api/game/delete/${gameId}`);
 }
+
+// 用户等级晋升相关接口
+
+// 获取用户层级信息和可晋升用户列表
+export interface UserHierarchyInfo {
+  user: UserListItem;
+  subordinateUsers: UserListItem[];
+  promotableUsers: Array<{
+    user: UserListItem;
+    newRole: string;
+    canPromote: boolean;
+  }>;
+  hierarchyChain: Array<{
+    id: number;
+    username: string;
+    name: string;
+    role: string;
+  }>;
+}
+
+export function getUserHierarchy(userId: number) {
+  return axios.get<UserHierarchyInfo>(`/api/user/hierarchy/${userId}`);
+}
+
+// 执行用户等级晋升
+export interface PromoteUsersData {
+  userId: number; // 被晋升的用户ID
+  targetRole?: string; // 目标角色（可选，如果不提供则自动晋升一级）
+  promoteSubordinates?: boolean; // 是否同时晋升所有下级用户
+}
+
+export interface PromoteUsersRes {
+  promotedUsers: Array<{
+    id: number;
+    username: string;
+    oldRole: string;
+    newRole: string;
+  }>;
+  totalPromoted: number;
+}
+
+export function promoteUsers(data: PromoteUsersData) {
+  return axios.post<PromoteUsersRes>('/api/user/promote', data);
+}
+
+// 获取所有下级用户ID（用于批量操作）
+export function getAllSubordinateIds(userId: number) {
+  return axios.get<number[]>(`/api/user/subordinates/${userId}`);
+}

@@ -31,14 +31,34 @@ const conversionCallbackService = require('./services/conversion-callback-servic
 const roleMapping = {
   'admin': 'admin',
   'super_viewer': 'internal_boss',
-  'viewer': 'internal_user',
-  'user': 'internal_user',
+  'viewer': 'internal_user_1',
+  'user': 'internal_user_1',
+  'internal_user': 'internal_user_1',
+  'external_user': 'external_user_1',
   'moderator': 'internal_service', // 审核员映射到内部客服
 };
 
 // 获取映射后的角色
 function getMappedRole(role) {
   return roleMapping[role] || role;
+}
+
+// 获取角色文本显示
+function getRoleText(role) {
+  const roleTexts = {
+    'admin': '管理员',
+    'internal_boss': '内部老板',
+    'external_boss': '外部老板',
+    'internal_service': '内部客服',
+    'external_service': '外部客服',
+    'internal_user_1': '内部1级用户',
+    'internal_user_2': '内部2级用户',
+    'internal_user_3': '内部3级用户',
+    'external_user_1': '外部1级用户',
+    'external_user_2': '外部2级用户',
+    'external_user_3': '外部3级用户'
+  };
+  return roleTexts[role] || role;
 }
 
 // 定义模型关联关系
@@ -75,6 +95,13 @@ UserGame.belongsTo(User, {
 User.belongsTo(User, {
   foreignKey: 'created_by',
   as: 'userCreator',
+  targetKey: 'id'
+});
+
+// 用户自关联：上级用户
+User.belongsTo(User, {
+  foreignKey: 'parent_id',
+  as: 'parentUser',
   targetKey: 'id'
 });
 
@@ -415,7 +442,7 @@ app.post('/api/user/info', authenticateJWT, handleUserInfo);
 app.post('/api/user/create', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { username, password, name, role } = req.body;
+    const { username, password, name, role, parent_id } = req.body;
 
     if (!username || !password || !name) {
       return errorResponse(res, 400, '用户名、密码和显示名称不能为空', null, 400);
@@ -427,22 +454,79 @@ app.post('/api/user/create', authenticateJWT, async (req, res) => {
       return errorResponse(res, 400, '用户名已存在', null, 400);
     }
 
-    // 创建新用户，记录创建者
+    // 验证上级用户选择
+    let validatedParentId = null;
+    if (parent_id) {
+      const parentUser = await User.findByPk(parent_id);
+      if (!parentUser) {
+        return errorResponse(res, 400, '指定的上级用户不存在', null, 400);
+      }
+
+      // 验证上级用户权限和级别关系
+      const currentUserRole = currentUser.role;
+      const targetRole = role;
+      const parentRole = parentUser.role;
+
+      // 根据角色级别验证上级关系
+      if (targetRole === 'internal_user_1' || targetRole === 'external_user_1') {
+        // 1级用户上级必须是客服
+        if (!['internal_service', 'external_service'].includes(parentRole)) {
+          return errorResponse(res, 400, '1级用户的上级必须是客服', null, 400);
+        }
+      } else if (targetRole === 'internal_user_2' || targetRole === 'external_user_2') {
+        // 2级用户上级必须是1级用户
+        const expectedParentRole = targetRole === 'internal_user_2' ? 'internal_user_1' : 'external_user_1';
+        if (parentRole !== expectedParentRole) {
+          return errorResponse(res, 400, '2级用户的上级必须是1级用户', null, 400);
+        }
+      } else if (targetRole === 'internal_user_3' || targetRole === 'external_user_3') {
+        // 3级用户上级必须是2级用户
+        const expectedParentRole = targetRole === 'internal_user_3' ? 'internal_user_2' : 'external_user_2';
+        if (parentRole !== expectedParentRole) {
+          return errorResponse(res, 400, '3级用户的上级必须是2级用户', null, 400);
+        }
+      }
+
+      validatedParentId = parent_id;
+    } else {
+      // 如果没有指定上级，根据角色自动设置
+      if (role === 'internal_user_1' || role === 'external_user_1') {
+        // 1级用户默认上级是当前用户（如果是客服）
+        if (['internal_service', 'external_service'].includes(currentUser.role)) {
+          validatedParentId = currentUser.userId;
+        } else {
+          return errorResponse(res, 400, '创建1级用户需要指定客服作为上级', null, 400);
+        }
+      } else if (role === 'internal_user_2' || role === 'external_user_2') {
+        return errorResponse(res, 400, '创建2级用户必须指定1级用户作为上级', null, 400);
+      } else if (role === 'internal_user_3' || role === 'external_user_3') {
+        return errorResponse(res, 400, '创建3级用户必须指定2级用户作为上级', null, 400);
+      }
+    }
+
+    // 创建新用户，记录创建者和上级
     const newUser = await User.createUser({
       username,
       password,
       name,
-      role: role || 'user',
-      created_by: currentUser.userId
+      role: role || 'external_user_1',
+      created_by: currentUser.userId,
+      parent_id: validatedParentId
     });
 
-    logger.info('新用户创建成功:', { username, createdBy: currentUser.username });
+    logger.info('新用户创建成功:', {
+      username,
+      role,
+      parentId: validatedParentId,
+      createdBy: currentUser.username
+    });
 
     return successResponse(res, {
       id: newUser.id,
       username: newUser.username,
       name: newUser.name,
       role: newUser.role,
+      parent_id: newUser.parent_id,
       created_at: newUser.created_at
     }, '用户创建成功');
 
@@ -638,14 +722,19 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       });
     }
 
-    // 获取用户列表，包含创建者信息
+    // 获取用户列表，包含创建者和上级信息
     const users = await User.findAll({
       where: whereCondition,
-      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at', 'password_plain', 'created_by'],
+      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'last_login_at', 'created_at', 'password_plain', 'created_by', 'parent_id'],
       include: [{
         model: User,
         as: 'userCreator',
         attributes: ['username', 'name'],
+        required: false
+      }, {
+        model: User,
+        as: 'parentUser',
+        attributes: ['username', 'name', 'role'],
         required: false
       }],
       order: [['created_at', 'DESC']]
@@ -664,7 +753,9 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       last_login_at: user.last_login_at,
       created_at: user.created_at,
       created_by: user.created_by,
+      parent_id: user.parent_id,
       creator_name: user.userCreator ? (user.userCreator.name || user.userCreator.username) : '系统',
+      parent_name: user.parentUser ? `${user.parentUser.name || user.parentUser.username} (${getRoleText(user.parentUser.role)})` : '无',
       password: user.password_plain || '******' // 显示明文密码或默认值
     }));
 
@@ -1355,6 +1446,95 @@ app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
 
   } catch (error) {
     console.error('获取用户基本信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取可作为上级用户的列表
+app.get('/api/user/parent-options', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { target_role } = req.query;
+
+    if (!target_role) {
+      return res.status(400).json({
+        code: 400,
+        message: '请提供目标用户角色参数 target_role'
+      });
+    }
+
+    // 检查权限：只有管理员、老板和客服可以查看上级用户选项
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足'
+      });
+    }
+
+    let parentRoleFilter = [];
+    let whereCondition = { is_active: true };
+
+    // 根据目标角色确定上级角色要求
+    if (target_role === 'internal_user_1' || target_role === 'external_user_1') {
+      // 1级用户上级必须是客服
+      parentRoleFilter = target_role.startsWith('internal_') ? ['internal_service'] : ['external_service'];
+    } else if (target_role === 'internal_user_2' || target_role === 'external_user_2') {
+      // 2级用户上级必须是1级用户
+      parentRoleFilter = target_role.startsWith('internal_') ? ['internal_user_1'] : ['external_user_1'];
+    } else if (target_role === 'internal_user_3' || target_role === 'external_user_3') {
+      // 3级用户上级必须是2级用户
+      parentRoleFilter = target_role.startsWith('internal_') ? ['internal_user_2'] : ['external_user_2'];
+    } else {
+      return res.status(400).json({
+        code: 400,
+        message: '不支持的角色类型'
+      });
+    }
+
+    // 限制上级用户的选择范围（当前用户能管理的用户）
+    if (mappedRole === 'internal_service') {
+      // 内部客服只能选择自己作为上级
+      whereCondition.id = currentUser.userId;
+    } else if (mappedRole === 'external_service') {
+      // 外部客服只能选择自己作为上级
+      whereCondition.id = currentUser.userId;
+    } else {
+      // 管理员、老板可以选择符合条件的任何用户
+      whereCondition.role = parentRoleFilter;
+    }
+
+    const parentUsers = await User.findAll({
+      where: whereCondition,
+      attributes: ['id', 'username', 'name', 'role'],
+      order: [['username', 'ASC']]
+    });
+
+    // 格式化返回数据
+    const formattedParents = parentUsers.map(user => ({
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
+      display_name: `${user.name || user.username} (${getRoleText(user.role)})`
+    }));
+
+    res.json({
+      code: 20000,
+      data: {
+        parents: formattedParents,
+        total: formattedParents.length,
+        target_role: target_role
+      },
+      message: '获取上级用户选项成功'
+    });
+
+  } catch (error) {
+    console.error('获取上级用户选项错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'
@@ -2447,6 +2627,204 @@ app.post('/api/douyin/ad-report', async (req, res) => {
       error: '获取广告报告失败',
       message: error.message || '网络请求失败',
       code: error.response?.status || 'API_ERROR'
+    });
+  }
+});
+
+// 抖音小程序游戏二维码创建API
+app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
+  console.log('🚀 ===== 开始抖音小程序游戏二维码创建流程 =====');
+
+  try {
+    const {
+      access_token, // 可选：如果前端已经获取了token，可以直接传递
+      path = '',
+      width = 430,
+      auto_color = false,
+      line_color = {"r": 0, "g": 0, "b": 0},
+      is_hyaline = false
+    } = req.body;
+
+    console.log('📋 请求参数:', {
+      access_token: access_token ? '***' : '',
+      path,
+      width,
+      auto_color,
+      line_color,
+      is_hyaline,
+      hasAccessToken: !!access_token
+    });
+
+    let accessToken = access_token;
+
+    // 如果前端没有传递access_token，则获取新的token
+    if (!accessToken) {
+      console.log('📍 步骤1: 获取小游戏access_token');
+
+      const { app_id, app_secret } = req.body;
+
+      if (!app_id || !app_secret) {
+        return res.status(400).json({
+          error: '缺少参数',
+          message: '请提供 app_id 和 app_secret 参数，或直接提供 access_token 参数'
+        });
+      }
+
+      // 获取小游戏access_token
+      const tokenRequestData = {
+        appid: app_id,
+        secret: app_secret,
+        grant_type: 'client_credential'
+      };
+
+      console.log('📤 获取token请求参数:', JSON.stringify(tokenRequestData, null, 2));
+
+      const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
+
+      if (tokenResponse.data.err_no !== 0) {
+        console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
+        return res.status(500).json({
+          error: '小游戏Token获取失败',
+          message: tokenResponse.data.err_tips,
+          details: tokenResponse.data
+        });
+      }
+
+      accessToken = tokenResponse.data.data.access_token;
+      console.log('✅ 小游戏Token获取成功');
+    } else {
+      console.log('✅ 使用前端传递的access_token');
+    }
+
+    // 步骤2: 调用抖音小程序游戏二维码创建API
+    console.log('📍 步骤2: 创建小程序游戏二维码');
+    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/qrcode');
+
+    // 构建二维码参数，确保没有循环引用
+    const qrParams = {
+      access_token: accessToken,
+      appname: req.body.appname || 'douyin', // 使用前端传递的appname参数
+      path: path || "",
+      width: Math.max(280, Math.min(1280, width || 430)) // 限制在280-1280px范围内
+    };
+
+    console.log('📤 二维码创建请求参数:', JSON.stringify(qrParams, null, 2));
+
+    // 使用 responseType: 'arraybuffer' 来处理可能的二进制响应
+    const qrResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/qrcode', qrParams, {
+      timeout: 15000,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      responseType: 'arraybuffer' // 重要：设置为 arraybuffer 以处理二进制数据
+    });
+
+    console.log('📥 二维码创建响应状态:', qrResponse.status);
+    console.log('📥 二维码创建响应头:', qrResponse.headers);
+
+    // 检查响应内容类型
+    const contentType = qrResponse.headers['content-type'] || qrResponse.headers['Content-Type'];
+    console.log('📋 响应Content-Type:', contentType);
+
+    // 如果是PNG图像，直接返回二进制数据
+    if (contentType && contentType.includes('image/png')) {
+      console.log('🖼️ 检测到PNG图像响应，直接返回二进制数据');
+
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `inline; filename="douyin-qr-${req.body.app_id || 'unknown'}-${Date.now()}.png"`);
+      res.setHeader('Cache-Control', 'no-cache');
+
+      return res.send(qrResponse.data);
+    }
+
+    // 如果是JSON响应，尝试解析
+    let responseData;
+    try {
+      // 将 arraybuffer 转换为字符串
+      const responseText = Buffer.from(qrResponse.data).toString('utf8');
+      responseData = JSON.parse(responseText);
+      console.log('📥 二维码创建JSON响应:', responseData);
+    } catch (parseError) {
+      console.error('❌ 解析响应数据失败:', parseError.message);
+      return res.status(500).json({
+        error: '二维码创建失败',
+        message: 'API返回数据格式错误',
+        details: '无法解析响应数据'
+      });
+    }
+
+    // 检查JSON响应中的错误
+    if (responseData.err_no !== 0) {
+      console.error('❌ 二维码创建失败:', responseData.err_tips);
+      return res.status(500).json({
+        error: '二维码创建失败',
+        message: responseData.err_tips || responseData.err_msg || '未知错误',
+        details: responseData
+      });
+    }
+
+    console.log('✅ 二维码创建成功');
+    console.log('🎉 ===== 抖音小程序游戏二维码创建流程完成 =====');
+
+    // 构建响应数据
+    const apiResponse = {
+      code: 0,
+      message: 'success',
+      data: {
+        qr_code_url: responseData.data.qr_code_url,
+        app_id: req.body.app_id || 'test_app_id',
+        path: path,
+        width: width,
+        created_at: new Date().toISOString()
+      },
+      token_info: {
+        access_token: accessToken,
+        source: access_token ? 'frontend_provided' : 'server_generated'
+      },
+      request_log: {
+        qr_create_request: {
+          url: 'https://minigame.zijieapi.com/mgplatform/api/apps/qrcode',
+          params: qrParams,
+          response: responseData
+        }
+      }
+    };
+
+    // 如果是服务器生成的token，添加token请求信息
+    if (!access_token && tokenResponse) {
+      apiResponse.token_info.expires_in = tokenResponse.data.data.expires_in;
+      apiResponse.request_log.token_request = {
+        url: 'https://minigame.zijieapi.com/mgplatform/api/apps/v2/token',
+        params: tokenRequestData,
+        response: tokenResponse.data
+      };
+    }
+
+    res.json(apiResponse);
+
+  } catch (error) {
+    console.error('❌ 抖音小程序游戏二维码创建流程失败:', error.message);
+    console.error('❌ 错误详情:', error);
+
+    if (error.response) {
+      console.error('📄 API响应错误:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+
+    res.status(500).json({
+      error: '创建二维码失败',
+      message: error.message || '网络请求失败',
+      code: error.response?.status || 'API_ERROR',
+      stack: error.stack
     });
   }
 });

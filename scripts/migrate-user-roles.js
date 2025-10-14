@@ -17,10 +17,12 @@ const User = defineUserModel(sequelize);
 
 // 角色映射
 const roleMapping = {
-  'user': 'external_user',
+  'user': 'internal_user_1',
   'moderator': 'internal_service',
-  'viewer': 'internal_user',
-  'super_viewer': 'internal_boss'
+  'viewer': 'internal_user_1',
+  'super_viewer': 'internal_boss',
+  'internal_user': 'internal_user_1',
+  'external_user': 'external_user_1'
 };
 
 async function migrateUserRoles() {

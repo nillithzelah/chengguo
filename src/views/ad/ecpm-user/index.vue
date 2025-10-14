@@ -96,11 +96,11 @@
            <div class="stat-label">总记录数</div>
          </div>
          <div class="stat-card">
-           <div class="stat-value">¥{{ stats.totalRevenue }}</div>
+           <div class="stat-value">{{ stats.totalRevenue }}</div>
            <div class="stat-label">总收益</div>
          </div>
          <div class="stat-card">
-           <div class="stat-value">¥{{ savedTrafficMasterAmount === '[object Object]' || (typeof savedTrafficMasterAmount === 'string' && savedTrafficMasterAmount === '[object Object]') ? '0.00' : savedTrafficMasterAmount }}</div>
+           <div class="stat-value">{{ savedTrafficMasterAmount === '[object Object]' || (typeof savedTrafficMasterAmount === 'string' && savedTrafficMasterAmount === '[object Object]') ? '0.00' : savedTrafficMasterAmount }}</div>
            <div class="stat-label">流量主</div>
            <!-- 只有管理员和审核员可以修改流量主金额 -->
            <div v-if="userStore.userInfo?.role === 'admin'" class="traffic-master-input-group">
@@ -120,7 +120,7 @@
            </div>
          </div>
          <div class="stat-card">
-           <div class="stat-value">¥{{ stats.totalEcpm }}</div>
+           <div class="stat-value">{{ stats.totalEcpm }}</div>
            <div class="stat-label">总eCPM</div>
          </div>
          <div class="stat-card">
@@ -178,7 +178,7 @@
              <div class="qr-details">
                <p><strong>广告ID:</strong> {{ currentQrItem.aid }}</p>
                <p><strong>用户名:</strong> {{ currentQrItem.username }}</p>
-               <p><strong>收益:</strong> ¥{{ currentQrItem.revenue }}</p>
+               <p><strong>收益:</strong> {{ currentQrItem.revenue }}</p>
                <div v-if="currentQrItem.materialInfo">
                  <p v-if="currentQrItem.materialInfo.title"><strong>标题:</strong> {{ currentQrItem.materialInfo.title }}</p>
                  <p v-if="currentQrItem.materialInfo.description"><strong>描述:</strong> {{ currentQrItem.materialInfo.description }}</p>
@@ -386,12 +386,12 @@
      // 抖音测试广告ID通常较小
      if (aidNum >= 1000 && aidNum <= 9999) {
        // 1000-9999 范围的广告ID可能是抖音测试广告
-       return '抖音(测试)';
+       return '抖音';
      }
 
      // 头条测试广告ID通常是小数字
      if (aidNum >= 1 && aidNum <= 99) {
-       return '头条(测试)';
+       return '头条';
      }
 
      // 其他长数字ID可能是广告联盟或第三方平台

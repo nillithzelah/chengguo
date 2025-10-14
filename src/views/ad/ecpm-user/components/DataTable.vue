@@ -16,9 +16,8 @@
             <th>来源</th>
             <th>用户名</th>
             <th>用户ID</th>
-            <th>广告ID</th>
             <th>绑定操作</th>
-            <th>收益(元)</th>
+            <th>收益</th>
           </tr>
         </thead>
         <tbody>
@@ -47,7 +46,6 @@
               {{ item.username }}
             </td>
             <td class="user-id-cell">{{ item.open_id }}</td>
-            <td class="aid-cell">{{ item.aid }}</td>
             <td>
               <div class="bind-action-cell">
                 <button
@@ -172,9 +170,8 @@ const columns = [
   { key: 'source', label: '来源' },
   { key: 'username', label: '用户名' },
   { key: 'open_id', label: '用户ID' },
-  { key: 'aid', label: '广告ID' },
   { key: 'actions', label: '绑定操作' },
-  { key: 'revenue', label: '收益(元)' },
+  { key: 'revenue', label: '收益' },
 ];
 
 // 格式化日期时间
@@ -303,13 +300,6 @@ const visiblePages = computed(() => {
   transition: background-color 0.2s ease;
 }
 
-.data-table tr:hover {
-  background: linear-gradient(135deg, #f7f8fa 0%, #f0f2ff 100%);
-}
-
-.data-table tr:hover td {
-  color: #1d2129;
-}
 
 .loading-cell,
 .empty-cell {
@@ -354,22 +344,23 @@ const visiblePages = computed(() => {
 }
 
 .data-row {
-  transition: all 0.2s ease;
-}
-
-.data-row:hover {
-  transform: translateX(2px);
+  /* 移除了鼠标悬停效果 */
 }
 
 /* 单元格样式 */
 .username-cell,
 .app-name-cell,
-.user-id-cell,
-.aid-cell {
-  max-width: 150px;
+.user-id-cell {
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.user-id-cell {
+  max-width: 250px;
+  font-weight: 600;
+  color: #1d2129;
 }
 
 .revenue-cell {

@@ -300,6 +300,33 @@ export const proxyConfig = {
     },
   },
 
+  // 抖音小程序游戏二维码创建API代理
+  '/api/douyin/mini-game': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('抖音小程序游戏二维码API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '抖音小程序游戏二维码服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理抖音小程序游戏二维码API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理抖音小程序游戏二维码API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
   // 通用API代理（用于解决前端跨域问题）
   '/api/douyin/proxy': {
     target: 'http://localhost:3000',

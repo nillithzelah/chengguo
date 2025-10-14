@@ -42,6 +42,20 @@ UserGame.belongsTo(User, {
   as: 'assignedByUser'
 });
 
+// 用户自关联：创建者
+User.belongsTo(User, {
+  foreignKey: 'created_by',
+  as: 'creator',
+  targetKey: 'id'
+});
+
+// 用户自关联：上级用户
+User.belongsTo(User, {
+  foreignKey: 'parent_id',
+  as: 'parentUser',
+  targetKey: 'id'
+});
+
 // 注意：eCPM数据表已移除，采用实时查询策略
 // 这样可以减少存储成本，提高数据实时性
 
@@ -100,8 +114,32 @@ async function initializeDatabase() {
         password: 'user123',
         name: '内用户',
         email: 'internal_user@chengguo.com',
-        role: 'internal_user',
+        role: 'internal_user_1',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_user'
+      },
+      {
+        username: 'internal_user_1',
+        password: 'user123',
+        name: '内用户1级',
+        email: 'internal_user_1@chengguo.com',
+        role: 'internal_user_1',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_user_1'
+      },
+      {
+        username: 'internal_user_2',
+        password: 'user2123',
+        name: '内用户2级',
+        email: 'internal_user_2@chengguo.com',
+        role: 'internal_user_2',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_user_2'
+      },
+      {
+        username: 'internal_user_3',
+        password: 'user3123',
+        name: '内用户3级',
+        email: 'internal_user_3@chengguo.com',
+        role: 'internal_user_3',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_user_3'
       },
       {
         username: 'internal_service',
@@ -120,12 +158,28 @@ async function initializeDatabase() {
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=internal_boss'
       },
       {
-        username: 'external_user',
+        username: 'external_user_1',
         password: 'euser123',
-        name: '外用户',
-        email: 'external_user@chengguo.com',
-        role: 'external_user',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_user'
+        name: '外用户1级',
+        email: 'external_user_1@chengguo.com',
+        role: 'external_user_1',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_user_1'
+      },
+      {
+        username: 'external_user_2',
+        password: 'euser2123',
+        name: '外用户2级',
+        email: 'external_user_2@chengguo.com',
+        role: 'external_user_2',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_user_2'
+      },
+      {
+        username: 'external_user_3',
+        password: 'euser3123',
+        name: '外用户3级',
+        email: 'external_user_3@chengguo.com',
+        role: 'external_user_3',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=external_user_3'
       },
       {
         username: 'external_service',
@@ -241,7 +295,7 @@ async function initializeDatabase() {
     // 8. 显示所有用户和游戏信息
     console.log('📊 当前用户列表:');
     const usersWithGames = await User.findAll({
-      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'created_by', 'created_at'],
+      attributes: ['id', 'username', 'name', 'email', 'role', 'is_active', 'created_by', 'created_at', 'parent_id'],
       include: [{
         model: Game,
         as: 'games',
@@ -252,6 +306,11 @@ async function initializeDatabase() {
         model: User,
         as: 'creator',
         attributes: ['username', 'name'],
+        required: false
+      }, {
+        model: User,
+        as: 'parentUser',
+        attributes: ['username', 'name', 'role'],
         required: false
       }],
       order: [['created_at', 'ASC']]
@@ -295,9 +354,14 @@ async function initializeDatabase() {
     console.log('📝 使用说明:');
     console.log('   - 管理员账号: admin / admin123');
     console.log('   - 内用户账号: internal_user / user123');
+    console.log('   - 内用户1级账号: internal_user_1 / user123');
+    console.log('   - 内用户2级账号: internal_user_2 / user2123');
+    console.log('   - 内用户3级账号: internal_user_3 / user3123');
     console.log('   - 内部客服账号: internal_service / service123');
     console.log('   - 内部老板账号: internal_boss / boss123');
-    console.log('   - 外用户账号: external_user / euser123');
+    console.log('   - 外用户1级账号: external_user_1 / euser123');
+    console.log('   - 外用户2级账号: external_user_2 / euser2123');
+    console.log('   - 外用户3级账号: external_user_3 / euser3123');
     console.log('   - 外部客服账号: external_service / eservice123');
     console.log('   - 外部老板账号: external_boss / eboss123');
     console.log('');
