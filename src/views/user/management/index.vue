@@ -925,7 +925,7 @@ const getRoleColor = (role: string) => {
     internal_boss: 'purple',
     internal_service: 'orange',
     internal_user_1: 'blue',
-    internal_user_2: 'geekblue',
+    internal_user_2: 'magenta',
     internal_user_3: 'arcoblue',
     external_boss: 'green',
     external_service: 'cyan',

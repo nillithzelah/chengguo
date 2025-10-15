@@ -565,8 +565,46 @@
        const savedApps = localStorage.getItem(userKey);
        if (savedApps) {
          const userApps = JSON.parse(savedApps);
-         allApps.push(...userApps);
-         console.log(`✅ 从localStorage加载了 ${userApps.length} 个应用`);
+
+         // 根据当前用户权限过滤localStorage中的应用
+         const currentUserRole = userStore.userInfo?.role;
+         const currentUserId = Number(userStore.userInfo?.accountId);
+
+         if (currentUserRole === 'admin') {
+           // 管理员可以看到所有应用
+           allApps.push(...userApps);
+           console.log(`✅ 管理员从localStorage加载了 ${userApps.length} 个应用`);
+         } else {
+           // 非管理员只能看到自己拥有的应用
+           try {
+             const userGamesResponse = await fetch(`/api/game/user-games/${currentUserId}`, {
+               method: 'GET',
+               headers: {
+                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                 'Content-Type': 'application/json'
+               }
+             });
+
+             if (userGamesResponse.ok) {
+               const userGamesResult = await userGamesResponse.json();
+               if (userGamesResult.code === 20000) {
+                 const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+                 const userGameAppIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
+
+                 // 只保留用户有权限的应用
+                 const filteredApps = userApps.filter(app => userGameAppIds.includes(app.appid));
+                 allApps.push(...filteredApps);
+                 console.log(`✅ 用户从localStorage加载了 ${filteredApps.length} 个有权限的应用`);
+               } else {
+                 console.log('❌ 获取用户游戏失败，使用空列表');
+               }
+             } else {
+               console.log('❌ 获取用户游戏请求失败，使用空列表');
+             }
+           } catch (error) {
+             console.error('❌ 获取用户游戏时出错:', error);
+           }
+         }
        } else {
          console.log('⚠️ localStorage中也没有找到用户应用');
        }
@@ -1687,7 +1725,7 @@
 
  <style scoped>
  .ecpm-page {
-   max-width: 1200px;
+   max-width: 1400px;
    margin: 0 auto;
    padding: 20px;
    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);

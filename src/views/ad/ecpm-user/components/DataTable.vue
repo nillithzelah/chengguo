@@ -39,7 +39,7 @@
             </td>
           </tr>
           <tr v-else v-for="item in data" :key="item.id" class="data-row">
-            <td>{{ formatDateTime(item.event_time) }}</td>
+            <td class="event-time-cell">{{ formatDateTime(item.event_time) }}</td>
             <td class="app-name-cell">{{ getCurrentAppName() }}</td>
             <td>{{ item.source || '未知' }}</td>
             <td class="username-cell" :title="item.username">
@@ -348,7 +348,20 @@ const visiblePages = computed(() => {
 }
 
 /* 单元格样式 */
-.username-cell,
+.event-time-cell {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.username-cell {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-name-cell,
 .user-id-cell {
   max-width: 200px;
