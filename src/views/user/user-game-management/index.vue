@@ -1573,7 +1573,9 @@ const checkPermissionsAndLoadData = () => {
 
   &:hover {
     background: rgba(102, 126, 234, 0.2);
-    transform: rotate(90deg);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    transform-origin: center;
   }
 }
 
