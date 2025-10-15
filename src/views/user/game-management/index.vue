@@ -138,7 +138,7 @@
           <button @click="closeCreateGameModal" class="modal-close">&times;</button>
         </div>
 
-        <div class="modal-body">
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
           <div class="form-item">
             <label>游戏名称</label>
             <input
@@ -167,9 +167,6 @@
               placeholder="输入32位App Secret，如：969c80995b1fc13fdbe952d73fb9f8c086706b6b"
               class="form-input"
             />
-            <div class="form-hint">
-              <small>💡 App Secret是32位字符串，从抖音开放平台获取</small>
-            </div>
           </div>
 
           <div class="form-item">
@@ -190,9 +187,6 @@
               placeholder="输入广告主ID（可选，用于广告预览）"
               class="form-input"
             />
-            <div class="form-hint">
-              <small>💡 广告主ID用于生成广告预览二维码，从抖音广告平台获取</small>
-            </div>
           </div>
 
           <div class="form-item">
@@ -203,9 +197,6 @@
               placeholder="输入广告ID（可选，用于广告预览）"
               class="form-input"
             />
-            <div class="form-hint">
-              <small>💡 广告ID用于生成广告预览二维码，从抖音广告平台获取</small>
-            </div>
           </div>
 
           <!-- 测试连接区域 -->
@@ -243,7 +234,7 @@
           </div>
         </div>
 
-        <div class="modal-footer">
+        <div class="modal-footer" style="flex-shrink: 0;">
           <button @click="closeCreateGameModal" class="btn btn-secondary" :disabled="creating">取消</button>
           <button
             @click="createGame"
@@ -2022,10 +2013,11 @@ watch(
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   max-width: 600px;
   width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
+  height: 90vh;
   border: 1px solid rgba(102, 126, 234, 0.1);
   animation: slideInScale 0.4s ease-out;
+  display: flex;
+  flex-direction: column;
 }
 
 .edit-game-modal {

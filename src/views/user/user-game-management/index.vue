@@ -11,6 +11,7 @@
         </div>
         <div class="header-actions">
           <!-- 隐藏新增游戏应用按钮，只有管理员可见 -->
+          <!--
           <button
             v-if="userStore.userInfo?.role === 'admin'"
             @click="openAddGameModal"
@@ -19,6 +20,7 @@
           >
             新增游戏应用
           </button>
+          -->
         </div>
       </div>
     </div>
