@@ -578,11 +578,6 @@ const loadUserList = async () => {
 
           return Array.from(managedIds);
         }
-
-        console.log('✅ [API] 用户列表加载成功:', userList.value.length, '个用户');
-        console.log('✅ [API] 用户列表详情:', userList.value.map(u => ({ id: u.id, username: u.username, role: u.role })));
-
-        console.log('✅ [API] 响应式数据已更新，userList长度:', userList.value.length);
       } else {
         console.log('❌ [API] 用户列表API返回错误:', result.message);
         Message.error('加载用户列表失败');
@@ -611,16 +606,11 @@ const loadUserGames = async (userId: number) => {
   console.log('🎮 开始加载用户游戏列表，用户ID:', userId);
   try {
     const response = await getUserGames(userId);
-    console.log('🎮 API响应:', response);
-    console.log('🎮 用户数据:', response.data.user);
-    console.log('🎮 游戏数据:', response.data.games);
+
 
     selectedUser.value = response.data.user;
     gameList.value = response.data.games;
 
-    console.log('🎮 数据已更新到响应式变量');
-    console.log('🎮 selectedUser:', selectedUser.value);
-    console.log('🎮 gameList:', gameList.value);
   } catch (error) {
     console.error('❌ 加载用户游戏列表失败:', error);
     Message.error('加载用户游戏列表失败');

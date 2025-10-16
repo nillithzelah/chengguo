@@ -479,7 +479,7 @@ const loadAppList = async () => {
       });
     }
 
-    console.log('📋 最终加载的应用列表:', allApps);
+    // console.log('📋 最终加载的应用列表:', allApps);
     appList.value = allApps;
   } catch (err) {
     console.error('❌ 加载应用列表失败:', err);

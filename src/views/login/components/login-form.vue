@@ -99,16 +99,11 @@
     if (!errors) {
       setLoading(true);
       try {
-        console.log('开始登录...', values);
 
         // 准备登录数据
         const loginData = {
           ...(values as LoginData)
         };
-
-        console.log('登录数据:', {
-          username: loginData.username
-        });
 
         await userStore.login(loginData);
         console.log('登录成功，准备跳转...');
@@ -135,7 +130,6 @@
         // 保存用户token用于区分不同用户
         // 等待登录完成，然后从localStorage获取token
         const token = window.localStorage.getItem('token');
-        console.log('获取到的token:', token);
         if (token) {
           window.localStorage.setItem('userToken', token);
         }

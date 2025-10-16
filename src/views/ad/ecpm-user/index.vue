@@ -9,21 +9,6 @@
         </div>
       </div>
 
-     <!-- 调试信息面板 -->
-     <div class="debug-section" v-if="debugInfo.length > 0">
-       <div class="debug-header">
-         <h3>🔍 城市获取调试信息</h3>
-         <div class="debug-actions">
-           <button @click="clearDeviceCache" class="btn btn-warning btn-small">清除缓存</button>
-           <button @click="clearDebugInfo" class="btn btn-small">清除调试</button>
-         </div>
-       </div>
-       <div class="debug-content">
-         <div v-for="(info, index) in debugInfo" :key="index" class="debug-item">
-           <pre>{{ info }}</pre>
-         </div>
-       </div>
-     </div>
 
      <!-- 查询表单 -->
      <div class="query-section">
@@ -567,7 +552,6 @@
 
      // 从数据库获取游戏列表（API已经根据用户权限过滤）
      try {
-       console.log('📡 从数据库获取游戏列表...');
 
        // 获取游戏列表
        const gameResponse = await fetch('/api/game/list', {
@@ -581,7 +565,6 @@
        if (gameResponse.ok) {
          const gameResult = await gameResponse.json();
          if (gameResult.code === 20000 && gameResult.data?.games) {
-           console.log('✅ 从数据库获取游戏成功:', gameResult.data.games.length, '个游戏');
 
            // API已经根据用户权限过滤，直接使用返回的游戏列表
            // 但是为了确保老板只能看到自己被分配的游戏，需要额外过滤
@@ -603,17 +586,13 @@
                  if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
                    const assignedGameIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
                    filteredGames = gameResult.data.games.filter(game => assignedGameIds.includes(game.appid));
-                   console.log(`👑 老板用户被分配的游戏: ${filteredGames.length} 个`);
                  } else {
-                   console.log('❌ 获取老板用户游戏分配失败，使用空列表');
                    filteredGames = [];
                  }
                } else {
-                 console.log('❌ 获取老板用户游戏分配请求失败，使用空列表');
                  filteredGames = [];
                }
              } catch (error) {
-               console.error('❌ 获取老板用户游戏分配时出错:', error);
                filteredGames = [];
              }
            }
@@ -623,7 +602,6 @@
              try {
                // 获取当前用户可以管理的用户ID列表（包括自己创建的用户和下级用户）
                const managedUserIds = await getManagedUserIds(currentUser.accountId);
-               console.log(`👨‍💼 客服用户可以管理的用户ID: ${managedUserIds.join(', ')}`);
 
                // 获取这些用户创建的游戏
                const managedGames = [];
@@ -644,7 +622,6 @@
                      }
                    }
                  } catch (userGameError) {
-                   console.error(`❌ 获取用户 ${userId} 的游戏时出错:`, userGameError);
                  }
                }
 
@@ -657,7 +634,6 @@
                  uniqueManagedGames.some(managedGame => managedGame.appid === game.appid)
                );
 
-               console.log(`👨‍💼 客服用户管理的游戏: ${filteredGames.length} 个`);
              } catch (error) {
                console.error('❌ 获取客服用户管理的游戏时出错:', error);
                filteredGames = [];
@@ -682,17 +658,13 @@
                  if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
                    const assignedGameIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
                    filteredGames = gameResult.data.games.filter(game => assignedGameIds.includes(game.appid));
-                   console.log(`👤 普通用户被分配的游戏: ${filteredGames.length} 个`);
                  } else {
-                   console.log('❌ 获取普通用户游戏分配失败，使用空列表');
                    filteredGames = [];
                  }
                } else {
-                 console.log('❌ 获取普通用户游戏分配请求失败，使用空列表');
                  filteredGames = [];
                }
              } catch (error) {
-               console.error('❌ 获取普通用户游戏分配时出错:', error);
                filteredGames = [];
              }
            }
@@ -712,7 +684,6 @@
            }
          }
        } else {
-         console.log('⚠️ 从数据库获取游戏失败，使用localStorage备用方案');
        }
      } catch (dbError) {
        console.error('❌ 从数据库获取游戏出错:', dbError);
@@ -737,7 +708,6 @@
          if (currentUserRole === 'admin') {
            // 管理员可以看到所有应用
            allApps.push(...userApps);
-           console.log(`✅ 管理员从localStorage加载了 ${userApps.length} 个应用`);
          } else {
            // 非管理员只能看到自己拥有的应用
            try {
@@ -758,15 +728,11 @@
                  // 只保留用户有权限的应用
                  const filteredApps = userApps.filter(app => userGameAppIds.includes(app.appid));
                  allApps.push(...filteredApps);
-                 console.log(`✅ 用户从localStorage加载了 ${filteredApps.length} 个有权限的应用`);
                } else {
-                 console.log('❌ 获取用户游戏失败，使用空列表');
                }
              } else {
-               console.log('❌ 获取用户游戏请求失败，使用空列表');
              }
            } catch (error) {
-             console.error('❌ 获取用户游戏时出错:', error);
            }
          }
        } else {
@@ -776,10 +742,8 @@
 
      // 如果仍然没有应用，显示提示但不添加默认应用
      if (allApps.length === 0) {
-       console.log('📝 用户暂无应用，请通过用户管理页面添加应用');
      }
 
-     console.log('📋 最终加载的应用列表:', allApps);
      appList.value = allApps;
    } catch (err) {
      console.error('❌ 加载应用列表失败:', err);
@@ -795,7 +759,6 @@
  // 监听用户状态变化，重新加载应用列表
  watch(() => userStore.userInfo, async (newUser, oldUser) => {
    if (newUser && (!oldUser || newUser.name !== oldUser.name || newUser.role !== oldUser.role)) {
-     console.log('👤 用户状态变化，重新加载应用列表');
      await loadAppList();
 
      // 重新设置默认应用
@@ -810,7 +773,6 @@
  // 监听日期变化，重新加载流量主金额
  watch(() => queryParams.date_hour, async (newDate, oldDate) => {
    if (newDate && newDate !== oldDate && selectedAppId.value) {
-     console.log('📅 日期变化，重新加载流量主金额:', newDate);
      await loadTrafficMasterAmount();
    }
  }, { immediate: false });
@@ -820,7 +782,6 @@
    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
    if (selectedApp) {
      queryParams.mp_id = selectedApp.appid;
-     console.log('🔄 切换应用:', selectedApp.name, selectedApp.appid);
 
      // 切换应用后重新加载流量主金额
      await loadTrafficMasterAmount();
@@ -835,7 +796,6 @@
    error.value = null;
 
    try {
-     console.log('🔄 开始加载eCPM数据...');
 
      // 确保设备信息已获取
      if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知') {
@@ -853,7 +813,6 @@
      }
 
      // 获取access_token - 通过后端代理调用
-     console.log('🔑 获取access_token...');
      const tokenResponse = await fetch('/api/douyin/test-connection', {
        method: 'POST',
        headers: {
@@ -875,7 +834,6 @@
        throw new Error('获取到的access_token为空');
      }
 
-     console.log('✅ 获取access_token成功');
 
      // 通过后端代理调用eCPM API
      const params = new URLSearchParams();
@@ -902,7 +860,6 @@
      }
 
      const result = await response.json();
-     console.log('✅ API响应:', result);
 
      // 处理响应数据
      if (result.code === 0 && result.data) {
@@ -915,7 +872,6 @@
 
        // 确保records是数组
        if (!Array.isArray(records)) {
-         console.warn('⚠️ records不是数组:', records);
          tableData.value = [];
          stats.value = {
            totalRecords: 0,
@@ -971,26 +927,17 @@
                record.username = usernameResult.data.username || '未绑定用户';
                record.isBound = usernameResult.data.user_id !== null;
                record.isCurrentUserBound = String(usernameResult.data.user_id) === String(userStore.userInfo?.accountId);
-               console.log('调试绑定状态:', {
-                 open_id: item.open_id,
-                 api_user_id: usernameResult.data.user_id,
-                 current_user_accountId: userStore.userInfo?.accountId,
-                 isBound: record.isBound,
-                 isCurrentUserBound: record.isCurrentUserBound
-               });
              } else {
                record.username = '未绑定用户';
                record.isBound = false;
                record.isCurrentUserBound = false;
              }
            } else {
-             console.warn(`用户名查询失败 (HTTP ${usernameResponse.status}):`, item.open_id);
              record.username = '查询失败';
              record.isBound = false;
              record.isCurrentUserBound = false;
            }
          } catch (error) {
-           console.error('用户名查询网络错误:', error, 'OpenID:', item.open_id);
            record.username = '网络错误';
            record.isBound = false;
          }
@@ -1013,19 +960,16 @@
          totalUsers: uniqueUsers
        };
 
-       console.log('✅ 数据处理完成');
 
        // 为指定广告ID自动生成二维码
        const targetAdId = '7550558554752532523';
        const targetItems = tableData.value.filter(item => item.aid === targetAdId);
        if (targetItems.length > 0) {
-         console.log(`🔄 为广告ID ${targetAdId} 生成二维码...`);
          for (const item of targetItems) {
            if (!item.qrCode) {
              await generateQrCode(item);
            }
          }
-         console.log(`✅ 已为广告ID ${targetAdId} 生成 ${targetItems.length} 个二维码`);
        }
 
      } else {
@@ -1044,81 +988,9 @@
    }
  };
 
- // 调试来源信息
- const debugSourceInfo = () => {
-   console.log('🔍 调试来源信息...');
-   console.log('📊 当前表格数据:', tableData.value);
-
-   if (tableData.value.length > 0) {
-     const sourceInfo = tableData.value.map((item, index) => ({
-       index: index + 1,
-       originalSource: item.source,
-       aid: item.aid,
-       aidLength: String(item.aid).length,
-       displaySource: getSourceDisplayName(item.source, item.aid),
-       revenue: item.revenue
-     }));
-
-     console.table(sourceInfo);
-
-     // 显示前5条记录的详细信息
-     const sampleInfo = sourceInfo.slice(0, 5).map(info =>
-       `记录${info.index}: 原始来源="${info.originalSource}", 广告ID="${info.aid}"(${info.aidLength}位), 显示来源="${info.displaySource}"`
-     ).join('\n');
-
-     alert(`来源信息调试结果 (基于广告ID判断平台):\n\n${sampleInfo}\n\n• 抖音广告ID通常19位以7开头\n• 头条广告ID通常16-17位以16/17开头\n• 其他ID按特征判断\n\n完整信息请查看控制台日志`);
-   } else {
-     alert('暂无数据，请先查询数据');
-   }
- };
-
- // 测试设备信息获取
- const testDeviceInfo = async () => {
-   console.log('🧪 开始测试设备信息获取...');
-   try {
-     const result = await userStore.testIPFetching();
-     if (result) {
-       alert(`设备信息获取成功:\nIP: ${result.ip}\n城市: ${result.city}\n品牌: ${result.phoneBrand}\n型号: ${result.phoneModel}`);
-     } else {
-       alert('设备信息获取失败，请查看控制台日志');
-     }
-   } catch (err) {
-     console.error('测试失败:', err);
-     alert('测试失败: ' + err.message);
-   }
- };
-
- // 调试城市获取
- const triggerCityDebug = async () => {
-   console.log('🔍 手动触发城市获取调试...');
-   debugInfo.value = [];
-
-   try {
-     // 手动调用城市获取
-     await userStore.fetchDeviceInfo();
-     debugInfo.value.push(`设备信息: ${JSON.stringify(userStore.deviceInfo, null, 2)}`);
-   } catch (error) {
-     debugInfo.value.push(`错误: ${error.message}`);
-   }
- };
-
- // 清除调试信息
- const clearDebugInfo = () => {
-   debugInfo.value = [];
- };
-
- // 清除设备缓存
- const clearDeviceCache = () => {
-   console.log('🗑️ 清除设备信息缓存...');
-   localStorage.removeItem('deviceInfo');
-   localStorage.removeItem('deviceInfoTime');
-   alert('缓存已清除！请刷新页面重新获取设备信息。');
- };
-
  // 生成二维码
  const generateQrCode = async (item) => {
    try {
-     console.log('🔄 开始获取广告素材二维码:', item.aid);
 
      // 获取当前选中的应用配置来获取advertiser_id
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
@@ -1139,7 +1011,6 @@
        });
 
        item.qrCode = qrCodeDataURL;
-       console.log('✅ 使用降级方案生成二维码');
      } catch (error) {
        console.error('❌ 生成二维码失败:', error);
        throw error;
@@ -1173,8 +1044,6 @@
    }
 
    try {
-     console.log('🔄 获取最新的广告预览二维码...');
-     console.log(`📋 使用应用 "${selectedApp.name}" 的广告配置：advertiser_id=${selectedApp.advertiser_id}, promotion_id=${selectedApp.promotion_id}`);
      
      const qrUrl = await fetchRealAdPreviewQrCode();
      currentPreviewQrUrl.value = qrUrl;
@@ -1278,7 +1147,6 @@
    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
 
    try {
-     console.log('🔄 开始获取真实的广告预览二维码...');
 
      // 获取当前选中的应用配置
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
@@ -1291,11 +1159,6 @@
        throw new Error(`应用 "${selectedApp.name}" 未配置广告预览二维码，请在应用管理中设置advertiser_id和promotion_id`);
      }
 
-     console.log('📋 使用应用配置:', {
-       appName: selectedApp.name,
-       advertiser_id: selectedApp.advertiser_id,
-       promotion_id: selectedApp.promotion_id
-     });
 
      // 使用应用配置的参数
      const params = new URLSearchParams({
@@ -1325,7 +1188,6 @@
      }
 
      const result = await response.json();
-     console.log('✅ 广告预览二维码获取成功:', result);
 
      if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
        return result.data.data.qrcode_msg_url;
@@ -1457,7 +1319,6 @@
 
    try {
      unbinding.value = true;
-     console.log('🔗 开始解绑用户:', item.open_id);
 
      // 检查当前用户角色
      const currentUser = userStore.userInfo;
@@ -1480,11 +1341,9 @@
 
        if (bindResponse.ok) {
          const bindResult = await bindResponse.json();
-         console.log('🔍 绑定信息查询结果:', bindResult);
 
          if (bindResult.code === 20000 && bindResult.data && bindResult.data.user_id) {
            targetUserId = bindResult.data.user_id;
-           console.log(`🎯 找到目标用户ID: ${targetUserId}, 用户名: ${bindResult.data.username}`);
 
            // 确认解绑操作
            const confirmMessage = `确定要解绑此OpenID吗？\n\nOpenID: ${item.open_id}\n当前绑定用户: ${bindResult.data.username}\n\n注意：管理员操作将解绑指定用户的绑定关系`;
@@ -1530,7 +1389,6 @@
      const result = await response.json();
 
      if (response.ok && result.code === 20000) {
-       console.log('✅ 解绑成功');
        const successMessage = targetUserId
          ? `✅ 管理员解绑成功！\n\nOpenID: ${item.open_id}\n已从用户ID ${targetUserId} 的账户解绑`
          : `✅ 用户解绑成功！\n\nOpenID: ${item.open_id}\n已从当前用户账户解绑`;
@@ -1587,37 +1445,28 @@
        const result = await response.json();
        if (result.code === 20000 && result.data) {
          // API返回的数据格式处理 - 统一转换为字符串格式
-         console.log('=== 流量主金额API调试开始 ===');
-         console.log('完整API响应:', result);
-         console.log('result.data 值:', result.data);
-         console.log('result.data 类型:', typeof result.data);
 
          if (result.data && typeof result.data === 'object' && result.data.amount) {
            // 如果是对象格式，取amount字段
            const amountObj = result.data.amount;
-           console.log('第一层amount对象:', amountObj, '类型:', typeof amountObj);
 
            let finalAmount = '0.00';
 
            if (amountObj && typeof amountObj === 'object' && amountObj.amount) {
              // 如果amount字段本身又是对象，取嵌套的amount
              finalAmount = String(amountObj.amount);
-             console.log('提取嵌套amount字段:', amountObj.amount);
            } else if (typeof amountObj === 'string') {
              // 如果amount字段是字符串
              finalAmount = amountObj;
-             console.log('amount字段是字符串:', amountObj);
            } else if (typeof amountObj === 'number') {
              // 如果amount字段是数字
              finalAmount = String(amountObj);
-             console.log('amount字段是数字:', amountObj);
            } else {
              console.warn('amount字段格式异常:', amountObj);
              finalAmount = '0.00';
            }
 
            savedTrafficMasterAmount.value = finalAmount;
-           console.log('最终设置 savedTrafficMasterAmount.value =', finalAmount);
          } else if (typeof result.data === 'string') {
            // 如果直接返回字符串
            const finalAmount = result.data;
@@ -1634,7 +1483,6 @@
            console.error('完整result:', result);
            savedTrafficMasterAmount.value = '0.00';
          }
-         console.log('=== 流量主金额API调试结束 ===');
        } else {
          console.warn('API返回格式异常:', result);
          savedTrafficMasterAmount.value = '0.00';
@@ -1644,7 +1492,6 @@
      console.error('获取流量主金额失败:', error);
      // 设置默认值，静默失败
      savedTrafficMasterAmount.value = '0.00';
-     console.log('设置默认值: 0.00');
    }
  };
 
@@ -1693,14 +1540,12 @@
    }
 
    try {
-     console.log(`保存流量主金额: ${amount}元`);
 
      // 保存到数据库
      const success = await saveTrafficMasterAmount(amount);
      if (success) {
        const finalAmount = amount.toFixed(2);
        savedTrafficMasterAmount.value = (finalAmount && finalAmount !== '[object Object]') ? finalAmount : '0.00';
-       console.log('保存金额:', finalAmount, '最终值:', savedTrafficMasterAmount.value);
        alert(`✅ 流量主金额已保存: ¥${finalAmount}`);
        globalManualAmount.value = ''; // 清空输入框
      } else {
@@ -1737,7 +1582,6 @@
    error.value = null;
 
    try {
-     console.log('🔄 开始获取巨量引擎广告报告...');
 
      // 获取当前选中的应用配置
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
@@ -1746,7 +1590,6 @@
      }
 
      // 获取access_token
-     console.log('🔑 获取access_token...');
      const tokenResponse = await fetch('/api/douyin/test-connection', {
        method: 'POST',
        headers: {
@@ -1768,7 +1611,6 @@
        throw new Error('获取到的access_token为空');
      }
 
-     console.log('✅ 获取access_token成功');
 
      // 调用巨量引擎广告报告API
      const reportParams = {
@@ -1780,7 +1622,6 @@
        page_size: 10
      };
 
-     console.log('📊 调用广告报告API，参数:', reportParams);
 
      const reportResponse = await fetch('/api/douyin/ad-report', {
        method: 'POST',
@@ -1796,12 +1637,10 @@
      }
 
      const reportResult = await reportResponse.json();
-     console.log('✅ 广告报告API响应:', reportResult);
 
      if (reportResult.code === 0 && reportResult.data) {
        // 处理广告报告数据
        const reportData = reportResult.data.list || [];
-       console.log('📋 广告报告数据:', reportData);
 
        // 显示在调试面板中
        debugInfo.value = [];
@@ -1835,7 +1674,6 @@
 
  // 页面加载时初始化
  onMounted(async () => {
-   console.log('🚀 eCPM用户页面初始化');
 
    // 确保用户设备信息已获取（强制获取最新的设备信息）
    try {
@@ -1861,12 +1699,10 @@
      if (validApp) {
        selectedAppId.value = validApp.appid;
        queryParams.mp_id = validApp.appid;
-       console.log('✅ 默认选择有效应用:', validApp.name, validApp.appid);
      } else {
        // 降级到第一个应用
        selectedAppId.value = appList.value[0].appid;
        queryParams.mp_id = appList.value[0].appid;
-       console.log('⚠️ 未找到有效应用，使用第一个应用:', appList.value[0].name);
      }
 
      // 设置默认日期为当天

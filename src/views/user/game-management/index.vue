@@ -795,7 +795,6 @@ const loadGames = async () => {
         if (canModify.value) {
           // 管理员可以看到所有游戏
           games.value = gameList;
-          console.log('✅ 管理员游戏列表加载成功:', games.value.length, '个游戏');
         } else {
           // 非管理员只能看到分配给自己的游戏
           try {
@@ -912,7 +911,6 @@ const loadUsers = async () => {
           return Array.from(managedIds);
         }
 
-        console.log('✅ 用户列表加载成功:', users.value.length, '个用户');
       } else {
         console.log('❌ 用户列表API返回错误:', result.message);
       }
