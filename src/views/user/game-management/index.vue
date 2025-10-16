@@ -27,9 +27,9 @@
           :disabled="userLoading"
           class="user-select"
         >
-          <option v-if="canModify" value="">显示所有游戏</option>
+          <option value="">显示所有游戏</option>
           <option
-            v-for="user in users"
+            v-for="user in users.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
             :key="user.id"
             :value="user.id"
           >
@@ -378,7 +378,7 @@
             <select v-model="assignData.userId" class="form-input">
               <option value="">请选择用户</option>
               <option
-                v-for="user in users"
+                v-for="user in users.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
                 :key="user.id"
                 :value="user.id"
               >
@@ -627,13 +627,39 @@ const filterGamesByUser = async () => {
     }
   }
 
-  // 如果没有选择用户或获取失败，根据用户权限决定显示内容
+  // 如果没有选择用户（即选择了"显示所有游戏"），根据用户权限决定显示内容
   if (canModify.value) {
     // 管理员显示所有游戏
     filterGames();
   } else {
-    // 非管理员显示空列表
-    filteredGames.value = [];
+    // 非管理员显示自己拥有的游戏
+    try {
+      const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (userGamesResponse.ok) {
+        const userGamesResult = await userGamesResponse.json();
+        if (userGamesResult.code === 20000) {
+          const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+          filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
+          console.log('✅ 非管理员显示自己拥有的游戏:', filteredGames.value.length, '个游戏');
+        } else {
+          filteredGames.value = [];
+          console.log('❌ 获取用户游戏失败，使用空列表');
+        }
+      } else {
+        filteredGames.value = [];
+        console.log('❌ 获取用户游戏请求失败，使用空列表');
+      }
+    } catch (error) {
+      console.error('❌ 获取用户游戏时出错:', error);
+      filteredGames.value = [];
+    }
     isInitialized.value = true;
   }
 };
@@ -771,7 +797,7 @@ const loadUsers = async () => {
           users.value = [];
         }
 
-        // 递归获取当前用户可以管理的用户ID列表
+        // 递归获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
         function getManagedUserIds(allUsers: any[], managerId: number): number[] {
           const managedIds = new Set<number>();
           const queue = [managerId];
@@ -780,13 +806,24 @@ const loadUsers = async () => {
             const currentId = queue.shift()!;
             managedIds.add(currentId);
 
-            // 找到所有由当前用户创建的用户（处理类型不匹配问题）
-            const children = allUsers.filter(user => Number(user.created_by) === currentId);
-            children.forEach(child => {
-              if (!managedIds.has(child.id)) {
-                queue.push(child.id);
+            // 找到所有以下级用户（parent_id等于当前用户ID）
+            const subordinates = allUsers.filter(user => Number(user.parent_id) === currentId);
+            subordinates.forEach(subordinate => {
+              if (!managedIds.has(subordinate.id)) {
+                queue.push(subordinate.id);
               }
             });
+
+            // 对于客服角色，还要找到自己创建的用户（created_by等于当前用户ID）
+            const currentUserRole = userStore.userInfo?.role;
+            if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+              const createdUsers = allUsers.filter(user => Number(user.created_by) === currentId);
+              createdUsers.forEach(createdUser => {
+                if (!managedIds.has(createdUser.id)) {
+                  queue.push(createdUser.id);
+                }
+              });
+            }
           }
 
           return Array.from(managedIds);
@@ -1379,14 +1416,8 @@ onMounted(async () => {
   await loadGames();
   await loadUsers();
 
-  // 设置默认筛选：管理员显示所有游戏，其他用户默认筛选自己的游戏
-  if (!canModify.value && userStore.userInfo?.accountId) {
-    selectedUserId.value = userStore.userInfo.accountId.toString();
-    await filterGamesByUser();
-  } else {
-    // 管理员显示所有游戏
-    filterGames();
-  }
+  // 设置默认筛选：显示所有游戏
+  filterGames();
 });
 
 // 监听路由变化，当路由变化时重新加载数据
@@ -1727,6 +1758,7 @@ watch(
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
+  color: #1d2129;
 }
 
 .role-badge.admin {
@@ -1737,6 +1769,21 @@ watch(
 .role-badge.user {
   background: #f6ffed;
   color: #52c41a;
+}
+
+.role-badge.viewer {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.role-badge.editor {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.role-badge.owner {
+  background: #fff7e6;
+  color: #fa8c16;
 }
 
 /* Arco Design 按钮样式美化 */

@@ -69,6 +69,9 @@ export interface UserListItem {
   created_at: string;
   created_by?: number | null;
   creator_name?: string;
+  parent_id?: number | null;
+  parent_name?: string;
+  password?: string;
 }
 
 export interface UserListRes {

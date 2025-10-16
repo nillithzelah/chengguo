@@ -327,6 +327,33 @@ export const proxyConfig = {
     },
   },
 
+  // 转化事件API代理
+  '/api/conversion': {
+    target: 'http://localhost:3000',
+    changeOrigin: true,
+    secure: false,
+    rewrite: (path: string) => {
+      return path;
+    },
+    configure: (proxy: any) => {
+      proxy.on('error', (err: any, req: any, res: any) => {
+        console.error('转化事件API代理错误:', err);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+        }
+        res.end(JSON.stringify({ code: 500, message: '转化事件服务连接失败' }));
+      });
+
+      proxy.on('proxyReq', (proxyReq: any) => {
+        console.log('🔄 代理转化事件API请求:', proxyReq.method, proxyReq.path);
+      });
+
+      proxy.on('proxyRes', (proxyRes: any, req: any) => {
+        console.log('✅ 代理转化事件API响应:', proxyRes.statusCode, req.url);
+      });
+    },
+  },
+
   // 通用API代理（用于解决前端跨域问题）
   '/api/douyin/proxy': {
     target: 'http://localhost:3000',

@@ -102,7 +102,7 @@
   const { logout } = useUser();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const avatar = computed(() => {
-    return userStore.avatar || '/src/assets/images/avatar-user.svg';
+    return userStore.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userStore.userInfo?.accountId || 'default'}`;
   });
   const theme = computed(() => {
     return appStore.theme;

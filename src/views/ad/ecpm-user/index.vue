@@ -279,6 +279,60 @@
  // 获取用户Store实例
  const userStore = useUserStore();
 
+ // 获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
+ const getManagedUserIds = async (managerId) => {
+   try {
+     const managedIds = new Set();
+     const queue = [managerId];
+
+     while (queue.length > 0) {
+       const currentId = queue.shift();
+       managedIds.add(currentId);
+
+       // 查找所有下级用户（parent_id等于当前用户ID）
+       try {
+         const subordinatesResponse = await fetch('/api/user/list', {
+           method: 'GET',
+           headers: {
+             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+             'Content-Type': 'application/json'
+           }
+         });
+
+         if (subordinatesResponse.ok) {
+           const subordinatesResult = await subordinatesResponse.json();
+           if (subordinatesResult.code === 20000 && subordinatesResult.data?.users) {
+             const subordinates = subordinatesResult.data.users.filter(user => Number(user.parent_id) === currentId);
+             subordinates.forEach(subordinate => {
+               if (!managedIds.has(subordinate.id)) {
+                 queue.push(subordinate.id);
+               }
+             });
+
+             // 对于客服角色，还要找到自己创建的用户（created_by等于当前用户ID）
+             const currentUser = userStore.userInfo;
+             if (['internal_service', 'external_service'].includes(currentUser?.role || '')) {
+               const createdUsers = subordinatesResult.data.users.filter(user => Number(user.created_by) === currentId);
+               createdUsers.forEach(createdUser => {
+                 if (!managedIds.has(createdUser.id)) {
+                   queue.push(createdUser.id);
+                 }
+               });
+             }
+           }
+         }
+       } catch (error) {
+         console.error('获取下级用户时出错:', error);
+       }
+     }
+
+     return Array.from(managedIds);
+   } catch (error) {
+     console.error('获取管理用户ID列表失败:', error);
+     return [managerId]; // 至少返回自己
+   }
+ };
+
 
  // 响应式数据
  const loading = ref(false);
@@ -530,7 +584,120 @@
            console.log('✅ 从数据库获取游戏成功:', gameResult.data.games.length, '个游戏');
 
            // API已经根据用户权限过滤，直接使用返回的游戏列表
-           for (const game of gameResult.data.games) {
+           // 但是为了确保老板只能看到自己被分配的游戏，需要额外过滤
+           let filteredGames = gameResult.data.games;
+
+           // 如果是老板角色，需要进一步过滤只显示自己被分配的游戏
+           if (currentUser?.role === 'internal_boss' || currentUser?.role === 'external_boss') {
+             try {
+               const userGamesResponse = await fetch(`/api/game/user-games/${Number(currentUser.accountId)}`, {
+                 method: 'GET',
+                 headers: {
+                   'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                   'Content-Type': 'application/json'
+                 }
+               });
+
+               if (userGamesResponse.ok) {
+                 const userGamesResult = await userGamesResponse.json();
+                 if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
+                   const assignedGameIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
+                   filteredGames = gameResult.data.games.filter(game => assignedGameIds.includes(game.appid));
+                   console.log(`👑 老板用户被分配的游戏: ${filteredGames.length} 个`);
+                 } else {
+                   console.log('❌ 获取老板用户游戏分配失败，使用空列表');
+                   filteredGames = [];
+                 }
+               } else {
+                 console.log('❌ 获取老板用户游戏分配请求失败，使用空列表');
+                 filteredGames = [];
+               }
+             } catch (error) {
+               console.error('❌ 获取老板用户游戏分配时出错:', error);
+               filteredGames = [];
+             }
+           }
+
+           // 如果是客服角色，需要进一步过滤只显示自己创建的用户及其下级用户创建的游戏
+           if (currentUser?.role === 'internal_service' || currentUser?.role === 'external_service') {
+             try {
+               // 获取当前用户可以管理的用户ID列表（包括自己创建的用户和下级用户）
+               const managedUserIds = await getManagedUserIds(currentUser.accountId);
+               console.log(`👨‍💼 客服用户可以管理的用户ID: ${managedUserIds.join(', ')}`);
+
+               // 获取这些用户创建的游戏
+               const managedGames = [];
+               for (const userId of managedUserIds) {
+                 try {
+                   const userGamesResponse = await fetch(`/api/game/user-games/${userId}`, {
+                     method: 'GET',
+                     headers: {
+                       'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                       'Content-Type': 'application/json'
+                     }
+                   });
+
+                   if (userGamesResponse.ok) {
+                     const userGamesResult = await userGamesResponse.json();
+                     if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
+                       managedGames.push(...userGamesResult.data.games.map(userGame => userGame.game));
+                     }
+                   }
+                 } catch (userGameError) {
+                   console.error(`❌ 获取用户 ${userId} 的游戏时出错:`, userGameError);
+                 }
+               }
+
+               // 去重并过滤
+               const uniqueManagedGames = managedGames.filter((game, index, self) =>
+                 index === self.findIndex(g => g.appid === game.appid)
+               );
+
+               filteredGames = gameResult.data.games.filter(game =>
+                 uniqueManagedGames.some(managedGame => managedGame.appid === game.appid)
+               );
+
+               console.log(`👨‍💼 客服用户管理的游戏: ${filteredGames.length} 个`);
+             } catch (error) {
+               console.error('❌ 获取客服用户管理的游戏时出错:', error);
+               filteredGames = [];
+             }
+           }
+
+           // 如果是普通用户角色，只显示自己被分配的游戏
+           if ((currentUser?.role as string) === 'internal_user_1' || (currentUser?.role as string) === 'internal_user_2' ||
+               (currentUser?.role as string) === 'internal_user_3' || (currentUser?.role as string) === 'external_user_1' ||
+               (currentUser?.role as string) === 'external_user_2' || (currentUser?.role as string) === 'external_user_3') {
+             try {
+               const userGamesResponse = await fetch(`/api/game/user-games/${Number(currentUser.accountId)}`, {
+                 method: 'GET',
+                 headers: {
+                   'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                   'Content-Type': 'application/json'
+                 }
+               });
+
+               if (userGamesResponse.ok) {
+                 const userGamesResult = await userGamesResponse.json();
+                 if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
+                   const assignedGameIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
+                   filteredGames = gameResult.data.games.filter(game => assignedGameIds.includes(game.appid));
+                   console.log(`👤 普通用户被分配的游戏: ${filteredGames.length} 个`);
+                 } else {
+                   console.log('❌ 获取普通用户游戏分配失败，使用空列表');
+                   filteredGames = [];
+                 }
+               } else {
+                 console.log('❌ 获取普通用户游戏分配请求失败，使用空列表');
+                 filteredGames = [];
+               }
+             } catch (error) {
+               console.error('❌ 获取普通用户游戏分配时出错:', error);
+               filteredGames = [];
+             }
+           }
+
+           for (const game of filteredGames) {
              allApps.push({
                appid: game.appid,
                appSecret: game.appSecret || game.app_secret || '',
@@ -551,10 +718,7 @@
        console.error('❌ 从数据库获取游戏出错:', dbError);
      }
 
-     // 所有用户都只能查看自己拥有的应用
-     console.log('👤 加载当前用户拥有的应用');
-
-     // 从数据库获取当前用户拥有的应用
+     // 如果数据库中没有应用，尝试从localStorage加载（向后兼容）
      if (allApps.length === 0) {
        console.log('📦 数据库中没有找到用户应用，尝试从localStorage加载...');
 

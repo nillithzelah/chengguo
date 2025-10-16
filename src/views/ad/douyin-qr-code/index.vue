@@ -171,6 +171,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import QRCode from 'qrcode';
+import useUserStore from '@/store/modules/user';
 
 // 日志函数
 const logger = {
@@ -235,6 +236,63 @@ const initLineColor = () => {
   lineColorHex.value = `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
+// 获取用户Store实例
+const userStore = useUserStore();
+
+// 获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
+const getManagedUserIds = async (managerId) => {
+  try {
+    const managedIds = new Set();
+    const queue = [managerId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      managedIds.add(currentId);
+
+      // 查找所有下级用户（parent_id等于当前用户ID）
+      try {
+        const subordinatesResponse = await fetch('/api/user/list', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (subordinatesResponse.ok) {
+          const subordinatesResult = await subordinatesResponse.json();
+          if (subordinatesResult.code === 20000 && subordinatesResult.data?.users) {
+            const subordinates = subordinatesResult.data.users.filter(user => Number(user.parent_id) === currentId);
+            subordinates.forEach(subordinate => {
+              if (!managedIds.has(subordinate.id)) {
+                queue.push(subordinate.id);
+              }
+            });
+
+            // 对于客服角色，还要找到自己创建的用户（created_by等于当前用户ID）
+            const currentUser = userStore.userInfo;
+            if (['internal_service', 'external_service'].includes(currentUser?.role || '')) {
+              const createdUsers = subordinatesResult.data.users.filter(user => Number(user.created_by) === currentId);
+              createdUsers.forEach(createdUser => {
+                if (!managedIds.has(createdUser.id)) {
+                  queue.push(createdUser.id);
+                }
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('获取下级用户时出错:', error);
+      }
+    }
+
+    return Array.from(managedIds);
+  } catch (error) {
+    console.error('获取管理用户ID列表失败:', error);
+    return [managerId]; // 至少返回自己
+  }
+};
+
 // 应用选择变化处理
 const onAppChange = () => {
   console.log('🔄 切换应用:', selectedAppId.value);
@@ -285,7 +343,133 @@ const loadAppList = async () => {
       console.error('❌ 从数据库获取游戏出错:', dbError);
     }
 
-    // 如果没有应用，添加默认应用
+    // 如果数据库中没有应用，尝试从localStorage加载（向后兼容）
+    if (allApps.length === 0) {
+      console.log('📦 数据库中没有找到用户应用，尝试从localStorage加载...');
+
+      // 获取当前用户的token来查找对应的应用
+      const userToken = localStorage.getItem('userToken') || '54321'; // 默认使用user的token
+
+      const userKey = `douyin_apps_${userToken}`;
+      const savedApps = localStorage.getItem(userKey);
+      if (savedApps) {
+        const userApps = JSON.parse(savedApps);
+
+        // 根据当前用户权限过滤localStorage中的应用
+        const currentUserRole = userStore.userInfo?.role;
+        const currentUserId = Number(userStore.userInfo?.accountId);
+
+        if (currentUserRole === 'admin') {
+          // 管理员可以看到所有应用
+          allApps.push(...userApps);
+          console.log(`✅ 管理员从localStorage加载了 ${userApps.length} 个应用`);
+        } else if (currentUserRole === 'internal_boss' || currentUserRole === 'external_boss') {
+          // 老板只能看到自己被分配的游戏
+          try {
+            const userGamesResponse = await fetch(`/api/game/user-games/${currentUserId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (userGamesResponse.ok) {
+              const userGamesResult = await userGamesResponse.json();
+              if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
+                const assignedGameIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
+                const filteredApps = userApps.filter(app => assignedGameIds.includes(app.appid));
+                allApps.push(...filteredApps);
+                console.log(`👑 老板用户从localStorage加载了 ${filteredApps.length} 个有权限的应用`);
+              } else {
+                console.log('❌ 获取老板用户游戏分配失败，使用空列表');
+              }
+            } else {
+              console.log('❌ 获取老板用户游戏分配请求失败，使用空列表');
+            }
+          } catch (error) {
+            console.error('❌ 获取老板用户游戏分配时出错:', error);
+          }
+        } else if (currentUserRole === 'internal_service' || currentUserRole === 'external_service') {
+          // 客服只能看到自己创建的用户及其下级用户创建的游戏
+          try {
+            const managedUserIds = await getManagedUserIds(currentUserId);
+            console.log(`👨‍💼 客服用户可以管理的用户ID: ${managedUserIds.join(', ')}`);
+
+            // 获取这些用户创建的游戏
+            const managedGames = [];
+            for (const userId of managedUserIds) {
+              try {
+                const userGamesResponse = await fetch(`/api/game/user-games/${userId}`, {
+                  method: 'GET',
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+
+                if (userGamesResponse.ok) {
+                  const userGamesResult = await userGamesResponse.json();
+                  if (userGamesResult.code === 20000 && userGamesResult.data?.games) {
+                    managedGames.push(...userGamesResult.data.games.map(userGame => userGame.game));
+                  }
+                }
+              } catch (userGameError) {
+                console.error(`❌ 获取用户 ${userId} 的游戏时出错:`, userGameError);
+              }
+            }
+
+            // 去重并过滤
+            const uniqueManagedGames = managedGames.filter((game, index, self) =>
+              index === self.findIndex(g => g.appid === game.appid)
+            );
+
+            const filteredApps = userApps.filter(app =>
+              uniqueManagedGames.some(managedGame => managedGame.appid === app.appid)
+            );
+
+            allApps.push(...filteredApps);
+            console.log(`👨‍💼 客服用户从localStorage加载了 ${filteredApps.length} 个有权限的应用`);
+          } catch (error) {
+            console.error('❌ 获取客服用户管理的游戏时出错:', error);
+          }
+        } else {
+          // 其他用户只能看到自己拥有的应用
+          try {
+            const userGamesResponse = await fetch(`/api/game/user-games/${currentUserId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (userGamesResponse.ok) {
+              const userGamesResult = await userGamesResponse.json();
+              if (userGamesResult.code === 20000) {
+                const userGameIds = userGamesResult.data.games.map(userGame => userGame.id);
+                const userGameAppIds = userGamesResult.data.games.map(userGame => userGame.game.appid);
+
+                // 只保留用户有权限的应用
+                const filteredApps = userApps.filter(app => userGameAppIds.includes(app.appid));
+                allApps.push(...filteredApps);
+                console.log(`✅ 用户从localStorage加载了 ${filteredApps.length} 个有权限的应用`);
+              } else {
+                console.log('❌ 获取用户游戏失败，使用空列表');
+              }
+            } else {
+              console.log('❌ 获取用户游戏请求失败，使用空列表');
+            }
+          } catch (error) {
+            console.error('❌ 获取用户游戏时出错:', error);
+          }
+        }
+      } else {
+        console.log('⚠️ localStorage中也没有找到用户应用');
+      }
+    }
+
+    // 如果仍然没有应用，添加默认应用
     if (allApps.length === 0) {
       allApps.push({
         appid: 'tt8c62fadf136c334702',

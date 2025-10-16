@@ -37,11 +37,11 @@
         >
           <option value="" disabled>请选择用户</option>
           <option
-            v-for="user in userList"
+            v-for="user in userList.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
             :key="user.id"
             :value="user.id"
           >
-            {{ user.name }} ({{ user.username }})
+            {{ user.name || user.username }} ({{ user.username }})
           </option>
         </select>
         <span v-if="userLoading" class="loading-text">加载中...</span>
@@ -406,15 +406,21 @@ const getRoleColor = (role: string) => {
     admin: 'red',
     internal_boss: 'purple',
     internal_service: 'orange',
-    internal_user: 'blue',
+    internal_user_1: 'blue',
+    internal_user_2: 'magenta',
+    internal_user_3: 'arcoblue',
     external_boss: 'green',
     external_service: 'cyan',
-    external_user: 'geekblue',
+    external_user_1: 'lime',
+    external_user_2: 'green',
+    external_user_3: 'lightgreen',
     // 兼容旧角色名称，默认归类为内部
     super_viewer: 'purple',
-    moderator: 'orange',
     viewer: 'blue',
-    user: 'geekblue'
+    moderator: 'orange',
+    user: 'lime',
+    internal_user: 'blue',
+    external_user: 'lime'
   };
   return colors[role] || 'default';
 };
@@ -425,15 +431,21 @@ const getRoleText = (role: string) => {
     admin: '管理员',
     internal_boss: '内部老板',
     internal_service: '内部客服',
-    internal_user: '内部普通用户',
+    internal_user_1: '内部普通用户1级',
+    internal_user_2: '内部普通用户2级',
+    internal_user_3: '内部普通用户3级',
     external_boss: '外部老板',
     external_service: '外部客服',
-    external_user: '外部普通用户',
+    external_user_1: '外部普通用户1级',
+    external_user_2: '外部普通用户2级',
+    external_user_3: '外部普通用户3级',
     // 兼容旧角色名称，默认归类为内部
     super_viewer: '内部老板',
     moderator: '内部客服',
-    viewer: '内部普通用户',
-    user: '外部普通用户'
+    viewer: '内部普通用户1级',
+    user: '外部普通用户1级',
+    internal_user: '内部普通用户1级',
+    external_user: '外部普通用户1级'
   };
   return texts[role] || role;
 };
@@ -517,7 +529,7 @@ const loadUserList = async () => {
           userList.value = [];
         }
 
-        // 递归获取当前用户可以管理的用户ID列表
+        // 递归获取当前用户可以管理的用户ID列表（基于上级关系）
         function getManagedUserIds(allUsers: any[], managerId: number): number[] {
           const managedIds = new Set<number>();
           const queue = [managerId];
@@ -526,11 +538,11 @@ const loadUserList = async () => {
             const currentId = queue.shift()!;
             managedIds.add(currentId);
 
-            // 找到所有由当前用户创建的用户（处理类型不匹配问题）
-            const children = allUsers.filter(user => Number(user.created_by) === currentId);
-            children.forEach(child => {
-              if (!managedIds.has(child.id)) {
-                queue.push(child.id);
+            // 找到所有以下级用户（parent_id等于当前用户ID）
+            const subordinates = allUsers.filter(user => Number(user.parent_id) === currentId);
+            subordinates.forEach(subordinate => {
+              if (!managedIds.has(subordinate.id)) {
+                queue.push(subordinate.id);
               }
             });
           }

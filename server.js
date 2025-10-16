@@ -37,6 +37,48 @@ const roleMapping = {
   'external_user': 'external_user_1',
   'moderator': 'internal_service', // 审核员映射到内部客服
 };
+// 获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
+async function getManagedUserIds(managerId, sequelize) {
+  try {
+    const managedIds = new Set();
+    const queue = [managerId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      managedIds.add(currentId);
+
+      // 查找所有下级用户（parent_id等于当前用户ID）
+      const subordinates = await User.findAll({
+        where: { parent_id: currentId },
+        attributes: ['id']
+      });
+      subordinates.forEach(subordinate => {
+        if (!managedIds.has(subordinate.id)) {
+          queue.push(subordinate.id);
+        }
+      });
+
+      // 对于客服角色，还要找到自己创建的用户（created_by等于当前用户ID）
+      const currentUser = await User.findByPk(managerId);
+      if (['internal_service', 'external_service'].includes(getMappedRole(currentUser.role))) {
+        const createdUsers = await User.findAll({
+          where: { created_by: currentId },
+          attributes: ['id']
+        });
+        createdUsers.forEach(createdUser => {
+          if (!managedIds.has(createdUser.id)) {
+            queue.push(createdUser.id);
+          }
+        });
+      }
+    }
+
+    return Array.from(managedIds);
+  } catch (error) {
+    console.error('获取管理用户ID列表失败:', error);
+    return [managerId]; // 至少返回自己
+  }
+}
 
 // 获取映射后的角色
 function getMappedRole(role) {
@@ -595,6 +637,15 @@ app.put('/api/user/update/:id', authenticateJWT, async (req, res) => {
     if (role !== undefined) updateData.role = role;
     if (is_active !== undefined) updateData.is_active = is_active;
 
+    // 处理上级用户ID
+    if (req.body.parent_id !== undefined) {
+      if (req.body.parent_id === null || req.body.parent_id === '') {
+        updateData.parent_id = null;
+      } else {
+        updateData.parent_id = parseInt(req.body.parent_id);
+      }
+    }
+
     // 如果提供了密码，则更新密码
     if (password && password.trim()) {
       if (password.length < 6) {
@@ -705,14 +756,14 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       // 不添加任何过滤条件，查看所有用户
       console.log('✅ 用户列表API - admin/boss权限，查看所有用户');
     } else if (['internal_service', 'external_service'].includes(mappedRole)) {
-      // internal_service和external_service只能看到自己和自己创建的用户
+      // internal_service和external_service只能看到自己创建的用户，以及这些用户创建的用户（递归）
+      const managedUserIds = await getManagedUserIds(currentUser.userId, sequelize);
       whereCondition = {
-        [sequelize.Sequelize.Op.or]: [
-          { id: currentUser.userId }, // 自己
-          { created_by: currentUser.userId } // 自己创建的用户
-        ]
+        id: {
+          [sequelize.Sequelize.Op.in]: managedUserIds
+        }
       };
-      console.log('✅ 用户列表API - service权限，只查看自己和自己创建的用户');
+      console.log('✅ 用户列表API - service权限，查看自己创建的用户及其下级用户');
     } else {
       // 其他角色不能查看用户列表（虽然前端已经过滤，但这里再加一层保护）
       console.log('❌ 用户列表API - 权限不足，拒绝访问');
@@ -1489,6 +1540,9 @@ app.get('/api/user/parent-options', authenticateJWT, async (req, res) => {
     } else if (target_role === 'internal_user_3' || target_role === 'external_user_3') {
       // 3级用户上级必须是2级用户
       parentRoleFilter = target_role.startsWith('internal_') ? ['internal_user_2'] : ['external_user_2'];
+    } else if (target_role === 'internal_service' || target_role === 'external_service') {
+      // 客服上级必须是老板
+      parentRoleFilter = target_role.startsWith('internal_') ? ['internal_boss'] : ['external_boss'];
     } else {
       return res.status(400).json({
         code: 400,
@@ -1501,8 +1555,8 @@ app.get('/api/user/parent-options', authenticateJWT, async (req, res) => {
       // 内部客服只能选择自己作为上级
       whereCondition.id = currentUser.userId;
     } else if (mappedRole === 'external_service') {
-      // 外部客服只能选择自己作为上级
-      whereCondition.id = currentUser.userId;
+      // 外部客服可以选择外部老板作为上级
+      whereCondition.role = parentRoleFilter;
     } else {
       // 管理员、老板可以选择符合条件的任何用户
       whereCondition.role = parentRoleFilter;

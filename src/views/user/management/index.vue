@@ -317,7 +317,7 @@
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h3>编辑用户</h3>
-          <button @click="() => { showEditModal = false; editUserInfo = null; }" class="modal-close">&times;</button>
+          <button @click="resetEditForm" class="modal-close">&times;</button>
         </div>
 
         <div class="modal-body">
@@ -388,6 +388,7 @@
             <select
               v-model="editForm.role"
               class="form-input"
+              @change="handleEditRoleChange"
             >
               <option
                 v-for="role in getEditableRoles()"
@@ -397,6 +398,29 @@
                 {{ role.label }}
               </option>
             </select>
+          </div>
+
+          <!-- 编辑上级用户选择 -->
+          <div v-if="showEditParentSelector" class="form-item">
+            <label>{{ editParentSelectorLabel }}</label>
+            <select
+              v-model="editForm.parent_id"
+              class="form-input"
+              :disabled="loadingEditParentOptions"
+            >
+              <option value="">请选择上级用户</option>
+              <option
+                v-for="parent in editParentOptions"
+                :key="parent.id"
+                :value="parent.id"
+              >
+                {{ parent.display_name }}
+              </option>
+            </select>
+            <small style="color: #666; margin-top: 4px;">{{ editParentSelectorHint }}</small>
+            <small v-if="editForm.parent_id && !isValidEditParentSelection" style="color: #ff4d4f; margin-top: 4px;">
+              请选择正确的上级用户
+            </small>
           </div>
 
           <div class="form-item">
@@ -415,7 +439,7 @@
         </div>
 
         <div class="modal-footer">
-          <button @click="() => { showEditModal = false; editUserInfo = null; }" class="btn btn-secondary" :disabled="editLoading">取消</button>
+          <button @click="resetEditForm" class="btn btn-secondary" :disabled="editLoading">取消</button>
           <button
             @click="handleEditUser"
             :disabled="!editForm.name || editLoading"
@@ -517,6 +541,14 @@ const loadingParentOptions = ref(false);
 const parentSelectorLabel = ref('上级用户');
 const parentSelectorHint = ref('请选择上级用户');
 const isValidParentSelection = ref(true);
+
+// 编辑上级用户选择相关
+const showEditParentSelector = ref(false);
+const editParentOptions = ref([]);
+const loadingEditParentOptions = ref(false);
+const editParentSelectorLabel = ref('上级用户');
+const editParentSelectorHint = ref('请选择上级用户');
+const isValidEditParentSelection = ref(true);
 
 
 // 用户Store
@@ -639,7 +671,7 @@ const filterableRoles = computed(() => {
   return availableRoles.value;
 });
 
-// 获取所有可筛选的角色（只显示新格式角色）
+// 获取所有可筛选的角色（基于实际用户列表）
 const allFilterableRoles = computed(() => {
   // 定义角色权限等级（从高到低，从内到外）
   const rolePriority = {
@@ -656,8 +688,62 @@ const allFilterableRoles = computed(() => {
     'external_user_3': 11
   };
 
-  // 复制并排序角色列表
-  return [...availableRoles.value].sort((a, b) => {
+  // 从实际用户列表中提取存在的角色
+  const existingRoles = new Set(originalUserList.value.map(user => user.role));
+
+  // 基于可创建的角色和现有用户角色生成筛选选项
+  const currentRole = userStore.userInfo?.role;
+  let filterableRoles = new Set();
+
+  // 添加可创建的角色
+  availableRoles.value.forEach(role => filterableRoles.add(role.value));
+
+  // 添加现有用户中的角色（确保能筛选到所有可见的用户）
+  existingRoles.forEach(role => filterableRoles.add(role));
+
+  // 去重处理：移除重复的角色值
+  const uniqueRoles = Array.from(filterableRoles);
+
+  // 转换为角色对象数组，并按标签去重
+  const roleObjects = uniqueRoles.map((roleValue: string) => {
+    const roleLabels: Record<string, string> = {
+      'admin': '管理员',
+      'internal_boss': '内部老板',
+      'external_boss': '外部老板',
+      'internal_service': '内部客服',
+      'external_service': '外部客服',
+      'internal_user_1': '内部普通用户1级',
+      'internal_user_2': '内部普通用户2级',
+      'internal_user_3': '内部普通用户3级',
+      'external_user_1': '外部普通用户1级',
+      'external_user_2': '外部普通用户2级',
+      'external_user_3': '外部普通用户3级',
+      // 移除旧的英文角色标签，避免重复显示
+      'internal_user': '内部普通用户1级',
+      'external_user': '外部普通用户1级',
+      'super_viewer': '内部老板',
+      'viewer': '内部普通用户1级',
+      'moderator': '内部客服',
+      'user': '外部普通用户1级'
+    };
+    return {
+      value: roleValue,
+      label: roleLabels[roleValue] || roleValue
+    };
+  });
+
+  // 按标签去重，确保每个标签只出现一次
+  const uniqueByLabel = new Map();
+  roleObjects.forEach(role => {
+    if (!uniqueByLabel.has(role.label)) {
+      uniqueByLabel.set(role.label, role);
+    }
+  });
+
+  const finalRoleObjects = Array.from(uniqueByLabel.values());
+
+  // 排序角色列表
+  return finalRoleObjects.sort((a, b) => {
     const priorityA = rolePriority[a.value] || 999;
     const priorityB = rolePriority[b.value] || 999;
     return priorityA - priorityB;
@@ -736,7 +822,8 @@ const editForm = reactive({
   password: '',
   confirmPassword: '',
   role: 'user',
-  is_active: true
+  is_active: true,
+  parent_id: ''
 });
 
 // 移除表单验证规则，使用自定义验证
@@ -984,19 +1071,23 @@ const loadUserList = async () => {
     const currentUserRole = userStore.userInfo?.role;
     const currentUserId = Number(userStore.userInfo?.accountId);
 
+    let filteredUsers: any[] = [];
     if (currentUserRole === 'admin') {
       // admin可以看到所有用户
-      userList.value = users;
+      filteredUsers = users;
     } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
       // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
       const managedUserIds = getManagedUserIds(users, currentUserId);
-      userList.value = users.filter(user => managedUserIds.includes(user.id));
+      filteredUsers = users.filter(user => managedUserIds.includes(user.id));
     } else {
       // 其他角色看不到用户列表
-      userList.value = [];
+      filteredUsers = [];
     }
 
-    // 递归获取当前用户可以管理的用户ID列表
+    // 按ID升序排序
+    userList.value = filteredUsers.sort((a, b) => a.id - b.id);
+
+    // 递归获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
     function getManagedUserIds(allUsers: any[], managerId: number): number[] {
       const managedIds = new Set<number>();
       const queue = [managerId];
@@ -1005,13 +1096,24 @@ const loadUserList = async () => {
         const currentId = queue.shift()!;
         managedIds.add(currentId);
 
-        // 找到所有由当前用户创建的用户（处理类型不匹配问题）
-        const children = allUsers.filter(user => Number(user.created_by) === currentId);
-        children.forEach(child => {
-          if (!managedIds.has(child.id)) {
-            queue.push(child.id);
+        // 找到所有以下级用户（parent_id等于当前用户ID）
+        const subordinates = allUsers.filter(user => Number(user.parent_id) === currentId);
+        subordinates.forEach(subordinate => {
+          if (!managedIds.has(subordinate.id)) {
+            queue.push(subordinate.id);
           }
         });
+
+        // 对于客服角色，还要找到自己创建的用户（created_by等于当前用户ID）
+        const currentUserRole = userStore.userInfo?.role;
+        if (['internal_service', 'external_service'].includes(currentUserRole || '')) {
+          const createdUsers = allUsers.filter(user => Number(user.created_by) === currentId);
+          createdUsers.forEach(createdUser => {
+            if (!managedIds.has(createdUser.id)) {
+              queue.push(createdUser.id);
+            }
+          });
+        }
       }
 
       return Array.from(managedIds);
@@ -1143,6 +1245,10 @@ const editUser = (user: UserListItem) => {
   editForm.confirmPassword = '';
   editForm.role = user.role;
   editForm.is_active = user.is_active;
+  editForm.parent_id = user.parent_id ? user.parent_id.toString() : '';
+
+  // 根据当前角色初始化上级用户选择器
+  handleEditRoleChange();
 
   showEditModal.value = true;
 };
@@ -1283,6 +1389,20 @@ const resetCreateForm = () => {
   showCreateModal.value = false;
 };
 
+// 重置编辑表单
+const resetEditForm = () => {
+  editForm.name = '';
+  editForm.password = '';
+  editForm.confirmPassword = '';
+  editForm.role = 'user';
+  editForm.is_active = true;
+  editForm.parent_id = '';
+  showEditParentSelector.value = false;
+  editParentOptions.value = [];
+  showEditModal.value = false;
+  editUserInfo.value = null;
+};
+
 // 处理编辑用户
 const handleEditUser = async () => {
   if (!editUserInfo.value) {
@@ -1338,6 +1458,24 @@ const handleEditUser = async () => {
       is_active: editForm.is_active
     };
 
+    // 如果提供了上级用户ID，则包含在更新数据中
+    if (editForm.parent_id && editForm.parent_id.toString().trim()) {
+      updateData.parent_id = Number(editForm.parent_id);
+    } else {
+      // 如果没有选择上级用户，设置为null以清除上级关系
+      updateData.parent_id = null;
+    }
+
+    // 如果角色发生变化，需要验证上级用户选择
+    if (editForm.role !== editUserInfo.value.role) {
+      // 检查是否需要上级用户
+      const needsParent = ['internal_user_1', 'internal_user_2', 'internal_user_3', 'external_user_1', 'external_user_2', 'external_user_3', 'internal_service', 'external_service'].includes(editForm.role);
+
+      if (needsParent && !editForm.parent_id) {
+        Message.error('此角色需要选择上级用户');
+        return;
+      }
+    }
 
     // 如果提供了密码，则包含在更新数据中
     if (editForm.password.trim()) {
@@ -1395,7 +1533,8 @@ const handleRoleChange = async () => {
 
   // 检查是否需要显示上级用户选择器
   if (role === 'internal_user_1' || role === 'internal_user_2' || role === 'internal_user_3' ||
-      role === 'external_user_1' || role === 'external_user_2' || role === 'external_user_3') {
+      role === 'external_user_1' || role === 'external_user_2' || role === 'external_user_3' ||
+      role === 'internal_service' || role === 'external_service') {
     showParentSelector.value = true;
 
     // 设置选择器标签和提示
@@ -1408,6 +1547,9 @@ const handleRoleChange = async () => {
     } else if (role === 'internal_user_3' || role === 'external_user_3') {
       parentSelectorLabel.value = '上级2级用户';
       parentSelectorHint.value = '3级用户必须选择2级用户作为上级';
+    } else if (role === 'internal_service' || role === 'external_service') {
+      parentSelectorLabel.value = '上级老板';
+      parentSelectorHint.value = '客服必须选择老板作为上级';
     }
 
     // 加载上级用户选项
@@ -1416,6 +1558,40 @@ const handleRoleChange = async () => {
     showParentSelector.value = false;
     createForm.parent_id = '';
     parentOptions.value = [];
+  }
+};
+
+// 处理编辑角色变化
+const handleEditRoleChange = async () => {
+  const role = editForm.role;
+
+  // 检查是否需要显示上级用户选择器
+  if (role === 'internal_user_1' || role === 'internal_user_2' || role === 'internal_user_3' ||
+      role === 'external_user_1' || role === 'external_user_2' || role === 'external_user_3' ||
+      role === 'internal_service' || role === 'external_service') {
+    showEditParentSelector.value = true;
+
+    // 设置选择器标签和提示
+    if (role === 'internal_user_1' || role === 'external_user_1') {
+      editParentSelectorLabel.value = '上级客服';
+      editParentSelectorHint.value = '1级用户必须选择客服作为上级';
+    } else if (role === 'internal_user_2' || role === 'external_user_2') {
+      editParentSelectorLabel.value = '上级1级用户';
+      editParentSelectorHint.value = '2级用户必须选择1级用户作为上级';
+    } else if (role === 'internal_user_3' || role === 'external_user_3') {
+      editParentSelectorLabel.value = '上级2级用户';
+      editParentSelectorHint.value = '3级用户必须选择2级用户作为上级';
+    } else if (role === 'internal_service' || role === 'external_service') {
+      editParentSelectorLabel.value = '上级老板';
+      editParentSelectorHint.value = '客服必须选择老板作为上级';
+    }
+
+    // 加载上级用户选项
+    await loadEditParentOptions(role);
+  } else {
+    showEditParentSelector.value = false;
+    editForm.parent_id = '';
+    editParentOptions.value = [];
   }
 };
 
@@ -1451,6 +1627,38 @@ const loadParentOptions = async (targetRole: string) => {
   }
 };
 
+// 加载编辑上级用户选项
+const loadEditParentOptions = async (targetRole: string) => {
+  loadingEditParentOptions.value = true;
+  try {
+    const response = await fetch('/api/user/parent-options?target_role=' + targetRole, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+    if (data.code === 20000) {
+      editParentOptions.value = data.data.parents;
+      // 如果只有一个选项，自动选择
+      if (editParentOptions.value.length === 1) {
+        editForm.parent_id = editParentOptions.value[0].id.toString();
+      }
+    } else {
+      Message.error(data.message || '加载上级用户选项失败');
+      editParentOptions.value = [];
+    }
+  } catch (error) {
+    console.error('加载上级用户选项失败:', error);
+    Message.error('加载上级用户选项失败');
+    editParentOptions.value = [];
+  } finally {
+    loadingEditParentOptions.value = false;
+  }
+};
+
 // 处理创建用户
 const handleCreateUser = async () => {
   const currentRole = userStore.userInfo?.role;
@@ -1476,6 +1684,12 @@ const handleCreateUser = async () => {
   // 检查external_service只能创建external_user角色
   if (['external_service', 'user'].includes(currentRole || '') && !createForm.role.startsWith('external_user_')) {
     Message.error('您只能创建外部普通用户账号');
+    return;
+  }
+
+  // 检查客服角色是否被支持
+  if (createForm.role === 'internal_service' || createForm.role === 'external_service') {
+    Message.error('客服角色暂不支持创建，请选择其他角色');
     return;
   }
 
