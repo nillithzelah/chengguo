@@ -707,16 +707,20 @@ const filterGames = () => {
 
 // 刷新游戏列表
 const refreshGames = async () => {
-  await loadGames();
-  // 重新应用当前的筛选条件
-  if (selectedUserId.value) {
+  // 先清空当前显示，避免闪烁
+  const currentSelectedUserId = selectedUserId.value;
+
+  if (currentSelectedUserId) {
+    // 如果选择了特定用户，直接重新筛选
     await filterGamesByUser();
   } else {
     // 如果没有选择用户，根据权限显示相应游戏
     if (canModify.value) {
+      // 管理员：重新加载所有游戏
+      await loadGames();
       filterGames();
     } else {
-      // 非管理员显示自己拥有的游戏
+      // 非管理员：显示自己拥有的游戏
       try {
         const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
           method: 'GET',
@@ -730,6 +734,10 @@ const refreshGames = async () => {
           const userGamesResult = await userGamesResponse.json();
           if (userGamesResult.code === 20000) {
             const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+            // 确保games.value已加载
+            if (games.value.length === 0) {
+              await loadGames();
+            }
             filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
             console.log('✅ 刷新后非管理员显示自己拥有的游戏:', filteredGames.value.length, '个游戏');
           } else {
