@@ -37,7 +37,7 @@
         >
           <option value="" disabled>请选择用户</option>
           <option
-            v-for="user in userList.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
+            v-for="user in sortedUserList.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
             :key="user.id"
             :value="user.id"
           >
@@ -372,6 +372,35 @@ const canAssign = computed(() => {
   const role = userStore.userInfo?.role;
   return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
 }); // 管理员、老板和客服可以分配游戏
+
+// 按权限高低排序用户列表
+const sortedUserList = computed(() => {
+  // 定义角色权限等级（从高到低，从内到外）
+  const rolePriority = {
+    'admin': 1,
+    'internal_boss': 2,
+    'external_boss': 3,
+    'internal_service': 4,
+    'external_service': 5,
+    'internal_user_1': 6,
+    'internal_user_2': 7,
+    'internal_user_3': 8,
+    'external_user_1': 9,
+    'external_user_2': 10,
+    'external_user_3': 11,
+    // 兼容旧角色名称
+    'super_viewer': 2, // internal_boss
+    'moderator': 4, // internal_service
+    'viewer': 6, // internal_user_1
+    'user': 9 // external_user_1
+  };
+
+  return [...userList.value].sort((a, b) => {
+    const priorityA = rolePriority[a.role] || 999;
+    const priorityB = rolePriority[b.role] || 999;
+    return priorityA - priorityB;
+  });
+});
 
 // 游戏表格列配置
 const gameColumns = computed(() => [
