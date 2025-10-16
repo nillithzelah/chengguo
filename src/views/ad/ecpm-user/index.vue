@@ -838,14 +838,11 @@
      console.log('🔄 开始加载eCPM数据...');
 
      // 确保设备信息已获取
-     console.log('📱 检查设备信息状态:', userStore.deviceInfo);
      if (!userStore.deviceInfo?.ip || userStore.deviceInfo?.ip === '未知') {
-       console.log('📱 设备信息不完整，重新获取...');
        try {
          await userStore.fetchDeviceInfo();
-         console.log('📱 设备信息获取完成:', userStore.deviceInfo);
        } catch (deviceError) {
-         console.warn('📱 设备信息获取失败，使用默认值:', deviceError);
+         // 静默处理错误
        }
      }
 
@@ -1841,12 +1838,9 @@
    console.log('🚀 eCPM用户页面初始化');
 
    // 确保用户设备信息已获取（强制获取最新的设备信息）
-   console.log('📱 开始获取用户设备信息...');
    try {
      await userStore.fetchDeviceInfo();
-     console.log('📱 设备信息获取完成:', userStore.deviceInfo);
    } catch (deviceError) {
-     console.warn('📱 设备信息获取失败，使用默认值:', deviceError);
      // 即使获取失败也继续执行，不阻塞页面初始化
    }
 

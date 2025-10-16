@@ -13,7 +13,6 @@ export default function setupPermissionGuard(router: Router) {
     const userStore = useUserStore();
     const Permission = usePermission();
     const permissionsAllow = Permission.accessRouter(to);
-    console.log('Access router check:', { route: to.name, requiresAuth: to.meta?.requiresAuth, roles: to.meta?.roles, userRole: userStore.role, token: getToken(), hasAccess: permissionsAllow });
 
     if (appStore.menuFromServer) {
       // 针对来自服务端的菜单配置进行处理

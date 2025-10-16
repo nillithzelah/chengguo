@@ -22,8 +22,6 @@ export interface DouyinResponse<T = unknown> {
 
 // 强制清除baseURL，确保使用相对路径
 axios.defaults.baseURL = '';
-console.log('interceptor: 强制清除baseURL，确保使用相对路径');
-console.log('interceptor: 当前baseURL:', axios.defaults.baseURL);
 
 axios.interceptors.request.use(
   (config: AxiosRequestConfig) => {
@@ -50,11 +48,6 @@ axios.interceptors.response.use(
   (response: AxiosResponse<HttpResponse | DouyinResponse>) => {
     const res = response.data as any;
 
-    console.log('axios.interceptor.response: 收到响应', {
-      url: response.config.url,
-      status: response.status,
-      data: res
-    });
 
     // 检查是否是抖音API响应（抖音API使用 err_no 字段）
     if (res.err_no !== undefined) {
@@ -71,14 +64,7 @@ axios.interceptors.response.use(
 
     // 标准API响应格式处理
     // if the custom code is not 20000, it is judged as an error.
-    console.log('axios.interceptor.response: 检查响应码', {
-      code: res.code,
-      expected: 20000,
-      isMatch: res.code === 20000
-    });
-
     if (res.code !== 20000 && res.code !== 0) {
-      console.log('axios.interceptor.response: 响应码不匹配，抛出错误');
       Message.error({
         content: res.msg || 'Error',
         duration: 5 * 1000,
@@ -104,7 +90,6 @@ axios.interceptors.response.use(
       return Promise.reject(new Error(res.msg || 'Error'));
     }
 
-    console.log('axios.interceptor.response: 响应处理成功');
     return res;
   },
   (error) => {

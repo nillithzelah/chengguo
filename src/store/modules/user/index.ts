@@ -76,8 +76,8 @@ const useUserStore = defineStore('user', {
     // 异步获取设备信息（不阻塞登录流程）
     fetchDeviceInfoAsync() {
       // 在后台异步执行，不等待结果
-      this.fetchDeviceInfo().catch(err => {
-        console.warn('异步获取设备信息失败:', err);
+      this.fetchDeviceInfo().catch(() => {
+        // 静默处理错误
       });
     },
 
@@ -87,7 +87,6 @@ const useUserStore = defineStore('user', {
         await this.fetchDeviceInfo();
         return this.deviceInfo;
       } catch (error) {
-        console.error('测试失败:', error);
         return null;
       }
     },
@@ -158,7 +157,6 @@ const useUserStore = defineStore('user', {
         // 并行获取IP，提高效率
         const ipPromises = ipServices.map(async (service) => {
           try {
-            console.log(`尝试获取IP: ${service}`);
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒超时
 
@@ -175,7 +173,6 @@ const useUserStore = defineStore('user', {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-              console.log(`${service} 返回状态: ${response.status}`);
               return null;
             }
 
@@ -187,21 +184,13 @@ const useUserStore = defineStore('user', {
               data = await response.json();
             }
 
-            console.log(`${service} 响应数据:`, data);
-
             const ip = data.ip || data.origin || data.query || data.ip_address;
-            console.log(`解析到IP: ${ip}`);
 
             if (isValidIP(ip)) {
               return { service, ip };
             }
             return null;
           } catch (error) {
-            if (error.name === 'AbortError') {
-              console.log(`${service} 请求超时`);
-            } else {
-              console.error(`${service} 获取失败:`, error);
-            }
             return null;
           }
         });
@@ -211,38 +200,25 @@ const useUserStore = defineStore('user', {
         const validIPs = [];
         const failedServices = [];
 
-        console.log('IP获取结果汇总:');
         for (const result of ipResults) {
           if (result.status === 'fulfilled' && result.value) {
             validIPs.push(result.value);
-            console.log(`✅ ${result.value.service}: ${result.value.ip}`);
-          } else {
-            const service = ipServices[ipResults.indexOf(result)];
-            failedServices.push(service);
-            console.log(`❌ ${service}: 获取失败`);
           }
         }
-
-        console.log(`有效IP数量: ${validIPs.length}, 失败服务: ${failedServices.length}`);
 
         // 优先选择IPv4地址
         const ipv4Result = validIPs.find(ip => isIPv4(ip.ip));
         if (ipv4Result) {
           userIP = ipv4Result.ip;
-          console.log(`🎯 选择IPv4地址: ${userIP} (来自 ${ipv4Result.service})`);
         } else if (validIPs.length > 0) {
           // 如果没有IPv4，使用第一个可用的IP（可能是IPv6）
           userIP = validIPs[0].ip;
-          console.log(`🎯 选择IPv6地址: ${userIP} (来自 ${validIPs[0].service})`);
         } else {
-          console.log('❌ 所有IP服务都失败了');
           // 如果所有服务都失败，尝试重试一次
-          console.log('🔄 尝试重试IP获取...');
           await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒
 
           const retryPromises = ipServices.slice(0, 2).map(async (service) => {
             try {
-              console.log(`🔄 重试 ${service}`);
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 3000);
 
@@ -266,12 +242,10 @@ const useUserStore = defineStore('user', {
 
               const ip = data.ip || data.origin || data.query || data.ip_address;
               if (isValidIP(ip)) {
-                console.log(`✅ 重试成功: ${service} -> ${ip}`);
                 return { service, ip };
               }
               return null;
             } catch (error) {
-              console.log(`❌ 重试失败: ${service}`);
               return null;
             }
           });
@@ -280,7 +254,6 @@ const useUserStore = defineStore('user', {
           for (const result of retryResults) {
             if (result.status === 'fulfilled' && result.value) {
               userIP = result.value.ip;
-              console.log(`🎯 重试成功获取IP: ${userIP}`);
               break;
             }
           }
@@ -311,12 +284,9 @@ const useUserStore = defineStore('user', {
           }
         ];
 
-        console.log('开始获取城市信息...');
-
         // 并行尝试IP地理位置服务，提高效率
         const geoPromises = geoServices.map(async (service) => {
           try {
-            console.log(`尝试 ${service.name}...`);
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
 
@@ -333,26 +303,18 @@ const useUserStore = defineStore('user', {
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-              console.log(`${service.name} 返回状态: ${response.status}`);
               return null;
             }
 
             const data = await response.json();
-            console.log(`${service.name} 响应数据:`, data);
 
             const city = service.getCity(data);
-            console.log(`${service.name} 解析城市: ${city}`);
 
             if (city && city !== 'Unknown' && city !== 'N/A' && city !== '') {
               return { service: service.name, city };
             }
             return null;
           } catch (error) {
-            if (error.name === 'AbortError') {
-              console.log(`${service.name} 请求超时`);
-            } else {
-              console.error(`${service.name} 获取失败:`, error.message);
-            }
             return null;
           }
         });
@@ -362,14 +324,12 @@ const useUserStore = defineStore('user', {
         for (const result of geoResults) {
           if (result.status === 'fulfilled' && result.value) {
             userCity = result.value.city;
-            console.log(`成功从 ${result.value.service} 获取城市: ${userCity}`);
             break;
           }
         }
 
         // 如果IP地理位置都失败了，尝试GPS（设置更短超时）
         if (userCity === '未知') {
-          console.log('IP地理位置获取失败，尝试GPS...');
           try {
             const position = await new Promise<GeolocationPosition>((resolve, reject) => {
               if (!navigator.geolocation) reject(new Error('GPS不可用'));
@@ -381,7 +341,6 @@ const useUserStore = defineStore('user', {
             });
 
             const { latitude, longitude } = position.coords;
-            console.log('GPS坐标:', latitude, longitude);
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000); // 3秒超时
@@ -392,16 +351,12 @@ const useUserStore = defineStore('user', {
             clearTimeout(timeoutId);
 
             const geoData = await geoResponse.json();
-            console.log('GPS地理编码响应:', geoData);
 
             userCity = geoData.city || geoData.locality || geoData.principalSubdivision || '未知';
-            console.log('GPS获取城市结果:', userCity);
           } catch (gpsError) {
-            console.error('GPS获取失败:', gpsError);
+            // GPS获取失败，静默处理
           }
         }
-
-        console.log('最终城市结果:', userCity);
 
         // 获取设备信息
         const ua = navigator.userAgent;
@@ -446,18 +401,12 @@ const useUserStore = defineStore('user', {
           phoneModel: phoneModel,
         };
 
-        console.log('设备信息获取完成:', this.deviceInfo);
-
         // 只有在成功获取到IP时才缓存
         if (userIP !== '未知') {
-          console.log('保存设备信息到缓存');
           localStorage.setItem('deviceInfo', JSON.stringify(this.deviceInfo));
           localStorage.setItem('deviceInfoTime', Date.now().toString());
-        } else {
-          console.log('IP获取失败，不保存缓存');
         }
       } catch (error) {
-        console.error('获取设备信息失败:', error);
         this.deviceInfo = {
           ip: '未知',
           city: '未知',
@@ -482,7 +431,7 @@ const useUserStore = defineStore('user', {
       const originalRole = res.data.role;
       const mappedRole = roleMapping[originalRole] || originalRole;
 
-      console.log('角色映射:', { original: originalRole, mapped: mappedRole });
+      // 角色映射处理
 
       this.setInfo({
         ...res.data,
@@ -493,23 +442,15 @@ const useUserStore = defineStore('user', {
     // Login
     async login(loginForm: LoginData) {
       try {
-        console.log('userStore.login: 开始调用API', loginForm);
         const res = await userLogin(loginForm);
-        console.log('userStore.login: API响应', res);
-        console.log('userStore.login: token数据', res.data?.token);
         setToken(res.data.token);
-        console.log('userStore.login: token已存储到localStorage');
 
         // 登录成功后获取用户信息
-        console.log('userStore.login: 获取用户信息');
         await this.info();
-        console.log('userStore.login: 用户信息已更新', this.role);
 
         // 异步获取设备信息，不阻塞登录流程
-        console.log('userStore.login: 开始异步获取设备信息');
         this.fetchDeviceInfoAsync();
       } catch (err) {
-        console.error('userStore.login: 登录失败', err);
         clearToken();
         throw err;
       }

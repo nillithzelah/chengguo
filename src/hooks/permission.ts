@@ -26,15 +26,6 @@ export default function usePermission() {
         route.meta?.roles?.includes('*') ||
         route.meta?.roles?.includes(mappedRole)
       );
-      console.log('Access router check:', {
-        route: route.name,
-        requiresAuth: route.meta?.requiresAuth,
-        roles: route.meta?.roles,
-        userRole: userStore.role,
-        token: getToken(),
-        mappedRole,
-        hasAccess
-      });
       return hasAccess;
     },
     findFirstPermissionRoute(_routers: any, role = 'admin') {

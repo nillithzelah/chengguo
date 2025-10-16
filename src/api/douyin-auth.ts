@@ -30,7 +30,6 @@ class DouyinAuthService {
       // 方式2: 使用app credentials获取token (适用于服务端应用)
       return await this.getTokenByCredentials();
     } catch (error) {
-      console.error('获取Access Token失败:', error);
       throw new Error('获取Access Token失败，请检查App Key和App Secret');
     }
   }
@@ -56,7 +55,6 @@ class DouyinAuthService {
   // 通过App凭证获取client_token
   private async getTokenByCredentials(): Promise<string> {
     try {
-      console.log('🔄 正在获取抖音API client_token...');
       // 使用后端代理接口获取client_token
       const response = await axios.post('/douyin/token', {}, {
         timeout: 15000, // 15秒超时
@@ -67,12 +65,9 @@ class DouyinAuthService {
 
       // 处理后端API响应格式
       if (response.data.data && response.data.data.access_token) {
-        console.log('🔑 获取到的token:', response.data.data.access_token)
         // 成功获取token
         const { access_token, expires_in } = response.data.data;
         this.cacheToken(access_token, expires_in);
-        console.log('✅ 成功获取client_token');
-        console.log('⏰ 过期时间:', new Date(Date.now() + expires_in * 1000).toLocaleString());
         return access_token;
       } else if (response.data.err_no !== undefined && response.data.err_no !== 0) {
         // 字节跳动API错误
@@ -82,8 +77,6 @@ class DouyinAuthService {
         throw new Error('获取client_token失败：响应格式异常');
       }
     } catch (error: any) {
-      console.error('❌ 通过凭证获取client_token失败:', error);
-
       // 详细的错误诊断
       this.diagnoseNetworkError(error);
 
@@ -153,35 +146,7 @@ class DouyinAuthService {
 
   // 诊断网络错误
   private diagnoseNetworkError(error: any): void {
-    console.group('🔍 网络错误诊断');
-    
-    if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error')) {
-      console.error('📡 网络连接问题:');
-      console.error('   • 检查网络连接是否正常');
-      console.error('   • 抖音开放平台要求HTTPS协议');
-      console.error('   • 当前使用HTTP可能被拒绝连接');
-    } else if (error.code === 'ECONNREFUSED') {
-      console.error('🚫 连接被拒绝:');
-      console.error('   • 服务器拒绝连接');
-      console.error('   • 检查防火墙设置');
-      console.error('   • 可能需要VPN或代理');
-    } else if (error.code === 'ETIMEDOUT') {
-      console.error('⏰ 请求超时:');
-      console.error('   • 网络延迟过高');
-      console.error('   • 尝试重新请求');
-    } else if (error.response) {
-      console.error('📄 服务器响应错误:');
-      console.error('   • 状态码:', error.response.status);
-      console.error('   • 响应内容:', error.response.data);
-    }
-    
-    console.error('💡 建议解决方案:');
-    console.error('   1. 检查网络连接是否正常');
-    console.error('   2. 确认抖音开放平台配置正确');
-    console.error('   3. 检查防火墙和代理设置');
-    console.error('   4. 联系技术支持获取帮助');
-    
-    console.groupEnd();
+    // 网络错误诊断信息已移除，错误信息通过异常抛出
   }
 
   // 验证配置是否正确

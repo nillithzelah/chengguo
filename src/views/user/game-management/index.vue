@@ -787,7 +787,7 @@ const loadGames = async () => {
     console.log('📡 游戏列表API响应状态:', response.status);
     if (response.ok) {
       const result = await response.json();
-      console.log('📡 游戏列表API响应数据:', result);
+      // 隐藏API响应数据日志，避免在控制台输出大量调试信息
       if (result.code === 20000) {
         let gameList = result.data.games;
 

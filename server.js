@@ -195,7 +195,6 @@ function logTokenRefresh(accessToken, refreshToken, expiresIn, refreshTime) {
 
   try {
     fs.appendFileSync(TOKEN_LOG_FILE, logLine);
-    console.log('📝 Token刷新历史已记录到文件');
   } catch (error) {
     console.error('❌ 记录token历史失败:', error);
   }
@@ -218,7 +217,6 @@ function loadTrafficMasterAmounts() {
 function saveTrafficMasterAmounts(data) {
   try {
     fs.writeFileSync(TRAFFIC_MASTER_FILE, JSON.stringify(data, null, 2));
-    console.log('✅ 流量主金额数据已保存');
     return true;
   } catch (error) {
     console.error('❌ 保存流量主金额失败:', error);
@@ -272,7 +270,6 @@ async function loadTokensFromDatabase() {
     if (adAccessToken && adRefreshToken) {
       const startupTime = new Date();
       logTokenRefresh(adAccessToken, adRefreshToken, null, startupTime);
-      console.log('📝 已记录服务器启动时的token状态');
     }
 
     // 如果没有找到token，初始化默认token
@@ -326,7 +323,7 @@ const logger = {
 
 // 日志中间件
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.url}`, {
+  logger.debug(`${req.method} ${req.url}`, {
     ip: req.ip,
     userAgent: req.headers['user-agent']?.substring(0, 100)
   });
@@ -336,21 +333,18 @@ app.use((req, res, next) => {
 // 认证中间件
 const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  console.log('🔐 authenticateJWT: 开始验证', { url: req.url, method: req.method, hasAuthHeader: !!authHeader });
   if (authHeader) {
     const token = authHeader.split(' ')[1];
-    console.log('🔐 authenticateJWT: 提取token', { tokenLength: token ? token.length : 0 });
     jwt.verify(token, JWT_SECRET, (err, user) => {
       if (err) {
-        console.log('❌ JWT验证失败:', err.message);
+        logger.warn('JWT验证失败:', err.message);
         return res.sendStatus(403);
       }
       req.user = user;
-      console.log('✅ JWT验证成功:', { userId: user.userId, username: user.username, role: user.role });
       next();
     });
   } else {
-    console.log('❌ 缺少认证头');
+    logger.warn('缺少认证头');
     res.sendStatus(401);
   }
 };
@@ -424,7 +418,7 @@ app.post('/api/user/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    logger.info('用户登录成功:', { username, userId: user.id });
+    logger.info('用户登录成功:', { username });
 
     return successResponse(res, {
       token,
@@ -791,9 +785,6 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       order: [['created_at', 'DESC']]
     });
 
-    // 隐藏密码信息，避免在日志中记录密码
-    console.log('用户列表查询结果:', users.map(u => ({ id: u.id, username: u.username, password_plain: '******' })));
-
     // 格式化数据
     const formattedUsers = users.map(user => ({
       id: user.id,
@@ -899,7 +890,7 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
       } : null
     }));
 
-    console.log(`管理员 ${currentUser.username} 查看用户 ${targetUser.username} 的游戏列表`);
+    logger.info(`管理员 ${currentUser.username} 查看用户 ${targetUser.username} 的游戏列表`);
 
     res.json({
       code: 20000,
@@ -973,7 +964,7 @@ app.post('/api/game/assign', authenticateJWT, async (req, res) => {
        updated_at: new Date()
      });
 
-     console.log(`管理员 ${currentUser.username} 更新用户 ${targetUser.username} 的游戏 ${game.name} 权限为 ${role}`);
+     logger.info(`管理员 ${currentUser.username} 更新用户 ${targetUser.username} 的游戏 ${game.name} 权限为 ${role}`);
      res.json({
        code: 20000,
        message: '游戏权限更新成功'
@@ -988,7 +979,7 @@ app.post('/api/game/assign', authenticateJWT, async (req, res) => {
        assignedAt: new Date()
      });
 
-     console.log(`管理员 ${currentUser.username} 为用户 ${targetUser.username} 分配游戏 ${game.name}，权限：${role}`);
+     logger.info(`管理员 ${currentUser.username} 为用户 ${targetUser.username} 分配游戏 ${game.name}，权限：${role}`);
      res.json({
        code: 20000,
        message: '游戏权限分配成功'
@@ -1044,7 +1035,7 @@ app.delete('/api/game/remove/:userId/:gameId', authenticateJWT, async (req, res)
    });
 
    if (deletedCount > 0) {
-     console.log(`管理员 ${currentUser.username} 移除了用户 ${targetUser.username} 的游戏 ${game.name} 权限`);
+     logger.info(`管理员 ${currentUser.username} 移除了用户 ${targetUser.username} 的游戏 ${game.name} 权限`);
      res.json({
        code: 20000,
        message: '游戏权限移除成功'
@@ -1270,15 +1261,13 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
 // 删除游戏 (仅管理员)
 app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
   try {
-    console.log('🗑️ 删除游戏请求:', { id: req.params.id, user: req.user });
-
     const currentUser = req.user;
     const { id } = req.params;
 
     // 检查权限：只有管理员可以删除游戏
     const mappedRole = getMappedRole(currentUser.role);
     if (mappedRole !== 'admin') {
-      console.log('❌ 权限不足:', { userRole: currentUser.role, mappedRole, requiredRole: 'admin' });
+      logger.warn('删除游戏权限不足:', { userRole: currentUser.role, mappedRole, requiredRole: 'admin' });
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以删除游戏'
@@ -1304,13 +1293,13 @@ app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
       await UserGame.destroy({
         where: { game_id: id }
       });
-      console.log(`删除了 ${userGameCount} 条用户游戏权限记录`);
+      logger.info(`删除了 ${userGameCount} 条用户游戏权限记录`);
     }
 
     // 删除游戏
     await game.destroy();
 
-    console.log(`管理员 ${currentUser.username} 删除了游戏 ${game.name} (ID: ${id})`);
+    logger.info(`管理员 ${currentUser.username} 删除了游戏 ${game.name} (ID: ${id})`);
 
     res.json({
       code: 20000,
@@ -1379,7 +1368,7 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
       validatedAt: new Date()
     });
 
-    console.log(`管理员 ${currentUser.username} 创建了新游戏: ${name} (App ID: ${appid})`);
+    logger.info(`管理员 ${currentUser.username} 创建了新游戏: ${name} (App ID: ${appid})`);
 
     res.json({
       code: 20000,
@@ -1446,7 +1435,7 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
 
     await game.update(updateData);
 
-    console.log(`管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
+    logger.info(`管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
 
     res.json({
       code: 20000,
@@ -1469,7 +1458,6 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
 app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    console.log('📋 获取用户列表 - 当前用户:', { userId: currentUser.userId, username: currentUser.username, role: currentUser.role });
     // 检查权限：管理员、老板和客服可以查看用户列表（排除普通用户）
     const mappedRole = getMappedRole(currentUser.role);
     const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
@@ -1610,12 +1598,12 @@ app.post('/api/user/bind-openid', authenticateJWT, async (req, res) => {
       });
     }
 
-    console.log(`🔗 用户 ${currentUser.username} 请求绑定OpenID: ${open_id}`);
+    logger.info(`用户 ${currentUser.username} 请求绑定OpenID: ${open_id}`);
 
     // 绑定用户和OpenID
     const binding = await UserOpenId.bindUserOpenId(currentUser.userId, open_id);
 
-    console.log(`✅ 用户 ${currentUser.username} 成功绑定OpenID: ${open_id}`);
+    logger.info(`用户 ${currentUser.username} 成功绑定OpenID: ${open_id}`);
 
     res.json({
       code: 20000,
@@ -1673,8 +1661,7 @@ app.delete('/api/user/unbind-openid', authenticateJWT, async (req, res) => {
       });
     }
 
-    console.log(`🔗 用户 ${currentUser.username} 请求解绑OpenID: ${open_id}`);
-    console.log(`📋 请求参数:`, { open_id, target_user_id, currentUserId: currentUser.userId });
+    logger.info(`用户 ${currentUser.username} 请求解绑OpenID: ${open_id}`);
 
     // 检查权限：管理员和客服可以解绑任何用户的OpenID，普通用户只能解绑自己的
     const mappedRole = getMappedRole(currentUser.role);
@@ -1686,7 +1673,6 @@ app.delete('/api/user/unbind-openid', authenticateJWT, async (req, res) => {
       const serviceRoles = ['internal_service', 'external_service'];
       if (adminRoles.includes(mappedRole) || serviceRoles.includes(mappedRole)) {
         targetUserId = parseInt(target_user_id);
-        console.log(`🔑 ${currentUser.role} (${mappedRole}) ${currentUser.username} 解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
       } else {
         return res.status(403).json({
           code: 403,
@@ -1698,7 +1684,7 @@ app.delete('/api/user/unbind-openid', authenticateJWT, async (req, res) => {
     // 解绑用户和OpenID
     await UserOpenId.unbindUserOpenId(targetUserId, open_id);
 
-    console.log(`✅ 用户 ${currentUser.username} 成功解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
+    logger.info(`用户 ${currentUser.username} 成功解绑用户ID ${targetUserId} 的OpenID: ${open_id}`);
 
     res.json({
       code: 20000,
@@ -1743,8 +1729,7 @@ app.post('/api/qr-scan/username-by-openid', async (req, res) => {
   try {
     const { open_id, aid, query_type } = req.body;
 
-    console.log('🔍 [用户名查询] 查询用户名请求');
-    console.log('🔑 [用户名查询] OpenID:', open_id, '| 广告ID:', aid, '| 查询类型:', query_type);
+    logger.debug('根据OpenID查询用户名:', { openId: open_id, aid, query_type });
 
     if (!open_id) {
       return res.status(400).json({
@@ -1787,13 +1772,13 @@ app.post('/api/qr-scan/username-by-openid', async (req, res) => {
 
 // 抖音webhook端点
 app.get('/api/douyin/webhook', (req, res) => {
-  console.log('📡 抖音webhook GET请求验证:', req.query);
-  
+  logger.debug('抖音webhook GET请求验证:', req.query);
+
   // 抖音平台验证请求处理
   const echostr = req.query.echostr;
-  
+
   if (echostr) {
-    console.log('✅ 返回验证字符串:', echostr);
+    logger.info('抖音webhook验证成功');
     return res.send(echostr);
   }
   
@@ -1809,28 +1794,11 @@ app.get('/api/douyin/webhook', (req, res) => {
 
 // POST请求 - 用于接收消息推送
 app.post('/api/douyin/webhook', (req, res) => {
-  console.log('📨 收到抖音webhook POST消息:');
-  // 生产环境不记录敏感信息
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('Headers:', req.headers);
-    console.log('Body:', req.body);
-  }
-  
+  logger.info('收到抖音webhook POST消息:', { eventType: req.body?.event_type });
+
   // 处理不同类型的消息推送
   if (req.body?.event_type) {
-    switch (req.body.event_type) {
-      case 'ad_update':
-        console.log('📈 广告数据更新通知');
-        break;
-      case 'account_update':
-        console.log('👤 账户信息更新通知');
-        break;
-      case 'budget_alert':
-        console.log('💰 预算警告通知');
-        break;
-      default:
-        console.log('📋 其他类型消息:', req.body.event_type);
-    }
+    logger.info('抖音webhook事件:', req.body.event_type);
   }
   
   // 返回成功响应（抖音平台要求）
@@ -1861,7 +1829,7 @@ app.post('/api/douyin/webhook', (req, res) => {
 // Token刷新函数
 async function refreshAdAccessToken() {
   try {
-    console.log('🔄 开始刷新广告投放access_token...');
+    logger.info('开始刷新广告投放access_token...');
 
     // 从环境变量获取配置，强制要求设置
     const appId = process.env.VITE_DOUYIN_APP_ID;
@@ -1879,7 +1847,7 @@ async function refreshAdAccessToken() {
       grant_type: 'refresh_token'
     };
 
-    console.log('📤 刷新token请求参数:', JSON.stringify(refreshRequestData, null, 2));
+    logger.debug('刷新token请求参数:', JSON.stringify(refreshRequestData, null, 2));
 
     const refreshResponse = await axios.post('https://api.oceanengine.com/open_api/oauth2/refresh_token/', refreshRequestData, {
       headers: {
@@ -1888,7 +1856,7 @@ async function refreshAdAccessToken() {
       timeout: 15000
     });
 
-    console.log('📥 刷新token响应:', JSON.stringify(refreshResponse.data, null, 2));
+    logger.debug('刷新token响应:', JSON.stringify(refreshResponse.data, null, 2));
 
     if (refreshResponse.data.code === 0 && refreshResponse.data.data) {
       const newAccessToken = refreshResponse.data.data.access_token;
@@ -1920,8 +1888,7 @@ async function refreshAdAccessToken() {
       // 记录token刷新历史
       logTokenRefresh(newAccessToken, newRefreshToken, expiresIn, adTokenLastRefresh);
 
-      console.log('✅ 广告投放Token刷新成功，已更新数据库和全局变量');
-      console.log('📅 下次刷新时间:', new Date(Date.now() + 30 * 1000).toLocaleString('zh-CN'));
+      logger.info('广告投放Token刷新成功，已更新数据库和全局变量');
 
       return {
         access_token: newAccessToken,
@@ -1937,14 +1904,14 @@ async function refreshAdAccessToken() {
            refreshResponse.data.message?.includes('expired') ||
            refreshResponse.data.message?.includes('失效'))) {
         const errorMsg = 'refresh_token已失效，请重新进行OAuth授权获取新的refresh_token';
-        console.error('🔄 检测到refresh_token失效，需要重新授权');
+        logger.error('检测到refresh_token失效，需要重新授权');
         throw new Error(errorMsg);
       }
 
       throw new Error(refreshResponse.data.message || 'Token刷新失败');
     }
   } catch (error) {
-    console.error('❌ 广告投放Token刷新异常:', error.message);
+    logger.error('广告投放Token刷新异常:', error.message);
     throw error;
   }
 }
@@ -1952,7 +1919,7 @@ async function refreshAdAccessToken() {
 // 检查token是否需要刷新的函数
 function shouldRefreshToken() {
   if (!adTokenExpiresAt) {
-    console.log('⚠️ 没有token过期时间信息，需要刷新');
+    logger.debug('没有token过期时间信息，需要刷新');
     return true;
   }
 
@@ -1962,19 +1929,17 @@ function shouldRefreshToken() {
 
   // 如果还有5分钟或更少时间过期，就刷新
   if (minutesUntilExpiry <= 5) {
-    console.log(`⏰ Token将在 ${minutesUntilExpiry.toFixed(1)} 分钟后过期，需要刷新`);
+    logger.info(`Token将在 ${minutesUntilExpiry.toFixed(1)} 分钟后过期，需要刷新`);
     return true;
   }
 
-  console.log(`✅ Token还有 ${minutesUntilExpiry.toFixed(1)} 分钟过期，无需刷新`);
+  logger.debug(`Token还有 ${minutesUntilExpiry.toFixed(1)} 分钟过期，无需刷新`);
   return false;
 }
 
 // 基于过期时间检查的Token刷新调度器
 function startTokenRefreshScheduler() {
-  console.log('⏰ 启动广告投放Token过期检查调度器...');
-  console.log('📅 检查间隔: 5分钟');
-  console.log('🎯 刷新条件: 过期前5分钟内');
+  logger.info('启动广告投放Token过期检查调度器...');
 
   // 每5分钟检查一次是否需要刷新
   setInterval(async () => {
@@ -1988,31 +1953,31 @@ function startTokenRefreshScheduler() {
 
     while (retryCount < maxRetries) {
       try {
-        console.log(`🔄 检测到token即将过期，开始刷新广告投放Token... (尝试 ${retryCount + 1}/${maxRetries})`);
+        logger.info(`检测到token即将过期，开始刷新广告投放Token... (尝试 ${retryCount + 1}/${maxRetries})`);
         await refreshAdAccessToken();
-        console.log('✅ 广告投放Token刷新成功');
+        logger.info('广告投放Token刷新成功');
         break; // 成功后跳出重试循环
       } catch (error) {
         retryCount++;
-        console.error(`❌ 广告投放Token刷新失败 (尝试 ${retryCount}/${maxRetries}):`, error.message);
+        logger.error(`广告投放Token刷新失败 (尝试 ${retryCount}/${maxRetries}):`, error.message);
 
         if (retryCount < maxRetries) {
-          console.log(`⏳ ${retryDelay / 1000}秒后重试...`);
+          logger.debug(`${retryDelay / 1000}秒后重试...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         } else {
-          console.error('❌ 广告投放Token刷新失败，已达到最大重试次数，请手动检查配置');
+          logger.error('广告投放Token刷新失败，已达到最大重试次数，请手动检查配置');
           // 这里可以添加告警机制，比如发送邮件或消息通知
         }
       }
     }
   }, 5 * 60 * 1000); // 5分钟检查一次
 
-  console.log('✅ 广告投放Token过期检查调度器已启动');
+  logger.info('广告投放Token过期检查调度器已启动');
 }
 
 // 手动触发Token刷新端点
 app.post('/api/douyin/refresh-token', async (req, res) => {
-  console.log('🔄 手动触发广告投放Token刷新请求');
+  logger.info('手动触发广告投放Token刷新请求');
 
   try {
     const result = await refreshAdAccessToken();
@@ -2030,7 +1995,7 @@ app.post('/api/douyin/refresh-token', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ 手动广告投放Token刷新失败:', error.message);
+    logger.error('手动广告投放Token刷新失败:', error.message);
 
     // 检查是否是refresh_token失效的错误
     let errorMessage = '广告投放Token刷新失败';
@@ -2077,7 +2042,7 @@ app.post('/api/douyin/update-refresh-token', authenticateJWT, async (req, res) =
       });
     }
 
-    console.log('🔄 管理员手动更新refresh_token');
+    logger.info('管理员手动更新refresh_token');
 
     // 更新数据库中的refresh_token
     await Token.updateToken('refresh_token', refresh_token, {
@@ -2134,7 +2099,7 @@ app.post('/api/douyin/update-refresh-token', authenticateJWT, async (req, res) =
 
 // 广告预览二维码获取API
 app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
-  console.log('🚀 ===== 开始广告预览二维码获取流程 =====');
+  logger.info('开始广告预览二维码获取流程');
 
   try {
     const { advertiser_id, id_type, promotion_id } = req.query;
@@ -2147,31 +2112,29 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       });
     }
 
-    console.log('📋 请求参数:', { advertiser_id, id_type, promotion_id });
+    logger.debug('请求参数:', { advertiser_id, id_type, promotion_id });
 
     // 验证并修正id_type参数
     let correctedIdType = id_type;
     if (id_type === 'ID_TYPE_PROMOTION') {
       correctedIdType = 'PROMOTION';
-      console.log('🔧 修正id_type参数: ID_TYPE_PROMOTION -> PROMOTION');
+      logger.debug('修正id_type参数: ID_TYPE_PROMOTION -> PROMOTION');
     } else if (id_type === 'ID_TYPE_AD') {
       correctedIdType = 'AD';
-      console.log('🔧 修正id_type参数: ID_TYPE_AD -> AD');
+      logger.debug('修正id_type参数: ID_TYPE_AD -> AD');
     }
 
     // 步骤1: 使用已知的有效access_token
-    console.log('📍 步骤1: 获取有效的广告投放access_token');
+    logger.debug('获取有效的广告投放access_token');
 
     // 使用全局token变量
     let accessToken = adAccessToken;
-    console.log('✅ 使用当前广告投放access_token');
-    console.log('📅 Token最后刷新时间:', adTokenLastRefresh.toLocaleString('zh-CN'));
+    logger.debug('使用当前广告投放access_token');
 
     // 如果token过期，可以在这里添加动态获取逻辑
 
     // 步骤2: 调用广告预览二维码API
-    console.log('📍 步骤2: 获取广告预览二维码');
-    console.log('🔗 请求URL: https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/');
+    logger.debug('获取广告预览二维码');
 
     const qrParams = {
       advertiser_id: advertiser_id,
@@ -2179,12 +2142,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       promotion_id: promotion_id
     };
 
-    console.log('📤 二维码请求参数:', JSON.stringify(qrParams, null, 2));
-
-    console.log('📤 发送请求Headers:', {
-      'Access-Token': accessToken.substring(0, 10) + '...',
-      'Content-Type': 'application/json'
-    });
+    logger.debug('二维码请求参数:', JSON.stringify(qrParams, null, 2));
 
     const qrResponse = await axios.get('https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/', {
       params: qrParams,
@@ -2195,10 +2153,10 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       timeout: 15000
     });
 
-    console.log('📥 二维码响应:', JSON.stringify(qrResponse.data, null, 2));
+    logger.debug('二维码响应:', JSON.stringify(qrResponse.data, null, 2));
 
     if (qrResponse.data.code !== 0) {
-      console.error('❌ 二维码获取失败:', qrResponse.data.message);
+      logger.error('二维码获取失败:', qrResponse.data.message);
 
       // 如果是token过期错误，尝试刷新token
       if (qrResponse.data.code === 40105 ||
@@ -2208,13 +2166,13 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
           qrResponse.data.message?.includes('token') && qrResponse.data.message?.includes('过期') ||
           qrResponse.data.message?.includes('token') && qrResponse.data.message?.includes('invalid') ||
           qrResponse.data.message?.includes('unauthorized')) {
-        console.log('🔄 检测到token过期或无效，尝试刷新token...');
+        logger.info('检测到token过期或无效，尝试刷新token...');
 
         try {
           const newTokenData = await refreshAdAccessToken();
           accessToken = newTokenData.access_token;
 
-          console.log('✅ Token刷新成功，重试二维码获取...');
+          logger.info('Token刷新成功，重试二维码获取...');
 
           // 使用新token重试请求
           const retryResponse = await axios.get('https://api.oceanengine.com/open_api/v3.0/tools/ad_preview/qrcode_get/', {
@@ -2247,7 +2205,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
             });
           }
         } catch (refreshError) {
-          console.error('❌ Token刷新失败:', refreshError.message);
+          logger.error('Token刷新失败:', refreshError.message);
         }
       }
 
@@ -2258,8 +2216,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
       });
     }
 
-    console.log('✅ 二维码获取成功');
-    console.log('🎉 ===== 广告预览二维码获取流程完成 =====');
+    logger.info('二维码获取成功');
 
     res.json({
       code: 0,
@@ -2280,10 +2237,10 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ 广告预览二维码流程失败:', error.message);
+    logger.error('广告预览二维码流程失败:', error.message);
 
     if (error.response) {
-      console.error('📄 API响应错误:', {
+      logger.error('API响应错误:', {
         status: error.response.status,
         data: error.response.data
       });
@@ -2299,7 +2256,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
 
 // 测试连接API - 获取小游戏access_token
 app.post('/api/douyin/test-connection', async (req, res) => {
-  console.log('🔗 测试连接API请求');
+  logger.info('测试连接API请求');
 
   try {
     const { appid, secret } = req.body;
@@ -2311,11 +2268,10 @@ app.post('/api/douyin/test-connection', async (req, res) => {
       });
     }
 
-    console.log('🎮 测试连接游戏:', appid);
+    logger.info('测试连接游戏:', appid);
 
     // 获取小游戏access_token
-    console.log('🔑 获取小游戏access_token...');
-    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/v2/token');
+    logger.debug('获取小游戏access_token...');
 
     const tokenRequestData = {
       appid: appid,
@@ -2323,7 +2279,7 @@ app.post('/api/douyin/test-connection', async (req, res) => {
       grant_type: 'client_credential'
     };
 
-    console.log('📤 请求参数:', JSON.stringify(tokenRequestData, null, 2));
+    logger.debug('请求参数:', JSON.stringify(tokenRequestData, null, 2));
 
     const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
       timeout: 10000,
@@ -2333,10 +2289,10 @@ app.post('/api/douyin/test-connection', async (req, res) => {
       }
     });
 
-    console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
+    logger.debug('Token响应:', JSON.stringify(tokenResponse.data, null, 2));
 
     if (tokenResponse.data.err_no !== 0) {
-      console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
+      logger.error('小游戏Token获取失败:', tokenResponse.data.err_tips);
       return res.status(500).json({
         error: '小游戏Token获取失败',
         message: tokenResponse.data.err_tips,
@@ -2345,7 +2301,7 @@ app.post('/api/douyin/test-connection', async (req, res) => {
     }
 
     const minigameAccessToken = tokenResponse.data.data.access_token;
-    console.log('✅ 小游戏Token获取成功');
+    logger.info('小游戏Token获取成功');
 
     res.json({
       code: 0,
@@ -2364,10 +2320,10 @@ app.post('/api/douyin/test-connection', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ 测试连接失败:', error.message);
+    logger.error('测试连接失败:', error.message);
 
     if (error.response) {
-      console.error('📄 API响应错误:', {
+      logger.error('API响应错误:', {
         status: error.response.status,
         data: error.response.data
       });
@@ -2383,7 +2339,7 @@ app.post('/api/douyin/test-connection', async (req, res) => {
 
 // 小游戏eCPM数据获取API - 根据游戏App ID获取对应的access_token
 app.get('/api/douyin/ecpm', async (req, res) => {
-  console.log('🚀 ===== 开始eCPM数据获取流程 =====');
+  logger.info('开始eCPM数据获取流程');
 
   try {
     const mpId = req.query.mp_id;
@@ -2394,11 +2350,10 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       });
     }
 
-    console.log('🎮 查询游戏:', mpId);
+    logger.info('查询游戏:', mpId);
 
     // 步骤1: 根据游戏App ID获取对应的access_token
-    console.log('📍 步骤1: 获取access_token');
-    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/v2/token');
+    logger.debug('获取access_token');
 
     // 从前端传递的查询参数中获取App Secret
     // 前端应该传递app_secret参数，或者我们需要从配置中获取
@@ -2410,7 +2365,7 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       grant_type: 'client_credential'
     };
 
-    console.log('📤 请求参数:', JSON.stringify(tokenRequestData, null, 2));
+    logger.debug('请求参数:', JSON.stringify(tokenRequestData, null, 2));
 
     const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
       timeout: 10000,
@@ -2420,10 +2375,10 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       }
     });
 
-    console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
+    logger.debug('Token响应:', JSON.stringify(tokenResponse.data, null, 2));
 
     if (tokenResponse.data.err_no !== 0) {
-      console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
+      logger.error('小游戏Token获取失败:', tokenResponse.data.err_tips);
       return res.status(500).json({
         error: '小游戏Token获取失败',
         message: tokenResponse.data.err_tips,
@@ -2432,11 +2387,10 @@ app.get('/api/douyin/ecpm', async (req, res) => {
     }
 
     const minigameAccessToken = tokenResponse.data.data.access_token;
-    console.log('✅ 小游戏Token获取成功:', minigameAccessToken);
+    logger.info('小游戏Token获取成功');
 
     // 步骤2: 获取eCPM数据
-    console.log('📍 步骤2: 获取eCPM数据');
-    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/data/get_ecpm');
+    logger.debug('获取eCPM数据');
 
     // 构建eCPM查询参数，支持前端传递的筛选条件
     const ecpmParams = {
@@ -2459,7 +2413,7 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       ecpmParams.min_revenue = parseFloat(req.query.min_revenue);  // 最小收益筛选
     }
 
-    console.log('📤 eCPM请求参数:', JSON.stringify(ecpmParams, null, 2));
+    logger.debug('eCPM请求参数:', JSON.stringify(ecpmParams, null, 2));
 
     const ecpmResponse = await axios.get('https://minigame.zijieapi.com/mgplatform/api/apps/data/get_ecpm', {
       params: ecpmParams,
@@ -2470,10 +2424,8 @@ app.get('/api/douyin/ecpm', async (req, res) => {
       timeout: 20000
     });
 
-    console.log('📥 eCPM响应:', JSON.stringify(ecpmResponse.data, null, 2));
-    console.log('✅ eCPM数据获取成功');
-
-    console.log('🎉 ===== eCPM数据获取流程完成 =====');
+    logger.debug('eCPM响应:', JSON.stringify(ecpmResponse.data, null, 2));
+    logger.info('eCPM数据获取成功');
 
     res.json({
       code: 0,
@@ -2498,10 +2450,10 @@ app.get('/api/douyin/ecpm', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ eCPM流程失败:', error.message);
+    logger.error('eCPM流程失败:', error.message);
 
     if (error.response) {
-      console.error('📄 API响应错误:', {
+      logger.error('API响应错误:', {
         status: error.response.status,
         data: error.response.data
       });
@@ -2517,7 +2469,7 @@ app.get('/api/douyin/ecpm', async (req, res) => {
 
 // 巨量引擎广告报告API - 获取广告投放数据
 app.post('/api/douyin/ad-report', async (req, res) => {
-  console.log('🚀 ===== 开始巨量引擎广告报告获取流程 =====');
+  logger.info('开始巨量引擎广告报告获取流程');
 
   try {
     const {
@@ -2537,10 +2489,10 @@ app.post('/api/douyin/ad-report', async (req, res) => {
       });
     }
 
-    console.log('📋 请求参数:', { advertiser_id, start_date, end_date, fields, page, page_size });
+    logger.debug('请求参数:', { advertiser_id, start_date, end_date, fields, page, page_size });
 
     // 步骤1: 获取有效的access_token
-    console.log('📍 步骤1: 获取access_token');
+    logger.debug('获取access_token');
 
     // 优先使用前端传递的小游戏access_token（用于广告报告）
     let accessToken = req.headers['authorization']?.replace('Bearer ', '');
@@ -2548,10 +2500,9 @@ app.post('/api/douyin/ad-report', async (req, res) => {
     if (!accessToken) {
       // 如果前端没有传递，尝试使用全局广告投放token
       accessToken = adAccessToken;
-      console.log('✅ 使用全局广告投放access_token');
-      console.log('📅 Token最后刷新时间:', adTokenLastRefresh.toLocaleString('zh-CN'));
+      logger.debug('使用全局广告投放access_token');
     } else {
-      console.log('✅ 使用前端传递的小游戏access_token');
+      logger.debug('使用前端传递的小游戏access_token');
     }
 
     if (!accessToken) {
@@ -2562,8 +2513,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
     }
 
     // 步骤2: 调用巨量引擎广告报告API
-    console.log('📍 步骤2: 获取广告报告数据');
-    console.log('🔗 请求URL: https://ad.oceanengine.com/open_api/2/report/ad/get/');
+    logger.debug('获取广告报告数据');
 
     const reportParams = {
       advertiser_id: advertiser_id,
@@ -2574,12 +2524,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
       page_size: page_size || 10
     };
 
-    console.log('📤 广告报告请求参数:', JSON.stringify(reportParams, null, 2));
-
-    console.log('📤 发送请求Headers:', {
-      'Access-Token': accessToken.substring(0, 10) + '...',
-      'Content-Type': 'application/json'
-    });
+    logger.debug('广告报告请求参数:', JSON.stringify(reportParams, null, 2));
 
     const reportResponse = await axios.get('https://ad.oceanengine.com/open_api/2/report/ad/get/', {
       params: reportParams,
@@ -2590,10 +2535,10 @@ app.post('/api/douyin/ad-report', async (req, res) => {
       timeout: 15000
     });
 
-    console.log('📥 广告报告响应:', JSON.stringify(reportResponse.data, null, 2));
+    logger.debug('广告报告响应:', JSON.stringify(reportResponse.data, null, 2));
 
     if (reportResponse.data.code !== 0) {
-      console.error('❌ 广告报告获取失败:', reportResponse.data.message);
+      logger.error('广告报告获取失败:', reportResponse.data.message);
 
       // 如果是token过期错误，尝试刷新token
       if (reportResponse.data.code === 40105 ||
@@ -2602,13 +2547,13 @@ app.post('/api/douyin/ad-report', async (req, res) => {
           reportResponse.data.message?.includes('token') && reportResponse.data.message?.includes('过期') ||
           reportResponse.data.message?.includes('token') && reportResponse.data.message?.includes('invalid') ||
           reportResponse.data.message?.includes('unauthorized')) {
-        console.log('🔄 检测到token过期或无效，尝试刷新token...');
+        logger.info('检测到token过期或无效，尝试刷新token...');
 
         try {
           const newTokenData = await refreshAdAccessToken();
           accessToken = newTokenData.access_token;
 
-          console.log('✅ Token刷新成功，重试广告报告获取...');
+          logger.info('Token刷新成功，重试广告报告获取...');
 
           // 使用新token重试请求
           const retryResponse = await axios.get('https://ad.oceanengine.com/open_api/2/report/ad/get/', {
@@ -2641,7 +2586,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
             });
           }
         } catch (refreshError) {
-          console.error('❌ Token刷新失败:', refreshError.message);
+          logger.error('Token刷新失败:', refreshError.message);
         }
       }
 
@@ -2652,8 +2597,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
       });
     }
 
-    console.log('✅ 广告报告获取成功');
-    console.log('🎉 ===== 巨量引擎广告报告获取流程完成 =====');
+    logger.info('广告报告获取成功');
 
     res.json({
       code: 0,
@@ -2669,10 +2613,10 @@ app.post('/api/douyin/ad-report', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ 广告报告流程失败:', error.message);
+    logger.error('广告报告流程失败:', error.message);
 
     if (error.response) {
-      console.error('📄 API响应错误:', {
+      logger.error('API响应错误:', {
         status: error.response.status,
         data: error.response.data
       });
@@ -2688,7 +2632,7 @@ app.post('/api/douyin/ad-report', async (req, res) => {
 
 // 抖音小程序游戏二维码创建API
 app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
-  console.log('🚀 ===== 开始抖音小程序游戏二维码创建流程 =====');
+  logger.info('开始抖音小程序游戏二维码创建流程');
 
   try {
     const {
@@ -2700,7 +2644,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       is_hyaline = false
     } = req.body;
 
-    console.log('📋 请求参数:', {
+    logger.debug('请求参数:', {
       access_token: access_token ? '***' : '',
       path,
       width,
@@ -2714,7 +2658,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
 
     // 如果前端没有传递access_token，则获取新的token
     if (!accessToken) {
-      console.log('📍 步骤1: 获取小游戏access_token');
+      logger.debug('获取小游戏access_token');
 
       const { app_id, app_secret } = req.body;
 
@@ -2732,7 +2676,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
         grant_type: 'client_credential'
       };
 
-      console.log('📤 获取token请求参数:', JSON.stringify(tokenRequestData, null, 2));
+      logger.debug('获取token请求参数:', JSON.stringify(tokenRequestData, null, 2));
 
       const tokenResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/v2/token', tokenRequestData, {
         timeout: 10000,
@@ -2741,10 +2685,10 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
         }
       });
 
-      console.log('📥 Token响应:', JSON.stringify(tokenResponse.data, null, 2));
+      logger.debug('Token响应:', JSON.stringify(tokenResponse.data, null, 2));
 
       if (tokenResponse.data.err_no !== 0) {
-        console.error('❌ 小游戏Token获取失败:', tokenResponse.data.err_tips);
+        logger.error('小游戏Token获取失败:', tokenResponse.data.err_tips);
         return res.status(500).json({
           error: '小游戏Token获取失败',
           message: tokenResponse.data.err_tips,
@@ -2753,14 +2697,13 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       }
 
       accessToken = tokenResponse.data.data.access_token;
-      console.log('✅ 小游戏Token获取成功');
+      logger.info('小游戏Token获取成功');
     } else {
-      console.log('✅ 使用前端传递的access_token');
+      logger.debug('使用前端传递的access_token');
     }
 
     // 步骤2: 调用抖音小程序游戏二维码创建API
-    console.log('📍 步骤2: 创建小程序游戏二维码');
-    console.log('🔗 请求URL: https://minigame.zijieapi.com/mgplatform/api/apps/qrcode');
+    logger.debug('创建小程序游戏二维码');
 
     // 构建二维码参数，确保没有循环引用
     const qrParams = {
@@ -2770,7 +2713,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       width: Math.max(280, Math.min(1280, width || 430)) // 限制在280-1280px范围内
     };
 
-    console.log('📤 二维码创建请求参数:', JSON.stringify(qrParams, null, 2));
+    logger.debug('二维码创建请求参数:', JSON.stringify(qrParams, null, 2));
 
     // 使用 responseType: 'arraybuffer' 来处理可能的二进制响应
     const qrResponse = await axios.post('https://minigame.zijieapi.com/mgplatform/api/apps/qrcode', qrParams, {
@@ -2781,16 +2724,15 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       responseType: 'arraybuffer' // 重要：设置为 arraybuffer 以处理二进制数据
     });
 
-    console.log('📥 二维码创建响应状态:', qrResponse.status);
-    console.log('📥 二维码创建响应头:', qrResponse.headers);
+    logger.debug('二维码创建响应状态:', qrResponse.status);
 
     // 检查响应内容类型
     const contentType = qrResponse.headers['content-type'] || qrResponse.headers['Content-Type'];
-    console.log('📋 响应Content-Type:', contentType);
+    logger.debug('响应Content-Type:', contentType);
 
     // 如果是PNG图像，直接返回二进制数据
     if (contentType && contentType.includes('image/png')) {
-      console.log('🖼️ 检测到PNG图像响应，直接返回二进制数据');
+      logger.debug('检测到PNG图像响应，直接返回二进制数据');
 
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Content-Disposition', `inline; filename="douyin-qr-${req.body.app_id || 'unknown'}-${Date.now()}.png"`);
@@ -2805,9 +2747,9 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       // 将 arraybuffer 转换为字符串
       const responseText = Buffer.from(qrResponse.data).toString('utf8');
       responseData = JSON.parse(responseText);
-      console.log('📥 二维码创建JSON响应:', responseData);
+      logger.debug('二维码创建JSON响应:', responseData);
     } catch (parseError) {
-      console.error('❌ 解析响应数据失败:', parseError.message);
+      logger.error('解析响应数据失败:', parseError.message);
       return res.status(500).json({
         error: '二维码创建失败',
         message: 'API返回数据格式错误',
@@ -2817,7 +2759,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
 
     // 检查JSON响应中的错误
     if (responseData.err_no !== 0) {
-      console.error('❌ 二维码创建失败:', responseData.err_tips);
+      logger.error('二维码创建失败:', responseData.err_tips);
       return res.status(500).json({
         error: '二维码创建失败',
         message: responseData.err_tips || responseData.err_msg || '未知错误',
@@ -2825,8 +2767,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
       });
     }
 
-    console.log('✅ 二维码创建成功');
-    console.log('🎉 ===== 抖音小程序游戏二维码创建流程完成 =====');
+    logger.info('二维码创建成功');
 
     // 构建响应数据
     const apiResponse = {
@@ -2865,8 +2806,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
     res.json(apiResponse);
 
   } catch (error) {
-    console.error('❌ 抖音小程序游戏二维码创建流程失败:', error.message);
-    console.error('❌ 错误详情:', error);
+    logger.error('抖音小程序游戏二维码创建流程失败:', error.message);
 
     if (error.response) {
       console.error('📄 API响应错误:', {
@@ -2886,7 +2826,7 @@ app.post('/api/douyin/mini-game/create-qr-code', async (req, res) => {
 
 // 通用API代理端点 - 用于解决前端跨域问题
 app.post('/api/douyin/proxy', async (req, res) => {
-  console.log('🔗 通用API代理请求');
+  logger.info('通用API代理请求');
 
   try {
     const { url, method = 'GET', headers = {}, body, params } = req.body;
@@ -2898,7 +2838,7 @@ app.post('/api/douyin/proxy', async (req, res) => {
       });
     }
 
-    console.log('📡 代理请求:', { url, method, hasBody: !!body, hasParams: !!params });
+    logger.debug('代理请求:', { url, method, hasBody: !!body, hasParams: !!params });
 
     // 构建请求配置
     const requestConfig = {
@@ -2922,11 +2862,11 @@ app.post('/api/douyin/proxy', async (req, res) => {
       requestConfig.data = body;
     }
 
-    console.log('📤 发送代理请求到:', url);
+    logger.debug('发送代理请求到:', url);
 
     const response = await axios(requestConfig);
 
-    console.log('📥 代理响应状态:', response.status);
+    logger.debug('代理响应状态:', response.status);
 
     res.json({
       code: 0,

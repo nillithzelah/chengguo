@@ -28,21 +28,9 @@ class DouyinApiService {
         config.data = params;
       }
 
-      console.log(`📡 调用抖音API: ${method} ${url}`);
-      console.log('📋 请求参数:', params);
-
       const response = await axios(config);
-
-      console.log('✅ API调用成功');
       return response.data;
     } catch (error: any) {
-      console.error('❌ API调用失败:', error);
-
-      if (error.response) {
-        console.error('📄 响应状态:', error.response.status);
-        console.error('📄 响应数据:', error.response.data);
-      }
-
       throw error;
     }
   }
@@ -88,7 +76,6 @@ class DouyinApiService {
 
   // 兼容性方法 - 返回模拟数据（用于替换旧的抖音广告API）
   async getAdPlans(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getAdPlans方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -100,7 +87,6 @@ class DouyinApiService {
   }
 
   async getAdCreatives(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getAdCreatives方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -112,7 +98,6 @@ class DouyinApiService {
   }
 
   async getAdReports(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getAdReports方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -124,7 +109,6 @@ class DouyinApiService {
   }
 
   async getAccountBalance(advertiserId: string) {
-    console.warn('⚠️ getAccountBalance方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -136,7 +120,6 @@ class DouyinApiService {
   }
 
   async getAdGroups(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getAdGroups方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -148,7 +131,6 @@ class DouyinApiService {
   }
 
   async getAds(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getAds方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -160,7 +142,6 @@ class DouyinApiService {
   }
 
   async getCreatives(advertiserId: string, params: any = {}) {
-    console.warn('⚠️ getCreatives方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -172,7 +153,6 @@ class DouyinApiService {
   }
 
   async getAdvertiserInfo(advertiserId: string) {
-    console.warn('⚠️ getAdvertiserInfo方法已废弃，使用字节跳动小游戏平台API');
     return {
       code: 0,
       message: 'success',
@@ -224,7 +204,6 @@ class DouyinApiService {
             break;
         }
       } catch (error) {
-        console.error(`获取${dataType}数据失败:`, error);
         results[dataType] = { error: '获取失败' };
       }
     }
@@ -245,8 +224,6 @@ class DouyinApiService {
     page_size?: number;    // 单页大小，最大500
   }) {
     try {
-      console.log('📊 获取eCPM数据:', params);
-
       // 获取有效的client_token
       const token = await douyinAuthService.getAccessToken();
 
@@ -265,16 +242,8 @@ class DouyinApiService {
         timeout: 20000
       });
 
-      console.log('✅ eCPM数据获取成功');
       return response.data;
     } catch (error: any) {
-      console.error('❌ 获取eCPM数据失败:', error);
-
-      if (error.response) {
-        console.error('📄 响应状态:', error.response.status);
-        console.error('📄 响应数据:', error.response.data);
-      }
-
       throw error;
     }
   }
