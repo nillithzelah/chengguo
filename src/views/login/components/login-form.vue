@@ -135,7 +135,24 @@
         }
       } catch (err) {
         console.error('登录失败:', err);
-        errorMessage.value = (err as Error).message;
+        // 处理不同的错误类型，显示用户友好的错误信息
+        if (err && typeof err === 'object' && 'message' in err) {
+          const errorMsg = (err as Error).message;
+          // 如果是网络错误或401错误，显示更友好的提示
+          if (errorMsg.includes('Request failed with status code 401') ||
+              errorMsg.includes('401') ||
+              errorMsg.includes('用户名或密码错误')) {
+            errorMessage.value = '用户名或密码错误';
+          } else if (errorMsg.includes('Network Error') || errorMsg.includes('网络')) {
+            errorMessage.value = '网络连接错误，请检查网络连接';
+          } else if (errorMsg.includes('timeout') || errorMsg.includes('超时')) {
+            errorMessage.value = '请求超时，请稍后重试';
+          } else {
+            errorMessage.value = errorMsg;
+          }
+        } else {
+          errorMessage.value = '登录失败，请稍后重试';
+        }
       } finally {
         setLoading(false);
       }
