@@ -1427,7 +1427,7 @@
      // 获取当前选中的应用和日期
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
      if (!selectedApp) {
-       console.error('未选择有效的应用');
+       console.error('未选择有效的应用11');
        return;
      }
 
@@ -1501,7 +1501,7 @@
      // 获取当前选中的应用和日期
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
      if (!selectedApp) {
-       console.error('未选择有效的应用');
+       console.error('未选择有效的应用22');
        return false;
      }
 
@@ -1683,7 +1683,6 @@
    }
 
    // 加载流量主金额
-   await loadTrafficMasterAmount();
 
    // 加载应用列表
    await loadAppList();
@@ -1714,6 +1713,7 @@
    } else {
      console.log('⚠️ 用户暂无应用，跳过数据加载');
    }
+   await loadTrafficMasterAmount();
  });
  </script>
 
