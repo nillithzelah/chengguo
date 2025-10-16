@@ -128,9 +128,6 @@
         {{ record.parent_name || '无' }}
       </template>
 
-      <template #password="{ record }">
-        {{ record.password || '******' }}
-      </template>
 
       <template #action="{ record }">
         <a-space>
@@ -848,14 +845,6 @@ const columns = [
     dataIndex: 'name',
     width: 120,
     minWidth: 100,
-    ellipsis: true
-  },
-  {
-    title: '密码',
-    dataIndex: 'password',
-    width: 100,
-    minWidth: 100,
-    slotName: 'password',
     ellipsis: true
   },
   {
@@ -1742,10 +1731,10 @@ const handleCreateUser = async () => {
       duration: 3000
     });
 
-    // 显示用户凭据信息
+    // 显示用户凭据信息（隐藏密码）
     setTimeout(() => {
       Message.info({
-        content: `用户名: ${createForm.username}\n密码: ${createForm.password}`,
+        content: `用户名: ${createForm.username}\n密码: ******`,
         duration: 5000
       });
     }, 500);

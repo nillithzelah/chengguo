@@ -791,7 +791,8 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       order: [['created_at', 'DESC']]
     });
 
-    console.log('用户列表查询结果:', users.map(u => ({ id: u.id, username: u.username, password_plain: u.password_plain })));
+    // 隐藏密码信息，避免在日志中记录密码
+    console.log('用户列表查询结果:', users.map(u => ({ id: u.id, username: u.username, password_plain: '******' })));
 
     // 格式化数据
     const formattedUsers = users.map(user => ({
@@ -807,7 +808,7 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
       parent_id: user.parent_id,
       creator_name: user.userCreator ? (user.userCreator.name || user.userCreator.username) : '系统',
       parent_name: user.parentUser ? `${user.parentUser.name || user.parentUser.username} (${getRoleText(user.parentUser.role)})` : '无',
-      password: user.password_plain || '******' // 显示明文密码或默认值
+      password: '******' // 隐藏密码信息
     }));
 
     res.json({

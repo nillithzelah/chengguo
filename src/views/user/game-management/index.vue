@@ -853,7 +853,14 @@ const loadUsers = async () => {
     console.log('📡 用户列表API响应状态:', response.status);
     if (response.ok) {
       const result = await response.json();
-      console.log('📡 用户列表API响应数据:', result);
+      // 隐藏密码信息，避免在日志中记录密码
+      const safeResult = { ...result };
+      if (safeResult.data?.users) {
+        safeResult.data.users = safeResult.data.users.map(user => ({
+          ...user,
+          password_plain: '******' // 隐藏密码信息，避免在前端显示明文密码
+        }));
+      }
       if (result.code === 20000) {
         let userList = result.data.users;
 
