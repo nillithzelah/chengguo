@@ -706,8 +706,47 @@ const filterGames = () => {
 };
 
 // 刷新游戏列表
-const refreshGames = () => {
-  loadGames();
+const refreshGames = async () => {
+  await loadGames();
+  // 重新应用当前的筛选条件
+  if (selectedUserId.value) {
+    await filterGamesByUser();
+  } else {
+    // 如果没有选择用户，根据权限显示相应游戏
+    if (canModify.value) {
+      filterGames();
+    } else {
+      // 非管理员显示自己拥有的游戏
+      try {
+        const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (userGamesResponse.ok) {
+          const userGamesResult = await userGamesResponse.json();
+          if (userGamesResult.code === 20000) {
+            const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+            filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
+            console.log('✅ 刷新后非管理员显示自己拥有的游戏:', filteredGames.value.length, '个游戏');
+          } else {
+            filteredGames.value = [];
+            console.log('❌ 刷新后获取用户游戏失败，使用空列表');
+          }
+        } else {
+          filteredGames.value = [];
+          console.log('❌ 刷新后获取用户游戏请求失败，使用空列表');
+        }
+      } catch (error) {
+        console.error('❌ 刷新后获取用户游戏时出错:', error);
+        filteredGames.value = [];
+      }
+      isInitialized.value = true;
+    }
+  }
 };
 
 const getRoleDisplayName = (role) => {
