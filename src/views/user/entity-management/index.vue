@@ -147,12 +147,30 @@
 
       <template #development_status="{ record }">
         <div class="status-with-action">
-          <a-tag
-            :color="getStatusColor(record.development_status)"
-            size="small"
-          >
-            {{ getStatusText(record.development_status) }}
-          </a-tag>
+          <div v-if="record.game_name" class="current-status-display-compact">
+            <div class="status-indicator-compact">
+              <span class="status-value-compact">{{ getStatusText(record.development_status) }}</span>
+            </div>
+            <div class="status-progress-compact">
+              <div class="progress-bar-compact">
+                <div
+                  class="progress-fill-compact"
+                  :style="{ width: getProgressWidth(record.development_status || '游戏创建') }"
+                ></div>
+              </div>
+              <div class="progress-steps-compact">
+                <span
+                  v-for="(status, index) in developmentStatuses"
+                  :key="status.value"
+                  class="step-dot-compact"
+                  :class="{ 'active': isStatusActive(status.value, record.development_status || '游戏创建') }"
+                >
+                  {{ index + 1 }}
+                </span>
+              </div>
+            </div>
+          </div>
+          <span v-else class="no-game-status">{{ getStatusText(record.development_status) }}</span>
           <a-button
             v-if="canUpgradeStatus(record.development_status || '游戏创建') && checkCanEditEntity(record) && record.game_name"
             type="text"
@@ -714,22 +732,22 @@ const columns = [
   {
     title: '主体名',
     dataIndex: 'name',
-    width: 200,
-    minWidth: 150,
+    width: 150,
+    minWidth: 120,
     ellipsis: true
   },
   {
     title: '程序员',
     dataIndex: 'programmer',
-    width: 120,
-    minWidth: 100,
+    width: 100,
+    minWidth: 80,
     ellipsis: true
   },
   {
     title: '游戏名字',
     dataIndex: 'game_name',
-    width: 200,
-    minWidth: 150,
+    width: 150,
+    minWidth: 120,
     ellipsis: true
   },
   {
@@ -2028,6 +2046,76 @@ onMounted(async () => {
   padding: 4px 8px;
   height: auto;
   border-radius: 6px;
+}
+
+.current-status-display-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.status-indicator-compact {
+  display: flex;
+  align-items: center;
+}
+
+.status-value-compact {
+  font-weight: 600;
+  font-size: 12px;
+  color: #1d2129;
+}
+
+.status-progress-compact {
+  position: relative;
+}
+
+.progress-bar-compact {
+  width: 100%;
+  height: 4px;
+  background: #e5e6eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill-compact {
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.progress-steps-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.step-dot-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e5e6eb;
+  color: #86909c;
+  font-weight: 600;
+  font-size: 8px;
+  transition: all 0.3s ease;
+
+  &.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
+  }
+}
+
+.no-game-status {
+  font-size: 12px;
+  color: #86909c;
+  font-weight: 500;
 }
 
 /* 小屏幕优化 */
