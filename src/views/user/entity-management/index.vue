@@ -1316,7 +1316,7 @@ const handleCreateEntity = async () => {
       name: createForm.name.trim(),
       programmer: createForm.programmer.trim(),
       game_name: createForm.game_name.trim(),
-      development_status: createForm.development_status,
+      development_status: createForm.development_status || '游戏创建',
       assigned_user_id: createForm.assigned_user_id
     };
 
