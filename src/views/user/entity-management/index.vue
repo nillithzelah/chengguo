@@ -1068,7 +1068,7 @@ const editEntity = (entity: any) => {
   editForm.game_id = entity.game_id || '';
   editForm.programmer = entity.programmer || '';
   editForm.name = entity.name || '';
-  editForm.development_status = entity.development_status || '';
+  editForm.development_status = entity.development_status || '游戏创建';
 
   showEditModal.value = true;
 };
@@ -1220,7 +1220,7 @@ const openAssignModal = () => {
   assignForm.game_id = '';
   assignForm.programmer = '';
   assignForm.name = '';
-  assignForm.development_status = '';
+  assignForm.development_status = '游戏创建';
   showAssignModal.value = true;
 };
 
