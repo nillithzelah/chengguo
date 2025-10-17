@@ -7,6 +7,7 @@ import localeSettings from './zh-CN/settings';
 export default {
   'menu.user': '管理中心',
   'menu.user.management': '用户管理',
+  'menu.user.entity': '主体管理',
   'menu.user.game.user': '用户游戏管理',
   'menu.user.game.admin': '游戏管理',
   'menu.ad': '广告数据',

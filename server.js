@@ -14,6 +14,7 @@ const defineUserGameModel = require('./models/UserGame');
 const defineConversionEventModel = require('./models/ConversionEvent');
 const defineTokenModel = require('./models/Token');
 const defineUserOpenIdModel = require('./models/UserOpenId');
+const defineEntityModel = require('./models/Entity');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
@@ -22,6 +23,7 @@ const UserGame = defineUserGameModel(sequelize);
 const ConversionEvent = defineConversionEventModel(sequelize);
 const Token = defineTokenModel(sequelize);
 const UserOpenId = defineUserOpenIdModel(sequelize);
+const Entity = defineEntityModel(sequelize);
 
 
 // 转化事件回调服务
@@ -147,6 +149,12 @@ User.belongsTo(User, {
   targetKey: 'id'
 });
 
+// 主体关联：分配用户
+Entity.belongsTo(User, {
+  foreignKey: 'assigned_user_id',
+  as: 'assignedUser',
+  targetKey: 'id'
+});
 
 // 用户OpenID关联
 User.hasMany(UserOpenId, {
@@ -1458,6 +1466,7 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
 app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
+
     // 检查权限：管理员、老板和客服可以查看用户列表（排除普通用户）
     const mappedRole = getMappedRole(currentUser.role);
     const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
@@ -1486,6 +1495,483 @@ app.get('/api/user/basic-list', authenticateJWT, async (req, res) => {
 
   } catch (error) {
     console.error('获取用户基本信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取分配用户选项 (用于主体管理)
+app.get('/api/user/assigned-options', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：管理员、老板和客服可以查看分配用户选项
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员、老板和客服可以查看分配用户选项'
+      });
+    }
+
+    // 获取所有活跃的老板用户（internal_boss 和 external_boss）
+    const bossUsers = await User.findAll({
+      where: {
+        is_active: true,
+        role: ['internal_boss', 'external_boss']
+      },
+      attributes: ['id', 'username', 'name', 'role'],
+      order: [['username', 'ASC']]
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        users: bossUsers,
+        total: bossUsers.length
+      },
+      message: '获取分配用户选项成功'
+    });
+
+  } catch (error) {
+    console.error('获取分配用户选项错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+// 创建主体
+app.post('/api/entity/create', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { name, programmer, assigned_user_id } = req.body;
+
+    // 检查权限：只有管理员可以创建主体
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以创建主体'
+      });
+    }
+
+    // 验证必填字段
+    if (!name) {
+      return res.status(400).json({
+        code: 400,
+        message: '主体名称不能为空'
+      });
+    }
+
+    // 检查主体名称是否已存在（新增主体时不能同名）
+    const existingEntity = await Entity.findOne({
+      where: { name: name.trim() }
+    });
+    if (existingEntity) {
+      return res.status(400).json({
+        code: 400,
+        message: '该主体名称已存在，请使用不同的名称'
+      });
+    }
+
+    // 验证分配用户ID（必须是老板角色）
+    if (assigned_user_id) {
+      const assignedUser = await User.findByPk(assigned_user_id);
+      if (!assignedUser) {
+        return res.status(400).json({
+          code: 400,
+          message: '指定的分配用户不存在'
+        });
+      }
+
+      const assignedUserRole = getMappedRole(assignedUser.role);
+      if (!['internal_boss', 'external_boss'].includes(assignedUserRole)) {
+        return res.status(400).json({
+          code: 400,
+          message: '分配用户必须是老板角色'
+        });
+      }
+    }
+
+    // 创建主体
+    const newEntity = await Entity.create({
+      name: name.trim(),
+      programmer: programmer ? programmer.trim() : '',
+      game_name: '',
+      development_status: '',
+      assigned_user_id: assigned_user_id || null
+    });
+
+    logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
+
+    res.json({
+      code: 20000,
+      data: {
+        entity: newEntity.toFrontendFormat(),
+        id: newEntity.id
+      },
+      message: '主体创建成功'
+    });
+
+  } catch (error) {
+    console.error('创建主体错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 更新主体
+app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+    const { name, programmer, assigned_user_id } = req.body;
+
+    // 检查权限：只有管理员可以更新主体
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以更新主体'
+      });
+    }
+
+    // 查找主体
+    const entity = await Entity.findByPk(id);
+    if (!entity) {
+      return res.status(404).json({
+        code: 404,
+        message: '主体不存在'
+      });
+    }
+
+    // 如果名称改变，检查同名主体数量是否超过限制（最多5个）
+    if (name && name !== entity.name) {
+      const existingEntities = await Entity.findByName(name);
+      if (existingEntities && existingEntities.length >= 5) {
+        return res.status(400).json({
+          code: 400,
+          message: '该主体名称已达到最大数量限制（最多5个）'
+        });
+      }
+    }
+
+    // 验证分配用户ID（必须是老板角色）
+    if (assigned_user_id !== undefined) {
+      if (assigned_user_id === null || assigned_user_id === '') {
+        // 允许清空分配用户
+      } else {
+        const assignedUser = await User.findByPk(assigned_user_id);
+        if (!assignedUser) {
+          return res.status(400).json({
+            code: 400,
+            message: '指定的分配用户不存在'
+          });
+        }
+
+        const assignedUserRole = getMappedRole(assignedUser.role);
+        if (!['internal_boss', 'external_boss'].includes(assignedUserRole)) {
+          return res.status(400).json({
+            code: 400,
+            message: '分配用户必须是老板角色'
+          });
+        }
+      }
+    }
+
+    // 更新主体信息
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (programmer !== undefined) updateData.programmer = programmer.trim();
+    if (req.body.game_name !== undefined) updateData.game_name = req.body.game_name;
+    if (req.body.development_status !== undefined) {
+      updateData.development_status = req.body.development_status;
+      updateData.development_status_updated_at = new Date();
+    }
+    if (assigned_user_id !== undefined) updateData.assigned_user_id = assigned_user_id || null;
+
+    await entity.update(updateData);
+
+    logger.info(`用户 ${currentUser.username} 更新了主体: ${entity.name} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      data: {
+        entity: entity.toFrontendFormat()
+      },
+      message: '主体更新成功'
+    });
+
+  } catch (error) {
+    console.error('更新主体错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 删除主体 (仅管理员)
+app.delete('/api/entity/delete/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+
+    // 检查权限：只有管理员可以删除主体
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以删除主体'
+      });
+    }
+
+    // 查找主体
+    const entity = await Entity.findByPk(id);
+    if (!entity) {
+      return res.status(404).json({
+        code: 404,
+        message: '主体不存在'
+      });
+    }
+
+    // 删除主体
+    await entity.destroy();
+
+    logger.info(`管理员 ${currentUser.username} 删除了主体 ${entity.name} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      message: '主体删除成功'
+    });
+
+  } catch (error) {
+    console.error('删除主体错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取主体列表
+app.get('/api/entity/list', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员和内部老板可以查看主体列表
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和内部老板可以查看主体列表'
+      });
+    }
+
+    // 获取主体列表，包含分配用户信息
+    const entities = await Entity.findAll({
+      include: [{
+        model: User,
+        as: 'assignedUser',
+        attributes: ['id', 'username', 'name', 'role'],
+        required: false
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    // 格式化数据
+    const formattedEntities = entities.map(entity => {
+      const frontendFormat = entity.toFrontendFormat();
+      // 添加分配用户信息
+      if (entity.assignedUser) {
+        frontendFormat.assigned_user_name = entity.assignedUser.name || entity.assignedUser.username;
+        frontendFormat.assigned_user_role = entity.assignedUser.role;
+      } else {
+        frontendFormat.assigned_user_name = '未分配';
+        frontendFormat.assigned_user_role = null;
+      }
+      return frontendFormat;
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        entities: formattedEntities,
+        total: formattedEntities.length
+      },
+      message: '获取主体列表成功'
+    });
+
+  } catch (error) {
+    console.error('获取主体列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 为主体分配游戏
+app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { entity_id, game_id, programmer, development_status } = req.body;
+
+    // 检查权限：只有管理员可以分配游戏给主体
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以分配游戏给主体'
+      });
+    }
+
+    // 验证必填参数
+    if (!entity_id || !game_id) {
+      return res.status(400).json({
+        code: 400,
+        message: '主体ID和游戏ID不能为空'
+      });
+    }
+
+    // 验证主体是否存在
+    const entity = await Entity.findByPk(entity_id);
+    if (!entity) {
+      return res.status(404).json({
+        code: 404,
+        message: '主体不存在'
+      });
+    }
+
+    // 验证游戏是否存在
+    const game = await Game.findByPk(game_id);
+    if (!game || game.status !== 'active') {
+      return res.status(404).json({
+        code: 404,
+        message: '游戏不存在或已停用'
+      });
+    }
+
+    // 检查游戏是否已经被分配给任何主体（一个游戏只能出现一次）
+    const existingEntityWithGame = await Entity.findOne({
+      where: { game_name: game.name }
+    });
+
+    if (existingEntityWithGame) {
+      // 游戏已经被分配给其他主体，不允许重复分配
+      return res.status(400).json({
+        code: 400,
+        message: `游戏 "${game.name}" 已被其他主体使用，无法重复分配`
+      });
+    }
+
+    // 检查该主体是否已经分配了5个游戏
+    const existingGamesCount = await Entity.count({
+      where: {
+        name: entity.name
+      }
+    });
+
+    if (existingGamesCount >= 5) {
+      return res.status(400).json({
+        code: 400,
+        message: `该主体"${entity.name}"已经分配了5个游戏，不能再分配更多游戏`
+      });
+    }
+
+    // 检查是否已经分配过这个游戏给这个主体
+    const existingEntity = await Entity.findOne({
+      where: {
+        game_name: game.name,
+        name: entity.name
+      }
+    });
+
+    if (existingEntity) {
+      return res.status(400).json({
+        code: 400,
+        message: `游戏"${game.name}"已经分配给主体"${entity.name}"`
+      });
+    }
+
+    // 创建新的主体记录
+    const resultEntity = await Entity.create({
+      name: entity.name,
+      programmer: programmer || '',
+      game_name: game.name,
+      development_status: development_status || '',
+      assigned_user_id: entity.assigned_user_id
+    });
+
+    logger.info(`管理员 ${currentUser.username} 分配游戏 ${game.name} 给主体 ${entity.name} (当前游戏数量: ${existingGamesCount + 1}/5)`);
+
+    res.json({
+      code: 20000,
+      data: {
+        entity: resultEntity.toFrontendFormat(),
+        created_new_entity: true
+      },
+      message: `成功为主体"${entity.name}"分配游戏"${game.name}" (当前游戏数量: ${existingGamesCount + 1}/5)`
+    });
+
+  } catch (error) {
+    console.error('分配游戏给主体错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 移除主体的游戏分配
+app.delete('/api/entity/remove-game/:entityId', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { entityId } = req.params;
+
+    // 检查权限：只有管理员可以移除主体的游戏分配
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以移除主体的游戏分配'
+      });
+    }
+
+    // 验证主体是否存在
+    const entity = await Entity.findByPk(entityId);
+    if (!entity) {
+      return res.status(404).json({
+        code: 404,
+        message: '主体不存在'
+      });
+    }
+
+    // 移除游戏分配
+    await entity.update({
+      game_name: '',
+      updated_at: new Date()
+    });
+
+    logger.info(`管理员 ${currentUser.username} 移除了主体 ${entity.name} (ID: ${entityId}) 的游戏分配`);
+
+    res.json({
+      code: 20000,
+      data: {
+        entity: entity.toFrontendFormat()
+      },
+      message: '游戏分配移除成功'
+    });
+
+  } catch (error) {
+    console.error('移除主体游戏分配错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'

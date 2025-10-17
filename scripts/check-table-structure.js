@@ -21,6 +21,17 @@ async function checkTableStructure() {
       console.log(`  ${col.name}: ${col.type} ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''}`);
     });
 
+    // 检查 entities 表结构
+    try {
+      const [entityColumns] = await sequelize.query("PRAGMA table_info(entities)");
+      console.log('\nEntities table columns:');
+      entityColumns.forEach(col => {
+        console.log(`  ${col.name}: ${col.type} ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''}`);
+      });
+    } catch (error) {
+      console.log('\nEntities table: NOT FOUND');
+    }
+
   } catch (error) {
     console.error('❌ 检查失败:', error.message);
   } finally {

@@ -25,6 +25,16 @@ const USER: AppRouteRecordRaw = {
       },
     },
     {
+      path: 'entity-management',
+      name: 'EntityManagement',
+      component: () => import('@/views/user/entity-management/index.vue'),
+      meta: {
+        locale: 'menu.user.entity',
+        requiresAuth: true,
+        roles: ['admin', 'internal_boss'], // 只有管理员和内部老板可以访问
+      },
+    },
+    {
       path: 'user-game-management',
       name: 'UserGameManagement',
       component: () => import('@/views/user/user-game-management/index.vue'),
