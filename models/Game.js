@@ -58,6 +58,11 @@ function defineGameModel(sequelize) {
     allowNull: true,
     comment: '广告ID，用于广告预览二维码'
   },
+  entity_name: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: '主体名称'
+  },
   created_at: {
     type: DataTypes.DATE,
     allowNull: false,

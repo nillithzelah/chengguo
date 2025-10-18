@@ -1228,11 +1228,37 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
         order: [['created_at', 'DESC']]
       });
 
+      // 为每个游戏添加主体信息
+      const gamesWithEntities = await Promise.all(games.map(async (game) => {
+        try {
+          // 查询与该游戏关联的主体
+          const entities = await Entity.findAll({
+            where: { game_name: game.name },
+            attributes: ['name'],
+            order: [['created_at', 'DESC']]
+          });
+
+          const gameData = game.toJSON();
+          if (entities && entities.length > 0) {
+            gameData.entity_names = entities.map(entity => entity.name).join('、');
+          } else {
+            gameData.entity_names = null; // 明确设置为null表示无主体
+          }
+
+          return gameData;
+        } catch (error) {
+          console.error(`获取游戏 ${game.name} 的主体信息失败:`, error);
+          const gameData = game.toJSON();
+          gameData.entity_names = null; // 出错时也设置为null
+          return gameData;
+        }
+      }));
+
       res.json({
         code: 20000,
         data: {
-          games: games,
-          total: games.length
+          games: gamesWithEntities,
+          total: gamesWithEntities.length
         },
         message: '获取游戏列表成功'
       });
@@ -1250,14 +1276,38 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
         order: [['assigned_at', 'DESC']]
       });
 
-      // 提取游戏信息
-      const games = userGames.map(userGame => userGame.game);
+      // 提取游戏信息并添加主体信息
+      const gamesWithEntities = await Promise.all(userGames.map(async (userGame) => {
+        const game = userGame.game;
+        try {
+          // 查询与该游戏关联的主体
+          const entities = await Entity.findAll({
+            where: { game_name: game.name },
+            attributes: ['name'],
+            order: [['created_at', 'DESC']]
+          });
+
+          const gameData = game.toJSON();
+          if (entities && entities.length > 0) {
+            gameData.entity_names = entities.map(entity => entity.name).join('、');
+          } else {
+            gameData.entity_names = null; // 明确设置为null表示无主体
+          }
+
+          return gameData;
+        } catch (error) {
+          console.error(`获取游戏 ${game.name} 的主体信息失败:`, error);
+          const gameData = game.toJSON();
+          gameData.entity_names = null; // 出错时也设置为null
+          return gameData;
+        }
+      }));
 
       res.json({
         code: 20000,
         data: {
-          games: games,
-          total: games.length
+          games: gamesWithEntities,
+          total: gamesWithEntities.length
         },
         message: '获取游戏列表成功'
       });

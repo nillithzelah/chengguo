@@ -104,6 +104,30 @@ UserGame.belongsTo(User, {
   as: 'assignedByUser'
 });
 
+// 定义 Entity 与 Game 的关联关系
+Entity.hasMany(Game, {
+  foreignKey: 'entity_name',
+  sourceKey: 'name',
+  as: 'games'
+});
+
+Game.belongsTo(Entity, {
+  foreignKey: 'entity_name',
+  targetKey: 'name',
+  as: 'entity'
+});
+
+// 定义 Entity 与 User 的关联关系 (分配用户)
+Entity.belongsTo(User, {
+  foreignKey: 'assigned_user_id',
+  as: 'assignedUser'
+});
+
+User.hasMany(Entity, {
+  foreignKey: 'assigned_user_id',
+  as: 'assignedEntities'
+});
+
 module.exports = {
   sequelize,
   testConnection,

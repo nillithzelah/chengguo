@@ -38,6 +38,25 @@
         </select>
         <span v-if="userLoading" class="loading-text">加载中...</span>
       </div>
+      <div class="selector-item">
+        <label>选择主体：</label>
+        <select
+          v-model="selectedEntityName"
+          @change="filterGamesByEntity"
+          :disabled="entityLoading"
+          class="user-select"
+        >
+          <option value="">显示所有主体</option>
+          <option
+            v-for="entity in entities"
+            :key="entity.id"
+            :value="entity.name"
+          >
+            {{ entity.name }}
+          </option>
+        </select>
+        <span v-if="entityLoading" class="loading-text">加载中...</span>
+      </div>
     </div>
 
     <!-- 游戏列表 -->
@@ -66,9 +85,6 @@
             </div>
           </template>
 
-          <template #description="{ record }">
-            {{ record.description || '无' }}
-          </template>
 
           <template #ad_info="{ record }">
             <div class="ad-info">
@@ -490,6 +506,7 @@ const userLoading = ref(false);
 
 // 筛选数据
 const selectedUserId = ref('');
+const selectedEntityName = ref('');
 const gameStatusFilter = ref('');
 const filteredGames = ref([]);
 
@@ -542,10 +559,14 @@ const testing = ref(false);
 const assigning = ref(false);
 const testResult = ref(null);
 const isInitialized = ref(false);
+const entityLoading = ref(false);
 
 // 广告测试相关
 const adTesting = ref(false);
 const adTestResult = ref(null);
+
+// 主体数据
+const entities = ref([]);
 
 // 用户权限检查
 const userStore = useUserStore();
@@ -593,9 +614,9 @@ const gameColumns = computed(() => [
     width: 250
   },
   ...(canModify.value ? [{
-    title: '描述',
-    dataIndex: 'description',
-    slotName: 'description',
+    title: '主体名',
+    dataIndex: 'entity_names',
+    slotName: 'entity_names',
     width: 150
   }] : []),
   ...(canModify.value ? [{
@@ -627,6 +648,72 @@ const gameColumns = computed(() => [
 const formatDate = (dateStr) => {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleString('zh-CN');
+};
+
+// 加载游戏列表（后端已包含主体信息）
+const loadGamesWithEntities = async () => {
+  console.log('📡 游戏管理页面开始加载游戏列表（包含主体信息）...');
+  try {
+    const response = await fetch('/api/game/list', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('📡 游戏列表API响应状态:', response.status);
+    if (response.ok) {
+      const result = await response.json();
+      // 隐藏API响应数据日志，避免在控制台输出大量调试信息
+      if (result.code === 20000) {
+        let gameList = result.data.games;
+
+        // 根据用户权限过滤游戏列表
+        if (canModify.value) {
+          // 管理员可以看到所有游戏
+          games.value = gameList;
+        } else {
+          // 非管理员只能看到分配给自己的游戏
+          try {
+            const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (userGamesResponse.ok) {
+              const userGamesResult = await userGamesResponse.json();
+              if (userGamesResult.code === 20000) {
+                const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+                games.value = gameList.filter(game => userGameIds.includes(game.id));
+                console.log('✅ 用户游戏列表加载成功:', games.value.length, '个游戏');
+              } else {
+                games.value = [];
+                console.log('❌ 获取用户游戏失败，使用空列表');
+              }
+            } else {
+              games.value = [];
+              console.log('❌ 获取用户游戏请求失败，使用空列表');
+            }
+          } catch (error) {
+            console.error('❌ 获取用户游戏时出错:', error);
+            games.value = [];
+          }
+        }
+
+        filteredGames.value = [...games.value]; // 更新筛选结果
+      } else {
+        console.log('❌ 游戏列表API返回错误:', result.message);
+      }
+    } else {
+      console.log('❌ 游戏列表API请求失败，状态码:', response.status);
+    }
+  } catch (error) {
+    console.error('❌ 加载游戏列表失败:', error);
+  }
 };
 
 // 筛选函数
@@ -705,6 +792,56 @@ const filterGames = () => {
   isInitialized.value = true;
 };
 
+// 按主体名筛选游戏
+const filterGamesByEntity = () => {
+  if (selectedEntityName.value) {
+    // 获取选中主体关联的游戏
+    const entityGames = games.value.filter(game => {
+      // 检查游戏的entity_names是否包含选中的主体名
+      if (game.entity_names) {
+        const entityNames = game.entity_names.split('、');
+        return entityNames.includes(selectedEntityName.value);
+      }
+      return false;
+    });
+    filteredGames.value = entityGames;
+  } else {
+    // 如果没有选择主体，根据用户权限显示相应游戏
+    if (canModify.value) {
+      filterGames();
+    } else {
+      // 非管理员显示自己拥有的游戏
+      try {
+        const userGamesResponse = fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        }).then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+        }).then(result => {
+          if (result.code === 20000) {
+            const userGameIds = result.data.games.map(userGame => userGame.game.id);
+            filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
+          } else {
+            filteredGames.value = [];
+          }
+        }).catch(error => {
+          console.error('获取用户游戏失败:', error);
+          filteredGames.value = [];
+        });
+      } catch (error) {
+        console.error('获取用户游戏时出错:', error);
+        filteredGames.value = [];
+      }
+    }
+  }
+  isInitialized.value = true;
+};
+
 // 刷新游戏列表
 const refreshGames = async () => {
   // 先清空当前显示，避免闪烁
@@ -713,8 +850,12 @@ const refreshGames = async () => {
   if (currentSelectedUserId) {
     // 如果选择了特定用户，直接重新筛选
     await filterGamesByUser();
+  } else if (selectedEntityName.value) {
+    // 如果选择了特定主体，重新筛选
+    await loadGames();
+    filterGamesByEntity();
   } else {
-    // 如果没有选择用户，根据权限显示相应游戏
+    // 如果没有选择用户或主体，根据权限显示相应游戏
     if (canModify.value) {
       // 管理员：重新加载所有游戏
       await loadGames();
@@ -774,68 +915,7 @@ const getUserGameCount = (userId) => {
 
 // API调用函数
 const loadGames = async () => {
-  console.log('📡 游戏管理页面开始加载游戏列表...');
-  try {
-    const response = await fetch('/api/game/list', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log('📡 游戏列表API响应状态:', response.status);
-    if (response.ok) {
-      const result = await response.json();
-      // 隐藏API响应数据日志，避免在控制台输出大量调试信息
-      if (result.code === 20000) {
-        let gameList = result.data.games;
-
-        // 根据用户权限过滤游戏列表
-        if (canModify.value) {
-          // 管理员可以看到所有游戏
-          games.value = gameList;
-        } else {
-          // 非管理员只能看到分配给自己的游戏
-          try {
-            const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-              }
-            });
-
-            if (userGamesResponse.ok) {
-              const userGamesResult = await userGamesResponse.json();
-              if (userGamesResult.code === 20000) {
-                const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
-                games.value = gameList.filter(game => userGameIds.includes(game.id));
-                console.log('✅ 用户游戏列表加载成功:', games.value.length, '个游戏');
-              } else {
-                games.value = [];
-                console.log('❌ 获取用户游戏失败，使用空列表');
-              }
-            } else {
-              games.value = [];
-              console.log('❌ 获取用户游戏请求失败，使用空列表');
-            }
-          } catch (error) {
-            console.error('❌ 获取用户游戏时出错:', error);
-            games.value = [];
-          }
-        }
-
-        filteredGames.value = [...games.value]; // 更新筛选结果
-      } else {
-        console.log('❌ 游戏列表API返回错误:', result.message);
-      }
-    } else {
-      console.log('❌ 游戏列表API请求失败，状态码:', response.status);
-    }
-  } catch (error) {
-    console.error('❌ 加载游戏列表失败:', error);
-  }
+  await loadGamesWithEntities();
 };
 
 const loadUsers = async () => {
@@ -919,6 +999,52 @@ const loadUsers = async () => {
     }
   } catch (error) {
     console.error('❌ 加载用户列表失败:', error);
+  }
+};
+
+// 加载主体列表
+const loadEntities = async () => {
+  console.log('📡 游戏管理页面开始加载主体列表...');
+  entityLoading.value = true;
+  try {
+    const response = await fetch('/api/entity/list', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('📡 主体列表API响应状态:', response.status);
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 20000) {
+        // 对主体名进行去重
+        const uniqueEntities = [];
+        const seenNames = new Set();
+
+        result.data.entities.forEach(entity => {
+          if (!seenNames.has(entity.name)) {
+            seenNames.add(entity.name);
+            uniqueEntities.push(entity);
+          }
+        });
+
+        entities.value = uniqueEntities;
+        console.log('✅ 主体列表加载成功，去重后:', entities.value.length, '个主体');
+      } else {
+        console.log('❌ 主体列表API返回错误:', result.message);
+        entities.value = [];
+      }
+    } else {
+      console.log('❌ 主体列表API请求失败，状态码:', response.status);
+      entities.value = [];
+    }
+  } catch (error) {
+    console.error('❌ 加载主体列表失败:', error);
+    entities.value = [];
+  } finally {
+    entityLoading.value = false;
   }
 };
 
@@ -1496,6 +1622,7 @@ onMounted(async () => {
   // 直接调用数据加载，不依赖路由监听
   await loadGames();
   await loadUsers();
+  await loadEntities();
 
   // 设置默认筛选：显示所有游戏
   filterGames();
@@ -1514,6 +1641,7 @@ watch(
       setTimeout(async () => {
         await loadGames();
         await loadUsers();
+        await loadEntities();
         // 重新应用筛选
         if (!canModify.value && userStore.userInfo?.accountId) {
           selectedUserId.value = userStore.userInfo.accountId.toString();
@@ -1599,12 +1727,16 @@ watch(
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(102, 126, 234, 0.1);
   animation: slideInFromLeft 0.8s ease-out 0.2s both;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
 
   .selector-item {
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    flex: 1;
 
     label {
       font-weight: 600;
