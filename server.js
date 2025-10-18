@@ -1441,6 +1441,18 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     if (advertiser_id !== undefined) updateData.advertiser_id = advertiser_id || null;
     if (promotion_id !== undefined) updateData.promotion_id = promotion_id || null;
 
+    // 如果appid和appSecret都填写了，则设置为已验证状态
+    if ((appid !== undefined && appid.trim()) && (appSecret !== undefined && appSecret.trim())) {
+      // 如果是临时值开头，则保持未验证状态
+      if (appid.startsWith('temp_') && appSecret.startsWith('temp_secret_')) {
+        updateData.validated = false;
+        updateData.validatedAt = null;
+      } else {
+        updateData.validated = true;
+        updateData.validatedAt = new Date();
+      }
+    }
+
     await game.update(updateData);
 
     logger.info(`管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
@@ -1544,11 +1556,50 @@ app.get('/api/user/assigned-options', authenticateJWT, async (req, res) => {
     });
   }
 });
+
+// 获取程序员选项 (用于主体管理)
+app.get('/api/entity/programmer-options', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：管理员、老板和客服可以查看程序员选项
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员、老板和客服可以查看程序员选项'
+      });
+    }
+
+    // 程序员选项列表
+    const programmerOptions = [
+      { value: '冯', label: '冯' },
+      { value: '张', label: '张' }
+    ];
+
+    res.json({
+      code: 20000,
+      data: {
+        programmers: programmerOptions,
+        total: programmerOptions.length
+      },
+      message: '获取程序员选项成功'
+    });
+
+  } catch (error) {
+    console.error('获取程序员选项错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
 // 创建主体
 app.post('/api/entity/create', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { name, programmer, assigned_user_id } = req.body;
+    const { name, programmer, assigned_user_id, game_name } = req.body;
 
     // 检查权限：只有管理员可以创建主体
     const mappedRole = getMappedRole(currentUser.role);
@@ -1601,12 +1652,12 @@ app.post('/api/entity/create', authenticateJWT, async (req, res) => {
     const newEntity = await Entity.create({
       name: name.trim(),
       programmer: programmer ? programmer.trim() : '',
-      game_name: '',
-      development_status: '',
+      game_name: game_name ? game_name.trim() : '',
+      development_status: '游戏创建',
       assigned_user_id: assigned_user_id || null
     });
 
-    logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
+    logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 游戏名称: ${game_name || '未设置'}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
 
     res.json({
       code: 20000,
@@ -1697,6 +1748,28 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
     if (assigned_user_id !== undefined) updateData.assigned_user_id = assigned_user_id || null;
 
     await entity.update(updateData);
+
+    // 如果开发状态更新为"上线运营"，自动创建游戏记录
+    if (req.body.development_status === '上线运营' && entity.game_name) {
+      const existingGame = await Game.findOne({
+        where: { name: entity.game_name }
+      });
+
+      if (!existingGame) {
+        // 创建新的游戏记录，使用临时值绕过验证
+        await Game.create({
+          name: entity.game_name,
+          appid: 'temp_' + Date.now(), // 临时appid，使用时间戳避免重复
+          appSecret: 'temp_secret_' + Date.now(), // 临时appSecret
+          description: `由主体"${entity.name}"自动创建的游戏`,
+          status: 'active',
+          validated: false, // 未验证状态
+          validatedAt: null
+        });
+
+        logger.info(`自动创建游戏记录: ${entity.game_name} (由于主体 ${entity.name} 达到上线运营状态)`);
+      }
+    }
 
     logger.info(`用户 ${currentUser.username} 更新了主体: ${entity.name} (ID: ${id})`);
 
@@ -1822,7 +1895,7 @@ app.get('/api/entity/list', authenticateJWT, async (req, res) => {
 app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { entity_id, game_id, programmer, development_status } = req.body;
+    const { entity_id, game_name, programmer, development_status } = req.body;
 
     // 检查权限：只有管理员可以分配游戏给主体
     const mappedRole = getMappedRole(currentUser.role);
@@ -1834,10 +1907,18 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     }
 
     // 验证必填参数
-    if (!entity_id || !game_id) {
+    if (!entity_id || !game_name) {
       return res.status(400).json({
         code: 400,
-        message: '主体ID和游戏ID不能为空'
+        message: '主体ID和游戏名称不能为空'
+      });
+    }
+
+    // 验证程序员字段（如果提供的话）
+    if (programmer && !['冯', '张'].includes(programmer)) {
+      return res.status(400).json({
+        code: 400,
+        message: '程序员只能选择"冯"或"张"'
       });
     }
 
@@ -1850,25 +1931,21 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
       });
     }
 
-    // 验证游戏是否存在
-    const game = await Game.findByPk(game_id);
-    if (!game || game.status !== 'active') {
-      return res.status(404).json({
-        code: 404,
-        message: '游戏不存在或已停用'
-      });
-    }
+    // 查找游戏（允许不存在的游戏）
+    const game = await Game.findOne({
+      where: { name: game_name, status: 'active' }
+    });
 
     // 检查游戏是否已经被分配给任何主体（一个游戏只能出现一次）
     const existingEntityWithGame = await Entity.findOne({
-      where: { game_name: game.name }
+      where: { game_name: game_name }
     });
 
     if (existingEntityWithGame) {
       // 游戏已经被分配给其他主体，不允许重复分配
       return res.status(400).json({
         code: 400,
-        message: `游戏 "${game.name}" 已被其他主体使用，无法重复分配`
+        message: `游戏 "${game_name}" 已被其他主体使用，无法重复分配`
       });
     }
 
@@ -1889,7 +1966,7 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     // 检查是否已经分配过这个游戏给这个主体
     const existingEntity = await Entity.findOne({
       where: {
-        game_name: game.name,
+        game_name: game_name,
         name: entity.name
       }
     });
@@ -1897,7 +1974,7 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     if (existingEntity) {
       return res.status(400).json({
         code: 400,
-        message: `游戏"${game.name}"已经分配给主体"${entity.name}"`
+        message: `游戏"${game_name}"已经分配给主体"${entity.name}"`
       });
     }
 
@@ -1905,12 +1982,34 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     const resultEntity = await Entity.create({
       name: entity.name,
       programmer: programmer || '',
-      game_name: game.name,
+      game_name: game_name,
       development_status: development_status || '',
       assigned_user_id: entity.assigned_user_id
     });
 
-    logger.info(`管理员 ${currentUser.username} 分配游戏 ${game.name} 给主体 ${entity.name} (当前游戏数量: ${existingGamesCount + 1}/5)`);
+    // 如果开发状态是"上线运营"，自动创建游戏记录
+    if (development_status === '上线运营') {
+      const existingGame = await Game.findOne({
+        where: { name: game_name }
+      });
+
+      if (!existingGame) {
+        // 创建新的游戏记录
+        await Game.create({
+          name: game_name,
+          appid: 'temp_' + Date.now(), // 临时appid，使用时间戳避免重复
+          appSecret: 'temp_secret_' + Date.now(), // 临时appSecret
+          description: `由主体"${entity.name}"自动创建的游戏`,
+          status: 'active',
+          validated: false, // 未验证状态
+          validatedAt: null
+        });
+
+        logger.info(`自动创建游戏记录: ${game_name} (由于主体 ${entity.name} 达到上线运营状态)`);
+      }
+    }
+
+    logger.info(`管理员 ${currentUser.username} 分配游戏 ${game_name} 给主体 ${entity.name} (当前游戏数量: ${existingGamesCount + 1}/5)`);
 
     res.json({
       code: 20000,
@@ -1918,7 +2017,7 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
         entity: resultEntity.toFrontendFormat(),
         created_new_entity: true
       },
-      message: `成功为主体"${entity.name}"分配游戏"${game.name}" (当前游戏数量: ${existingGamesCount + 1}/5)`
+      message: `成功为主体"${entity.name}"分配游戏"${game_name}" (当前游戏数量: ${existingGamesCount + 1}/5)`
     });
 
   } catch (error) {

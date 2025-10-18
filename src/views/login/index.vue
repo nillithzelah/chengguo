@@ -73,7 +73,7 @@
   };
 
   const goToGameLogin = () => {
-    window.open('https://m.game985.vip/login', '_blank');
+    window.open('https://m.game985.vip/', '_blank');
   };
 
   onMounted(() => {

@@ -276,18 +276,6 @@
             <div class="form-section">
               <h4>游戏信息（可选）</h4>
               <p class="section-description">如果需要同时分配游戏，可以填写以下信息</p>
-
-              <div class="form-item">
-                <label>程序员</label>
-                <input
-                  v-model="createForm.programmer"
-                  type="text"
-                  placeholder="输入程序员姓名"
-                  class="form-input"
-                />
-                <small style="color: #666; margin-top: 4px;">负责该主体的程序员（可选）</small>
-              </div>
-
               <div class="form-item">
                 <label>游戏名字</label>
                 <input
@@ -298,6 +286,21 @@
                 />
                 <small style="color: #666; margin-top: 4px;">游戏的名称（可选）</small>
               </div>
+              
+              <div class="form-item">
+                <label>程序员</label>
+                <select
+                  v-model="createForm.programmer"
+                  class="form-input"
+                >
+                  <option value="">请选择程序员</option>
+                  <option value="冯">冯</option>
+                  <option value="张">张</option>
+                </select>
+                <small style="color: #666; margin-top: 4px;">负责该主体的程序员（可选）</small>
+              </div>
+
+       
 
               <div class="form-item">
                 <label>开发状态</label>
@@ -362,31 +365,26 @@
           <!-- 有权限时显示表单 -->
           <div v-else>
             <div class="form-item">
-              <label>选择游戏</label>
-              <select
-                v-model="editForm.game_id"
+              <label>游戏名字</label>
+              <input
+                v-model="editForm.game_name"
+                type="text"
+                placeholder="输入游戏名称"
                 class="form-input"
-              >
-                <option value="">请选择游戏</option>
-                <option
-                  v-for="game in availableGames"
-                  :key="game.id"
-                  :value="game.id"
-                >
-                  {{ game.name }} ({{ game.appid }})
-                </option>
-              </select>
-              <small style="color: #666; margin-top: 4px;">从系统中选择要分配的游戏</small>
+              />
+              <small style="color: #666; margin-top: 4px;">输入游戏的名称</small>
             </div>
 
             <div class="form-item">
               <label>程序员</label>
-              <input
+              <select
                 v-model="editForm.programmer"
-                type="text"
-                placeholder="输入程序员姓名"
                 class="form-input"
-              />
+              >
+                <option value="">请选择程序员</option>
+                <option value="冯">冯</option>
+                <option value="张">张</option>
+              </select>
               <small style="color: #666; margin-top: 4px;">负责该主体的程序员</small>
             </div>
 
@@ -450,7 +448,7 @@
           <button
             v-if="canCreateEntity"
             @click="handleEditEntity"
-            :disabled="!editForm.programmer || !editForm.game_id || !editForm.name || editLoading"
+            :disabled="!editForm.programmer || !editForm.game_name || !editForm.name || editLoading"
             class="btn btn-primary"
           >
             {{ editLoading ? '保存中...' : '保存修改' }}
@@ -504,31 +502,26 @@
           <!-- 有权限时显示表单 -->
           <div v-else>
             <div class="form-item">
-              <label>选择游戏</label>
-              <select
-                v-model="assignForm.game_id"
+              <label>游戏名字</label>
+              <input
+                v-model="assignForm.game_name"
+                type="text"
+                placeholder="输入游戏名称"
                 class="form-input"
-              >
-                <option value="">请选择游戏</option>
-                <option
-                  v-for="game in availableGames"
-                  :key="game.id"
-                  :value="game.id"
-                >
-                  {{ game.name }} ({{ game.appid }})
-                </option>
-              </select>
-              <small style="color: #666; margin-top: 4px;">从系统中选择要分配的游戏</small>
+              />
+              <small style="color: #666; margin-top: 4px;">输入游戏的名称</small>
             </div>
 
             <div class="form-item">
               <label>程序员</label>
-              <input
+              <select
                 v-model="assignForm.programmer"
-                type="text"
-                placeholder="输入程序员姓名"
                 class="form-input"
-              />
+              >
+                <option value="">请选择程序员</option>
+                <option value="冯">冯</option>
+                <option value="张">张</option>
+              </select>
               <small style="color: #666; margin-top: 4px;">负责该主体的程序员</small>
             </div>
 
@@ -592,7 +585,7 @@
           <button
             v-if="canCreateEntity"
             @click="handleAssignEntity"
-            :disabled="!assignForm.programmer || !assignForm.game_id || !assignForm.name || createLoading"
+            :disabled="!assignForm.programmer || !assignForm.game_name || !assignForm.name || createLoading"
             class="btn btn-primary"
           >
             {{ createLoading ? '分配中...' : '分配主体' }}
@@ -695,7 +688,7 @@ const createForm = reactive({
 });
 
 const editForm = reactive({
-  game_id: '',
+  game_name: '',
   programmer: '',
   name: '',
   development_status: ''
@@ -715,7 +708,7 @@ const developmentStatuses = [
 const availableGames = ref<any[]>([]);
 
 const assignForm = reactive({
-  game_id: '',
+  game_name: '',
   programmer: '',
   name: '',
   development_status: ''
@@ -809,13 +802,6 @@ const checkCanDeleteEntity = (entity: any) => {
   // 只有管理员可以删除主体
   const currentUserRole = userStore.userInfo?.role;
   const canDelete = currentUserRole === 'admin';
-
-  console.log('🔍 删除权限检查:', {
-    entityId: entity?.id,
-    entityName: entity?.name,
-    currentUserRole,
-    canDelete
-  });
 
   return canDelete;
 };
@@ -1065,7 +1051,7 @@ const editEntity = (entity: any) => {
   editEntityInfo.value = entity;
 
   // 填充编辑表单
-  editForm.game_id = entity.game_id || '';
+  editForm.game_name = entity.game_name || '';
   editForm.programmer = entity.programmer || '';
   editForm.name = entity.name || '';
   editForm.development_status = entity.development_status || '游戏创建';
@@ -1175,7 +1161,7 @@ const resetCreateForm = () => {
 
 // 重置编辑表单
 const resetEditForm = () => {
-  editForm.game_id = '';
+  editForm.game_name = '';
   editForm.programmer = '';
   editForm.name = '';
   editForm.development_status = '';
@@ -1217,7 +1203,7 @@ const loadAvailableGames = async () => {
 
 // 打开分配游戏主体模态框
 const openAssignModal = () => {
-  assignForm.game_id = '';
+  assignForm.game_name = '';
   assignForm.programmer = '';
   assignForm.name = '';
   assignForm.development_status = '游戏创建';
@@ -1226,7 +1212,7 @@ const openAssignModal = () => {
 
 // 重置分配表单
 const resetAssignForm = () => {
-  assignForm.game_id = '';
+  assignForm.game_name = '';
   assignForm.programmer = '';
   assignForm.name = '';
   assignForm.development_status = '';
@@ -1251,7 +1237,7 @@ const handleEditEntity = async () => {
     const updateData: any = {
       name: editForm.name,
       programmer: editForm.programmer.trim(),
-      game_name: editForm.game_id ? availableGames.value.find(g => g.id == editForm.game_id)?.name : '',
+      game_name: editForm.game_name,
       development_status: editForm.development_status
     };
 
@@ -1310,15 +1296,35 @@ const handleCreateEntity = async () => {
     }
 
     console.log('✅ 表单验证通过，开始创建');
+    console.log('📝 表单数据:', {
+      name: createForm.name,
+      programmer: createForm.programmer,
+      game_name: createForm.game_name,
+      assigned_user_id: createForm.assigned_user_id
+    });
+
     createLoading.value = true;
 
-    const entityData = {
+    const entityData: any = {
       name: createForm.name.trim(),
-      programmer: createForm.programmer.trim(),
-      game_name: createForm.game_name.trim(),
       development_status: createForm.development_status || '游戏创建',
       assigned_user_id: createForm.assigned_user_id
     };
+
+    // 包含游戏信息（程序员和游戏名字可以单独填写）
+    if (createForm.programmer.trim()) {
+      entityData.programmer = createForm.programmer.trim();
+    } else {
+      entityData.programmer = '';
+    }
+
+    if (createForm.game_name.trim()) {
+      entityData.game_name = createForm.game_name.trim();
+    } else {
+      entityData.game_name = '';
+    }
+
+    console.log('📡 最终发送的数据:', entityData);
 
     console.log('📡 发送创建请求，数据:', entityData);
 
@@ -1374,13 +1380,13 @@ const handleCreateEntity = async () => {
 const handleAssignEntity = async () => {
   try {
     // 基础表单验证
-    if (!assignForm.game_id) {
-      Message.error('请选择游戏');
+    if (!assignForm.game_name.trim()) {
+      Message.error('请输入游戏名称');
       return;
     }
 
     if (!assignForm.programmer.trim()) {
-      Message.error('请输入程序员姓名');
+      Message.error('请选择程序员');
       return;
     }
 
@@ -1402,7 +1408,7 @@ const handleAssignEntity = async () => {
     try {
       const assignData = {
         entity_id: selectedEntity.id,
-        game_id: assignForm.game_id,
+        game_name: assignForm.game_name.trim(),
         programmer: assignForm.programmer.trim(),
         development_status: assignForm.development_status
       };

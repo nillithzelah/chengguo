@@ -10,9 +10,9 @@
           <p>查看和管理所有游戏，支持按用户筛选</p>
         </div>
         <div class="header-actions" v-if="canModify">
-          <a-button @click="showCreateGameModal = true" type="primary">
+          <!-- <a-button @click="showCreateGameModal = true" type="primary">
             创建游戏
-          </a-button>
+          </a-button> -->
         </div>
       </div>
     </div>
