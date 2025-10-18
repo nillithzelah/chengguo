@@ -8,8 +8,14 @@ async function updateServerAdminPassword() {
     await sequelize.authenticate();
     console.log('✅ 数据库连接成功');
 
-    // 查找 admin 用户
-    const adminUser = await User.findOne({ where: { username: 'admin' } });
+    // 查找 admin 用户 (尝试多个可能的用户名)
+    let adminUser = await User.findOne({ where: { username: 'admin' } });
+    if (!adminUser) {
+      adminUser = await User.findOne({ where: { username: 'nillithzelah' } });
+    }
+    if (!adminUser) {
+      adminUser = await User.findOne({ where: { username: 'wilee' } });
+    }
 
     if (!adminUser) {
       console.log('❌ 未找到 admin 用户');
@@ -17,7 +23,7 @@ async function updateServerAdminPassword() {
     }
 
     // 新密码
-    const newPassword = 'PeKbz)i_7!T^cUL|v[0`';
+    const newPassword = 'admin123';
 
     // 设置新密码
     await adminUser.setPassword(newPassword);

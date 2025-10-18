@@ -296,6 +296,12 @@ async function loadTokensFromDatabase() {
   }
 }
 
+// 强制重新加载token（用于更新后立即生效）
+async function reloadTokensFromDatabase() {
+  console.log('🔄 强制重新加载token...');
+  await loadTokensFromDatabase();
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -2470,6 +2476,9 @@ async function refreshAdAccessToken() {
       adTokenLastRefresh = new Date();
       adTokenExpiresAt = expiresAt;
 
+      // 强制重新加载token以确保全局变量更新
+      await reloadTokensFromDatabase();
+
       // 记录token刷新历史
       logTokenRefresh(newAccessToken, newRefreshToken, expiresIn, adTokenLastRefresh);
 
@@ -2639,6 +2648,9 @@ app.post('/api/douyin/update-refresh-token', authenticateJWT, async (req, res) =
     adRefreshToken = refresh_token;
     adTokenLastRefresh = new Date();
 
+    // 强制重新加载token以确保全局变量更新
+    await reloadTokensFromDatabase();
+
     // 立即尝试刷新access_token
     try {
       const result = await refreshAdAccessToken();
@@ -2699,15 +2711,9 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
 
     logger.debug('请求参数:', { advertiser_id, id_type, promotion_id });
 
-    // 验证并修正id_type参数
+    // 使用原始id_type参数，不进行修正
     let correctedIdType = id_type;
-    if (id_type === 'ID_TYPE_PROMOTION') {
-      correctedIdType = 'PROMOTION';
-      logger.debug('修正id_type参数: ID_TYPE_PROMOTION -> PROMOTION');
-    } else if (id_type === 'ID_TYPE_AD') {
-      correctedIdType = 'AD';
-      logger.debug('修正id_type参数: ID_TYPE_AD -> AD');
-    }
+    logger.debug('使用原始id_type参数:', correctedIdType);
 
     // 步骤1: 使用已知的有效access_token
     logger.debug('获取有效的广告投放access_token');
@@ -2774,7 +2780,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
             return res.json({
               code: 0,
               message: 'success',
-              data: retryResponse.data.data,
+              data: retryResponse.data.data.data, // 修正：从 data.data 中获取实际数据
               token_info: {
                 ad_access_token: accessToken,
                 expires_in: newTokenData.expires_in,
@@ -2794,6 +2800,20 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
         }
       }
 
+      // 如果是refresh_token失效，返回更详细的错误信息
+      if (qrResponse.data.code === 40107 ||
+          qrResponse.data.message?.includes('refresh_token无效') ||
+          qrResponse.data.message?.includes('refresh_token') && qrResponse.data.message?.includes('无效')) {
+        logger.error('refresh_token已失效，需要重新进行OAuth授权');
+        return res.status(401).json({
+          error: 'refresh_token已失效',
+          message: 'refresh_token无效，请重新进行OAuth授权获取新的refresh_token',
+          code: 'REFRESH_TOKEN_INVALID',
+          solution: '请访问巨量引擎开发者平台重新进行OAuth授权，获取新的refresh_token并更新到系统配置中',
+          details: qrResponse.data
+        });
+      }
+
       return res.status(500).json({
         error: '二维码获取失败',
         message: qrResponse.data.message,
@@ -2806,7 +2826,7 @@ app.get('/api/douyin/ad-preview-qrcode', async (req, res) => {
     res.json({
       code: 0,
       message: 'success',
-      data: qrResponse.data.data,
+      data: qrResponse.data.data.data, // 修正：从 data.data 中获取实际数据
       token_info: {
         ad_access_token: accessToken,
         // expires_in: tokenExpiresInfo.expires_in, // 使用预配置token，过期时间未知

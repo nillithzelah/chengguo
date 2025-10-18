@@ -35,7 +35,7 @@
       <div class="game-login-section">
         <div class="game-item" @click="goToGameLogin">
           <div class="game-icon">🎮</div>
-          <div class="game-text">游戏库</div>
+          <div class="game-text">游戏展示</div>
         </div>
       </div>
     </div>

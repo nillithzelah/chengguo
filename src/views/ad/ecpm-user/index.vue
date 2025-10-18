@@ -1044,7 +1044,8 @@
    }
 
    try {
-     
+          console.log('🚀 获取到的广告预览二维码URL:');
+
      const qrUrl = await fetchRealAdPreviewQrCode();
      currentPreviewQrUrl.value = qrUrl;
 
@@ -1145,7 +1146,7 @@
  const fetchRealAdPreviewQrCode = async () => {
    const controller = new AbortController();
    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
-
+  console.log('🚀 获取真实的广告预览二维码...');
    try {
 
      // 获取当前选中的应用配置
@@ -1189,8 +1190,8 @@
 
      const result = await response.json();
 
-     if (result.code === 0 && result.data?.data?.qrcode_msg_url) {
-       return result.data.data.qrcode_msg_url;
+     if (result.code === 0 && result.data?.qrcode_msg_url) {
+       return result.data.qrcode_msg_url;
      } else {
        throw new Error(result.message || result.err_msg || 'API返回错误，无法获取二维码');
      }
@@ -1198,14 +1199,18 @@
    } catch (error) {
      clearTimeout(timeoutId);
      console.error('❌ 获取广告预览二维码失败:', error);
-     
+
      // 重新包装错误信息
      if (error.name === 'AbortError') {
        throw new Error('请求超时，请检查网络连接或稍后重试');
      } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
        throw new Error('网络请求失败，请检查网络连接或代理服务器状态');
+     } else if (error.message && error.message.includes('refresh_token已失效')) {
+       throw new Error('广告投放Token已失效，请联系管理员重新配置Token');
+     } else if (error.message && error.message.includes('refresh_token无效')) {
+       throw new Error('广告投放Token无效，请联系管理员重新配置Token');
      }
-     
+
      throw error;
    }
  };
