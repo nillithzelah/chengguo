@@ -11,7 +11,7 @@
     <!-- 数据统计 -->
     <div class="stats-section">
       <div class="stats-info">
-        <div class="total-count">系统中共有 {{ originalUserList.length }} 个用户</div>
+        <div class="total-count">系统中共有 {{ userList.length }} 个用户</div>
       </div>
     </div>
 
