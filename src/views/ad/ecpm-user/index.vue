@@ -406,7 +406,7 @@
    start_date: '',
    end_date: '',
    page_no: 1,
-   page_size: 50
+   page_size: 10
  });
 
  // 统计数据
@@ -2208,7 +2208,7 @@
    queryParams.start_date = '';
    queryParams.end_date = '';
    queryParams.page_no = 1;
-   queryParams.page_size = 50;
+   queryParams.page_size = 10;
    stats.value = null;
    tableData.value = [];
    gamesWithRevenue.value = [];
