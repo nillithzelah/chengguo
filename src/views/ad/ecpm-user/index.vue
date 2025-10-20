@@ -1158,7 +1158,7 @@
          params.append('app_secret', selectedApp.appSecret);
          params.append('date_hour', queryParams.date_hour || new Date().toISOString().split('T')[0]);
          params.append('page_no', queryParams.page_no?.toString() || '1');
-         params.append('page_size', queryParams.page_size?.toString() || '50');
+         params.append('page_size', queryParams.page_size?.toString() || '10');
 
          const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
            method: 'GET',
@@ -1190,12 +1190,22 @@
              };
              return;
            }
+
+           // 从API响应中获取总数
+           const apiTotalRecords = result.data.data ? result.data.data.total : result.data.total || allRecords.length;
+           stats.value = {
+             totalRecords: apiTotalRecords,
+             totalRevenue: '0.00', // 将在后面计算
+             avgEcpm: '0.00',
+             totalUsers: 0
+           };
          } else {
            throw new Error(result.message || '获取数据失败');
          }
        } else if (queryParams.query_type === 'date_range') {
          // 时间段查询：获取日期范围内的所有数据，支持完整分页
          allRecords = [];
+         let totalRecordsForRange = 0;
 
          for (const date of queryDates) {
            let pageNo = 1;
@@ -1260,7 +1270,9 @@
            }
          }
 
-         logger.info(`时间段查询完成，共获取到 ${allRecords.length} 条记录`);
+         // 计算时间段内的总数
+         totalRecordsForRange = allRecords.length;
+         logger.info(`时间段查询完成，共获取到 ${totalRecordsForRange} 条记录`);
 
          // 对时间段查询的结果进行前端分页
          const pageSize = queryParams.page_size;
@@ -1272,6 +1284,14 @@
          allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
 
          allRecords = allRecords.slice(startIndex, endIndex);
+
+         // 设置统计数据中的总数
+         stats.value = {
+           totalRecords: totalRecordsForRange,
+           totalRevenue: '0.00', // 将在后面计算
+           avgEcpm: '0.00',
+           totalUsers: 0
+         };
        }
      }
 
@@ -1369,6 +1389,12 @@
          totalRevenue = allGamesStats.totalRevenue;
          totalEcpm = allGamesStats.totalEcpm;
          uniqueUsers = allGamesStats.uniqueUsers;
+       } else if (queryParams.query_type === 'date_range') {
+         // 时间段查询：使用之前设置的总数
+         totalRecords = stats.value?.totalRecords || 0;
+         totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
+         totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
+         uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
        }
 
        stats.value = {
