@@ -8,6 +8,13 @@
       <p>管理系统中的主体信息</p>
     </div>
 
+    <!-- 数据统计 -->
+    <div class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">系统中共有 {{ entityList.length }} 个主体</div>
+      </div>
+    </div>
+
     <!-- 操作栏 -->
     <div class="action-bar">
       <!-- 隐藏新增主体按钮，只有管理员可见 -->
@@ -37,6 +44,13 @@
         </template>
         刷新
       </a-button>
+    </div>
+
+    <!-- 数据统计 -->
+    <div class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">共有 {{ entityList.length }} 条主体记录</div>
+      </div>
     </div>
 
     <!-- 筛选区域 -->
@@ -100,6 +114,14 @@
             <option value="internal">内部用户</option>
             <option value="external">外部用户</option>
           </select>
+        </div>
+        <div class="filter-item">
+          <a-button @click="clearAllFilters" type="secondary" class="clear-filters-btn">
+            <template #icon>
+              <icon-refresh />
+            </template>
+            清除筛选
+          </a-button>
         </div>
       </div>
     </div>
@@ -1038,6 +1060,15 @@ const applyFilters = () => {
   pagination.current = 1; // 重置到第一页
 };
 
+// 清除所有筛选条件
+const clearAllFilters = () => {
+  searchKeyword.value = '';
+  statusFilter.value = '';
+  assignedUserFilter.value = '';
+  userTypeFilter.value = '';
+  applyFilters();
+};
+
 // 处理表格变化
 const handleTableChange = (newPagination: any) => {
   // 更新分页参数
@@ -1887,6 +1918,35 @@ onMounted(async () => {
   background-repeat: no-repeat;
   background-size: 1.5em 1.5em;
   padding-right: 2.5rem;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-radius: 12px;
+  padding: 16px 24px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.total-count {
+  font-size: 16px;
+  color: #1d2129;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-count::before {
+  content: "🏢";
+  font-size: 18px;
 }
 
 /* 按钮样式 */

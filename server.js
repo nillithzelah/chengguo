@@ -1459,9 +1459,15 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
     const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
 
+    logger.info(`🔄 开始更新游戏 - ID: ${id}, 用户: ${currentUser.username}, 角色: ${currentUser.role}`);
+    logger.debug('📝 请求数据:', { name, appid, appSecret: appSecret ? '***' : '', description, advertiser_id, promotion_id });
+
     // 检查权限：只有管理员可以更新游戏
     const mappedRole = getMappedRole(currentUser.role);
+    logger.debug(`🔐 用户角色映射: ${currentUser.role} -> ${mappedRole}`);
+
     if (mappedRole !== 'admin') {
+      logger.warn(`❌ 权限不足 - 用户 ${currentUser.username} 尝试更新游戏但角色不是管理员`);
       return res.status(403).json({
         code: 403,
         message: '权限不足，只有管理员可以更新游戏'
@@ -1471,16 +1477,21 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     // 查找游戏
     const game = await Game.findByPk(id);
     if (!game) {
+      logger.warn(`❌ 游戏不存在 - ID: ${id}`);
       return res.status(404).json({
         code: 404,
         message: '游戏不存在'
       });
     }
 
+    logger.info(`📋 找到游戏: ${game.name} (AppID: ${game.appid})`);
+
     // 如果App ID改变，检查是否与其他游戏冲突
     if (appid && appid !== game.appid) {
+      logger.debug(`🔍 检查AppID冲突: ${appid}`);
       const existingGame = await Game.findByAppId(appid);
       if (existingGame && existingGame.id !== parseInt(id)) {
+        logger.warn(`❌ AppID已存在: ${appid}`);
         return res.status(400).json({
           code: 400,
           message: '该App ID已存在，请使用不同的App ID'
@@ -1497,35 +1508,66 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     if (advertiser_id !== undefined) updateData.advertiser_id = advertiser_id || null;
     if (promotion_id !== undefined) updateData.promotion_id = promotion_id || null;
 
+    logger.debug('📝 准备更新数据:', updateData);
+
     // 如果appid和appSecret都填写了，则设置为已验证状态
     if ((appid !== undefined && appid.trim()) && (appSecret !== undefined && appSecret.trim())) {
       // 如果是临时值开头，则保持未验证状态
       if (appid.startsWith('temp_') && appSecret.startsWith('temp_secret_')) {
         updateData.validated = false;
         updateData.validatedAt = null;
+        logger.debug('🔄 临时值，保持未验证状态');
       } else {
         updateData.validated = true;
         updateData.validatedAt = new Date();
+        logger.debug('✅ 设置为已验证状态');
       }
     }
 
-    await game.update(updateData);
+    logger.info(`💾 执行数据库更新...`);
+    const updatedGame = await game.update(updateData);
+    logger.info(`✅ 数据库更新成功 - 游戏: ${updatedGame.name} (ID: ${id})`);
 
-    logger.info(`管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
+    logger.info(`🎉 游戏更新完成 - 管理员 ${currentUser.username} 更新了游戏: ${game.name} (ID: ${id})`);
 
     res.json({
       code: 20000,
       data: {
-        game: game.toFrontendFormat()
+        game: updatedGame.toFrontendFormat()
       },
       message: '游戏更新成功'
     });
 
   } catch (error) {
-    console.error('更新游戏错误:', error);
+    logger.error('❌ 更新游戏错误:', error);
+    logger.error('📋 错误详情:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    // 检查是否是数据库相关错误
+    if (error.name === 'SequelizeValidationError') {
+      logger.error('🔍 Sequelize验证错误:', error.errors);
+      return res.status(400).json({
+        code: 400,
+        message: '数据验证失败',
+        details: error.errors.map(e => e.message)
+      });
+    }
+
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      logger.error('🔍 唯一约束错误:', error.errors);
+      return res.status(400).json({
+        code: 400,
+        message: '数据冲突，请检查输入的数据'
+      });
+    }
+
     res.status(500).json({
       code: 500,
-      message: '服务器内部错误'
+      message: '服务器内部错误',
+      error: error.message
     });
   }
 });

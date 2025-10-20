@@ -17,6 +17,15 @@
       </div>
     </div>
 
+    <!-- 数据统计 -->
+    <div class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">
+          {{ selectedUserId ? `用户 "${getSelectedUserName()}" ${displayMode === 'owned' ? '拥有' : '未拥有'} ${filteredGames.length} 个游戏` : `系统中共有 ${games.length} 个游戏，当前显示 ${filteredGames.length} 条记录` }}
+        </div>
+      </div>
+    </div>
+
     <!-- 用户选择器 -->
     <div class="user-selector">
       <div class="selector-item">
@@ -37,6 +46,17 @@
           </option>
         </select>
         <span v-if="userLoading" class="loading-text">加载中...</span>
+      </div>
+      <div v-if="selectedUserId" class="selector-item">
+        <label>显示模式：</label>
+        <select
+          v-model="displayMode"
+          @change="filterGamesByUser"
+          class="user-select"
+        >
+          <option value="owned">显示拥有的游戏</option>
+          <option value="unowned">显示未拥有的游戏</option>
+        </select>
       </div>
       <div class="selector-item">
         <label>选择主体：</label>
@@ -76,7 +96,8 @@
           :data="filteredGames"
           :loading="loading"
           row-key="id"
-          :pagination="false"
+          :pagination="pagination"
+          @change="handleTableChange"
         >
           <template #game_name="{ record }">
             <div class="game-info">
@@ -393,14 +414,36 @@
             <label>选择用户</label>
             <select v-model="assignData.userId" class="form-input">
               <option value="">请选择用户</option>
-              <option
-                v-for="user in sortedUsers.filter(u => u.id !== Number(userStore.userInfo?.accountId))"
-                :key="user.id"
-                :value="user.id"
-              >
-                {{ user.name || user.username }} ({{ user.username }})
+              <!-- 已分配的用户（按角色排序） - 只显示，不可选 -->
+              <optgroup label="已分配此游戏的用户" v-if="categorizedUsers.assigned.length > 0">
+                <option
+                  v-for="user in categorizedUsers.assigned"
+                  :key="user.id"
+                  :value="user.id"
+                  disabled
+                  style="background-color: #f6ffed; color: #52c41a; font-style: italic;"
+                >
+                  {{ user.name || user.username }} ({{ user.username }}) - {{ getRoleDisplayName(user.role) }} - 已分配
+                </option>
+              </optgroup>
+              <!-- 未分配的用户（按角色排序） -->
+              <optgroup label="未分配此游戏的用户" v-if="categorizedUsers.unassigned.length > 0">
+                <option
+                  v-for="user in categorizedUsers.unassigned"
+                  :key="user.id"
+                  :value="user.id"
+                >
+                  {{ user.name || user.username }} ({{ user.username }}) - {{ getRoleDisplayName(user.role) }}
+                </option>
+              </optgroup>
+              <!-- 如果没有用户可选 -->
+              <option v-if="categorizedUsers.assigned.length === 0 && categorizedUsers.unassigned.length === 0" disabled>
+                暂无可分配用户
               </option>
             </select>
+            <div class="form-hint">
+              <small>💡 用户按角色等级排序，已分配用户标绿且不可选择；未分配用户可选择分配；显示格式：姓名(用户名) - 角色</small>
+            </div>
           </div>
 
         </div>
@@ -508,6 +551,7 @@ const userLoading = ref(false);
 const selectedUserId = ref('');
 const selectedEntityName = ref('');
 const gameStatusFilter = ref('');
+const displayMode = ref('owned'); // 'owned' 或 'unowned'
 const filteredGames = ref([]);
 
 // 模态框状态
@@ -552,6 +596,71 @@ const assignData = reactive({
   role: 'viewer'
 });
 
+// 获取分类后的用户列表
+const categorizedUsers = computed(() => {
+  if (!selectedGame.value) return { assigned: [], unassigned: [] };
+
+  try {
+    // 获取已分配的用户ID - gameUsers是用户游戏关联记录，每个记录包含user_id
+    const assignedUserIds = gameUsers.value.map(gameUser => gameUser.user?.id).filter(id => id !== undefined);
+
+    // 按角色优先级排序用户
+    const rolePriority = {
+      'admin': 1,
+      'internal_boss': 2,
+      'external_boss': 3,
+      'internal_service': 4,
+      'external_service': 5,
+      'internal_user_1': 6,
+      'internal_user_2': 7,
+      'internal_user_3': 8,
+      'external_user_1': 9,
+      'external_user_2': 10,
+      'external_user_3': 11,
+      'super_viewer': 2,
+      'moderator': 4,
+      'viewer': 6,
+      'user': 9
+    };
+
+    // 分类用户
+    const assigned = [];
+    const unassigned = [];
+
+    sortedUsers.value.forEach(user => {
+      // 排除当前用户自己
+      if (user.id === Number(userStore.userInfo?.accountId)) return;
+
+      if (assignedUserIds.includes(user.id)) {
+        assigned.push(user);
+      } else {
+        unassigned.push(user);
+      }
+    });
+
+    // 按角色优先级排序
+    const sortByRole = (users) => {
+      return users.sort((a, b) => {
+        const priorityA = rolePriority[a.role] || 999;
+        const priorityB = rolePriority[b.role] || 999;
+        return priorityA - priorityB;
+      });
+    };
+
+    return {
+      assigned: sortByRole(assigned),
+      unassigned: sortByRole(unassigned)
+    };
+  } catch (error) {
+    console.error('分类用户失败:', error);
+    return { assigned: [], unassigned: [] };
+  }
+});
+
+// 向后兼容的计算属性
+const assignedUsers = computed(() => categorizedUsers.value.assigned);
+const unassignedUsers = computed(() => categorizedUsers.value.unassigned);
+
 // 状态
 const creating = ref(false);
 const editing = ref(false);
@@ -567,6 +676,15 @@ const adTestResult = ref(null);
 
 // 主体数据
 const entities = ref([]);
+
+// 分页配置
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true,
+  showQuickJumper: true
+});
 
 // 用户权限检查
 const userStore = useUserStore();
@@ -605,6 +723,13 @@ const sortedUsers = computed(() => {
     return priorityA - priorityB;
   });
 });
+
+// 获取选中用户的名称
+const getSelectedUserName = () => {
+  if (!selectedUserId.value) return '';
+  const user = users.value.find(u => u.id === Number(selectedUserId.value));
+  return user ? (user.name || user.username) : '';
+};
 
 // 游戏表格列配置
 const gameColumns = computed(() => [
@@ -716,10 +841,20 @@ const loadGamesWithEntities = async () => {
   }
 };
 
-// 筛选函数
-const filterGamesByUser = async () => {
+// 处理表格变化
+const handleTableChange = (newPagination: any) => {
+  // 更新分页参数
+  pagination.current = newPagination.current;
+  pagination.pageSize = newPagination.pageSize;
+  // 前端分页不需要重新加载数据
+};
+
+// 统一的筛选函数 - 处理所有筛选条件的组合
+const applyAllFilters = async () => {
+  let filtered = [...games.value];
+
+  // 1. 按用户筛选（包括显示模式）
   if (selectedUserId.value) {
-    // 获取选中用户拥有的游戏
     try {
       const response = await fetch(`/api/game/user-games/${selectedUserId.value}`, {
         method: 'GET',
@@ -733,22 +868,21 @@ const filterGamesByUser = async () => {
         const result = await response.json();
         if (result.code === 20000) {
           const userGameIds = result.data.games.map(userGame => userGame.game.id);
-          filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
-          isInitialized.value = true;
-          return;
+
+          if (displayMode.value === 'owned') {
+            // 显示拥有的游戏
+            filtered = filtered.filter(game => userGameIds.includes(game.id));
+          } else {
+            // 显示未拥有的游戏
+            filtered = filtered.filter(game => !userGameIds.includes(game.id));
+          }
         }
       }
     } catch (error) {
       console.error('获取用户游戏失败:', error);
     }
-  }
-
-  // 如果没有选择用户（即选择了"显示所有游戏"），根据用户权限决定显示内容
-  if (canModify.value) {
-    // 管理员显示所有游戏
-    filterGames();
-  } else {
-    // 非管理员显示自己拥有的游戏
+  } else if (!canModify.value) {
+    // 非管理员且没有选择特定用户时，默认显示自己拥有的游戏
     try {
       const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
         method: 'GET',
@@ -762,84 +896,51 @@ const filterGamesByUser = async () => {
         const userGamesResult = await userGamesResponse.json();
         if (userGamesResult.code === 20000) {
           const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
-          filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
-          console.log('✅ 非管理员显示自己拥有的游戏:', filteredGames.value.length, '个游戏');
+          filtered = filtered.filter(game => userGameIds.includes(game.id));
         } else {
-          filteredGames.value = [];
-          console.log('❌ 获取用户游戏失败，使用空列表');
+          filtered = [];
         }
       } else {
-        filteredGames.value = [];
-        console.log('❌ 获取用户游戏请求失败，使用空列表');
+        filtered = [];
       }
     } catch (error) {
-      console.error('❌ 获取用户游戏时出错:', error);
-      filteredGames.value = [];
+      console.error('获取用户游戏失败:', error);
+      filtered = [];
     }
-    isInitialized.value = true;
-  }
-};
-
-const filterGames = () => {
-  let filtered = [...games.value];
-
-  // 按状态筛选
-  if (gameStatusFilter.value) {
-    filtered = filtered.filter(game => game.status === gameStatusFilter.value);
   }
 
-  filteredGames.value = filtered;
-  isInitialized.value = true;
-};
-
-// 按主体名筛选游戏
-const filterGamesByEntity = () => {
+  // 2. 按主体筛选
   if (selectedEntityName.value) {
-    // 获取选中主体关联的游戏
-    const entityGames = games.value.filter(game => {
-      // 检查游戏的entity_names是否包含选中的主体名
+    filtered = filtered.filter(game => {
       if (game.entity_names) {
         const entityNames = game.entity_names.split('、');
         return entityNames.includes(selectedEntityName.value);
       }
       return false;
     });
-    filteredGames.value = entityGames;
-  } else {
-    // 如果没有选择主体，根据用户权限显示相应游戏
-    if (canModify.value) {
-      filterGames();
-    } else {
-      // 非管理员显示自己拥有的游戏
-      try {
-        const userGamesResponse = fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }).then(response => {
-          if (response.ok) {
-            return response.json();
-          }
-        }).then(result => {
-          if (result.code === 20000) {
-            const userGameIds = result.data.games.map(userGame => userGame.game.id);
-            filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
-          } else {
-            filteredGames.value = [];
-          }
-        }).catch(error => {
-          console.error('获取用户游戏失败:', error);
-          filteredGames.value = [];
-        });
-      } catch (error) {
-        console.error('获取用户游戏时出错:', error);
-        filteredGames.value = [];
-      }
-    }
   }
+
+  // 3. 按状态筛选
+  if (gameStatusFilter.value) {
+    filtered = filtered.filter(game => game.status === gameStatusFilter.value);
+  }
+
+  filteredGames.value = filtered;
+  pagination.total = filteredGames.value.length;
   isInitialized.value = true;
+};
+
+// 向后兼容的筛选函数
+const filterGamesByUser = async () => {
+  await applyAllFilters();
+};
+
+const filterGames = () => {
+  applyAllFilters();
+};
+
+const filterGamesByEntity = () => {
+  applyAllFilters();
 };
 
 // 刷新游戏列表
@@ -850,51 +951,9 @@ const refreshGames = async () => {
   if (currentSelectedUserId) {
     // 如果选择了特定用户，直接重新筛选
     await filterGamesByUser();
-  } else if (selectedEntityName.value) {
-    // 如果选择了特定主体，重新筛选
-    await loadGames();
-    filterGamesByEntity();
   } else {
-    // 如果没有选择用户或主体，根据权限显示相应游戏
-    if (canModify.value) {
-      // 管理员：重新加载所有游戏
-      await loadGames();
-      filterGames();
-    } else {
-      // 非管理员：显示自己拥有的游戏
-      try {
-        const userGamesResponse = await fetch(`/api/game/user-games/${userStore.userInfo?.accountId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (userGamesResponse.ok) {
-          const userGamesResult = await userGamesResponse.json();
-          if (userGamesResult.code === 20000) {
-            const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
-            // 确保games.value已加载
-            if (games.value.length === 0) {
-              await loadGames();
-            }
-            filteredGames.value = games.value.filter(game => userGameIds.includes(game.id));
-            console.log('✅ 刷新后非管理员显示自己拥有的游戏:', filteredGames.value.length, '个游戏');
-          } else {
-            filteredGames.value = [];
-            console.log('❌ 刷新后获取用户游戏失败，使用空列表');
-          }
-        } else {
-          filteredGames.value = [];
-          console.log('❌ 刷新后获取用户游戏请求失败，使用空列表');
-        }
-      } catch (error) {
-        console.error('❌ 刷新后获取用户游戏时出错:', error);
-        filteredGames.value = [];
-      }
-      isInitialized.value = true;
-    }
+    // 刷新时重新应用所有筛选条件
+    await applyAllFilters();
   }
 };
 
@@ -1378,7 +1437,16 @@ const updateGame = async () => {
     if (response.ok && result.code === 20000) {
       alert('游戏更新成功！');
       closeEditGameModal();
-      await loadGames(); // 重新加载游戏列表
+
+      // 更新本地游戏列表中的对应项，避免重新加载导致的闪烁
+      const updatedGame = result.data.game;
+      const gameIndex = games.value.findIndex(game => game.id === updatedGame.id);
+      if (gameIndex !== -1) {
+        games.value[gameIndex] = { ...games.value[gameIndex], ...updatedGame };
+      }
+
+      // 重新应用所有筛选条件
+      await applyAllFilters();
     } else {
       alert(`更新失败: ${result.message || '未知错误'}`);
     }
@@ -1389,10 +1457,49 @@ const updateGame = async () => {
   }
 };
 
-const openAssignModal = (game) => {
+const openAssignModal = async (game) => {
+  console.log('🎯 打开分配用户模态框，游戏信息:', game);
   selectedGame.value = game;
   assignData.userId = '';
   assignData.role = 'viewer';
+
+  // 获取当前游戏的用户列表，用于过滤已分配的用户
+  try {
+    console.log('🔄 开始获取游戏用户列表，游戏ID:', game.id);
+    const response = await fetch(`/api/game/${game.id}/users`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 20000) {
+        gameUsers.value = result.data.users || [];
+        console.log('✅ 获取游戏用户列表成功:', gameUsers.value.length, '个用户');
+        console.log('📋 游戏用户详情:', gameUsers.value.map(u => ({ user_id: u.user_id, user: u.user, raw: u })));
+      } else {
+        gameUsers.value = [];
+        console.log('❌ 获取游戏用户列表失败:', result.message);
+      }
+    } else {
+      gameUsers.value = [];
+      console.log('❌ 获取游戏用户列表请求失败，状态码:', response.status);
+    }
+  } catch (error) {
+    console.error('❌ 获取游戏用户列表异常:', error);
+    gameUsers.value = [];
+  }
+
+  console.log('🎯 分配模态框数据准备完成:', {
+    selectedGame: selectedGame.value?.name,
+    gameUsersCount: gameUsers.value.length,
+    assignedUsersCount: assignedUsers.value.length,
+    unassignedUsersCount: unassignedUsers.value.length
+  });
+
   showAssignUserModal.value = true;
 };
 
@@ -1626,6 +1733,9 @@ onMounted(async () => {
 
   // 设置默认筛选：显示所有游戏
   filterGames();
+
+  // 重置显示模式
+  displayMode.value = 'owned';
 });
 
 // 监听路由变化，当路由变化时重新加载数据
@@ -1645,6 +1755,7 @@ watch(
         // 重新应用筛选
         if (!canModify.value && userStore.userInfo?.accountId) {
           selectedUserId.value = userStore.userInfo.accountId.toString();
+          displayMode.value = 'owned'; // 非管理员默认显示拥有的游戏
           await filterGamesByUser();
         } else {
           filterGames();
@@ -2068,6 +2179,35 @@ watch(
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 8px;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-radius: 12px;
+  padding: 16px 24px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.total-count {
+  font-size: 16px;
+  color: #1d2129;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-count::before {
+  content: "🎮";
+  font-size: 18px;
 }
 
 /* 按钮样式 */

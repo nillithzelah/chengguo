@@ -8,6 +8,13 @@
       <p>管理系统中的所有用户账号</p>
     </div>
 
+    <!-- 数据统计 -->
+    <div class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">系统中共有 {{ originalUserList.length }} 个用户</div>
+      </div>
+    </div>
+
     <!-- 操作栏 -->
     <div class="action-bar">
       <!-- 隐藏新增用户按钮，只有管理员可见 -->
@@ -27,6 +34,13 @@
         </template>
         刷新
       </a-button>
+    </div>
+
+    <!-- 数据统计 -->
+    <div class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">共有 {{ userList.length }} 条用户记录</div>
+      </div>
     </div>
 
     <!-- 筛选区域 -->
@@ -2079,6 +2093,35 @@ onMounted(() => {
   background-repeat: no-repeat;
   background-size: 1.5em 1.5em;
   padding-right: 2.5rem;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-radius: 12px;
+  padding: 16px 24px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.total-count {
+  font-size: 16px;
+  color: #1d2129;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-count::before {
+  content: "📊";
+  font-size: 18px;
 }
 
 /* 按钮样式 */

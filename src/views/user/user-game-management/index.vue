@@ -48,6 +48,18 @@
       </div>
     </div>
 
+    <!-- 数据统计 -->
+    <div v-if="selectedUser && selectedUserId && selectedUserId !== ''" class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">用户 "{{ selectedUser.name || selectedUser.username }}" 拥有 {{ gameList.length }} 个游戏权限</div>
+      </div>
+    </div>
+    <div v-else class="stats-section">
+      <div class="stats-info">
+        <div class="total-count">请选择用户查看游戏权限信息</div>
+      </div>
+    </div>
+
     <!-- 用户信息显示 -->
     <div v-if="selectedUser && selectedUserId && selectedUserId !== ''" class="user-info">
       <a-card title="用户信息" class="user-card">
@@ -1239,6 +1251,35 @@ const checkPermissionsAndLoadData = () => {
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 8px;
+}
+
+.stats-section {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-radius: 12px;
+  padding: 16px 24px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.stats-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.total-count {
+  font-size: 16px;
+  color: #1d2129;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-count::before {
+  content: "🎮";
+  font-size: 18px;
 }
 
 /* 按钮样式 */
