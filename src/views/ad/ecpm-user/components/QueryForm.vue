@@ -10,6 +10,13 @@
         >
           <option value="">请选择应用</option>
           <option
+            v-if="showAllGamesOption"
+            value="all_games"
+            style="font-weight: bold; color: #667eea;"
+          >
+            📊 显示全部游戏
+          </option>
+          <option
             v-for="app in appList"
             :key="app.appid"
             :value="app.appid"
@@ -20,9 +27,45 @@
       </div>
 
       <div class="form-item">
+        <label>查询类型</label>
+        <div class="query-type-buttons">
+          <button
+            :class="['query-type-btn', { active: queryParams.query_type === 'single_day' }]"
+            @click="queryParams.query_type = 'single_day'"
+          >
+            单天查询
+          </button>
+          <button
+            :class="['query-type-btn', { active: queryParams.query_type === 'date_range' }]"
+            @click="queryParams.query_type = 'date_range'"
+          >
+            时间段查询
+          </button>
+        </div>
+      </div>
+
+      <div class="form-item" v-if="queryParams.query_type === 'single_day'">
         <label>查询日期</label>
         <input
           v-model="queryParams.date_hour"
+          type="date"
+          class="form-input"
+        />
+      </div>
+
+      <div class="form-item" v-if="queryParams.query_type === 'date_range'">
+        <label>开始日期</label>
+        <input
+          v-model="queryParams.start_date"
+          type="date"
+          class="form-input"
+        />
+      </div>
+
+      <div class="form-item" v-if="queryParams.query_type === 'date_range'">
+        <label>结束日期</label>
+        <input
+          v-model="queryParams.end_date"
           type="date"
           class="form-input"
         />
@@ -70,6 +113,9 @@ interface App {
 interface QueryParams {
   mp_id: string;
   date_hour: string;
+  query_type: string;
+  start_date: string;
+  end_date: string;
   page_no: number;
   page_size: number;
 }
@@ -79,6 +125,7 @@ defineProps<{
   selectedAppId: string;
   queryParams: QueryParams;
   loading: boolean;
+  showAllGamesOption: boolean;
 }>();
 
 defineEmits<{
@@ -212,6 +259,37 @@ const onAppChange = () => {
   background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+/* 查询类型按钮样式 */
+.query-type-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.query-type-btn {
+  padding: 8px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 6px;
+  background: white;
+  color: #1d2129;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.query-type-btn:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.query-type-btn.active {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 @media (max-width: 768px) {

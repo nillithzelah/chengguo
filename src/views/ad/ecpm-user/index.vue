@@ -22,6 +22,13 @@
            >
              <option value="">请选择应用</option>
              <option
+               v-if="showAllGamesOption"
+               value="all_games"
+               style="font-weight: bold; color: #667eea;"
+             >
+               📊 显示全部游戏
+             </option>
+             <option
                v-for="app in appList"
                :key="app.appid"
                :value="app.appid"
@@ -37,7 +44,19 @@
              </option>
            </select>
          </div>
-         <div class="form-item">
+
+         <div class="form-item" v-if="userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'internal_boss'">
+           <label>查询类型</label>
+           <select
+             v-model="queryParams.query_type"
+             class="form-input"
+           >
+             <option value="single_day">当日游戏状态</option>
+             <option value="date_range">时间段查询</option>
+           </select>
+         </div>
+
+         <div class="form-item" v-if="queryParams.query_type === 'single_day' || (userStore.userInfo?.role !== 'admin' && userStore.userInfo?.role !== 'internal_boss' && userStore.userInfo?.role !== 'internal_service')">
            <label>查询日期</label>
            <input
              v-model="queryParams.date_hour"
@@ -45,6 +64,25 @@
              class="form-input"
            />
          </div>
+
+         <div class="form-item" v-if="queryParams.query_type === 'date_range' && (userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'internal_boss' || userStore.userInfo?.role === 'internal_service')">
+           <label>开始日期</label>
+           <input
+             v-model="queryParams.start_date"
+             type="date"
+             class="form-input"
+           />
+         </div>
+
+         <div class="form-item" v-if="queryParams.query_type === 'date_range' && (userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'internal_boss' || userStore.userInfo?.role === 'internal_service')">
+           <label>结束日期</label>
+           <input
+             v-model="queryParams.end_date"
+             type="date"
+             class="form-input"
+           />
+         </div>
+
          <div class="form-item">
            <label>广告预览二维码</label>
            <button
@@ -87,8 +125,8 @@
          <div class="stat-card">
            <div class="stat-value">{{ savedTrafficMasterAmount === '[object Object]' || (typeof savedTrafficMasterAmount === 'string' && savedTrafficMasterAmount === '[object Object]') ? '0.00' : savedTrafficMasterAmount }}</div>
            <div class="stat-label">流量主</div>
-           <!-- 只有管理员和审核员可以修改流量主金额 -->
-           <div v-if="userStore.userInfo?.role === 'admin'" class="traffic-master-input-group">
+           <!-- 管理员和所有内部角色都可以修改流量主金额 -->
+           <div v-if="userStore.userInfo?.role === 'admin' || userStore.userInfo?.role?.startsWith('internal_')" class="traffic-master-input-group">
              <input
                v-model="globalManualAmount"
                type="number"
@@ -111,6 +149,32 @@
          <div class="stat-card">
            <div class="stat-value">{{ stats.totalUsers }}</div>
            <div class="stat-label">活跃用户</div>
+         </div>
+       </div>
+
+       <!-- 当日游戏状态显示（仅在全部游戏模式且有数据时显示） -->
+       <div v-if="selectedAppId === 'all_games' && queryParams.query_type === 'single_day' && stats" class="game-status-section">
+         <div class="game-status-grid">
+           <div class="game-status-card">
+             <div class="game-status-title">📈 有收益的游戏</div>
+             <div class="game-list">
+               <div v-for="game in gamesWithRevenue" :key="game.appid" class="game-item">
+                 <span class="game-name">{{ game.name }}</span>
+                 <span class="game-revenue">¥{{ game.revenue }}</span>
+               </div>
+               <div v-if="gamesWithRevenue.length === 0" class="no-data">暂无数据</div>
+             </div>
+           </div>
+           <div class="game-status-card">
+             <div class="game-status-title">📉 无收益的游戏</div>
+             <div class="game-list">
+               <div v-for="game in gamesWithoutRevenue" :key="game.appid" class="game-item">
+                 <span class="game-name">{{ game.name }}</span>
+                 <span class="game-revenue">¥0.00</span>
+               </div>
+               <div v-if="gamesWithoutRevenue.length === 0" class="no-data">暂无数据</div>
+             </div>
+           </div>
          </div>
        </div>
      </div>
@@ -144,8 +208,13 @@
            :unbinding="unbinding"
            :can-manage-users="userStore.userInfo?.role === 'admin'"
            :current-app-name="getCurrentAppName()"
+           :current-page="queryParams.page_no"
+           :page-size="queryParams.page_size"
+           :total="selectedAppId === 'all_games' ? allGamesTotalRecords : (stats?.totalRecords || 0)"
+           :show-pagination="true"
            @bind-user="bindUser"
            @unbind-user="unbindUser"
+           @page-change="handlePageChange"
          />
        </div>
      </div>
@@ -333,6 +402,9 @@
  const queryParams = reactive({
    mp_id: '',
    date_hour: '',
+   query_type: 'single_day',
+   start_date: '',
+   end_date: '',
    page_no: 1,
    page_size: 50
  });
@@ -340,11 +412,25 @@
  // 统计数据
  const stats = ref(null);
 
+ // 全部游戏模式下的总记录数
+ const allGamesTotalRecords = ref(0);
+
+ // 全部游戏模式下的统计数据
+ const allGamesStats = reactive({
+   totalRevenue: 0,
+   totalEcpm: '0.00',
+   uniqueUsers: 0
+ });
+
  // 当前保存的流量主金额
  const savedTrafficMasterAmount = ref('0.00');
 
  // 全局手动金额输入
  const globalManualAmount = ref('');
+
+ // 当日游戏状态数据
+ const gamesWithRevenue = ref([]);
+ const gamesWithoutRevenue = ref([]);
 
  // 调试信息
  const debugInfo = ref([]);
@@ -366,6 +452,13 @@
 
  // 选中的应用ID
  const selectedAppId = ref('');
+
+ // 计算属性：是否显示"显示全部游戏"选项
+ const showAllGamesOption = computed(() => {
+   const currentUser = userStore.userInfo;
+   const allowedRoles = ['admin', 'internal_boss', 'internal_service'];
+   return allowedRoles.includes(currentUser?.role);
+ });
 
  // 获取应用样式的计算属性
  const getAppStyle = (app) => {
@@ -390,6 +483,7 @@
  // 获取当前选中应用的名称
  const getCurrentAppName = () => {
    if (!selectedAppId.value) return '未选择应用';
+   if (selectedAppId.value === 'all_games') return '全部游戏';
    const app = appList.value.find(app => app.appid === selectedAppId.value);
    return app ? app.name : '未知应用';
  };
@@ -763,22 +857,35 @@
 
      // 重新设置默认应用
      if (appList.value.length > 0) {
-       selectedAppId.value = appList.value[0].appid;
-       queryParams.mp_id = appList.value[0].appid;
-       console.log('✅ 重新设置默认应用:', appList.value[0].name, appList.value[0].appid);
+       // 如果用户有权限显示全部游戏，默认选择全部游戏
+       if (showAllGamesOption.value) {
+         selectedAppId.value = 'all_games';
+         queryParams.mp_id = 'all_games';
+         console.log('✅ 用户有权限，默认选择全部游戏');
+       } else {
+         selectedAppId.value = appList.value[0].appid;
+         queryParams.mp_id = appList.value[0].appid;
+         console.log('✅ 重新设置默认应用:', appList.value[0].name, appList.value[0].appid);
+       }
      }
    }
  }, { immediate: false });
 
  // 监听日期变化，重新加载流量主金额
  watch(() => queryParams.date_hour, async (newDate, oldDate) => {
-   if (newDate && newDate !== oldDate && selectedAppId.value) {
+   if (newDate && newDate !== oldDate && selectedAppId.value && selectedAppId.value !== 'all_games') {
      await loadTrafficMasterAmount();
    }
  }, { immediate: false });
 
  // 应用选择变化处理
  const onAppChange = async () => {
+   if (selectedAppId.value === 'all_games') {
+     queryParams.mp_id = 'all_games';
+     // 选择全部游戏时，不加载单个应用的流量主金额
+     return;
+   }
+
    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
    if (selectedApp) {
      queryParams.mp_id = selectedApp.appid;
@@ -807,80 +914,381 @@
      }
 
      // 获取当前选中的应用配置
-     const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
-     if (!selectedApp) {
-       throw new Error('未选择有效的应用');
-     }
+     let selectedApp = null;
+     let isAllGamesMode = false;
 
-     // 获取access_token - 通过后端代理调用
-     const tokenResponse = await fetch('/api/douyin/test-connection', {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json'
-       },
-       body: JSON.stringify({
-         appid: selectedApp.appid,
-         secret: selectedApp.appSecret
-       })
-     });
-
-     const tokenResult = await tokenResponse.json()
-     if (!tokenResponse.ok || tokenResult.code !== 0) {
-       throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
-     }
-
-     const accessToken = tokenResult.data?.minigame_access_token;
-     if (!accessToken) {
-       throw new Error('获取到的access_token为空');
-     }
-
-
-     // 通过后端代理调用eCPM API
-     const params = new URLSearchParams();
-
-     // 添加前端传递的参数
-     params.append('mp_id', queryParams.mp_id);
-     params.append('date_hour', queryParams.date_hour || new Date().toISOString().split('T')[0]);
-     params.append('page_no', queryParams.page_no?.toString() || '1');
-     params.append('page_size', queryParams.page_size?.toString() || '50');
-
-     // 添加App Secret到查询参数
-     params.append('app_secret', selectedApp.appSecret);
-
-     // 调用后端eCPM代理接口
-     const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
-       method: 'GET',
-       headers: {
-         'Content-Type': 'application/json'
+     if (selectedAppId.value === 'all_games') {
+       isAllGamesMode = true;
+       // 选择全部游戏时，使用第一个应用作为基础配置（用于获取token等）
+       selectedApp = appList.value[0];
+       if (!selectedApp) {
+         throw new Error('未找到任何应用配置');
        }
-     });
-
-     if (!response.ok) {
-       throw new Error(`HTTP错误: ${response.status}`);
+     } else {
+       selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+       if (!selectedApp) {
+         throw new Error('未选择有效的应用');
+       }
      }
 
-     const result = await response.json();
+     let allRecords = [];
 
-     // 处理响应数据
-     if (result.code === 0 && result.data) {
-       // 检查是否有错误信息
-       if (result.err_no && result.err_no !== 0) {
-         throw new Error(result.err_msg || result.err_tips || 'API返回错误');
+     // 根据查询类型确定查询日期
+     let queryDates = [];
+     if (queryParams.query_type === 'single_day') {
+       queryDates = [queryParams.date_hour || new Date().toISOString().split('T')[0]];
+     } else if (queryParams.query_type === 'date_range') {
+       // 时间段查询：生成日期范围内的所有日期
+       const startDate = new Date(queryParams.start_date);
+       const endDate = new Date(queryParams.end_date);
+       const dates = [];
+
+       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+         dates.push(d.toISOString().split('T')[0]);
+       }
+       queryDates = dates;
+     } else {
+       // 默认单天查询
+       queryDates = [queryParams.date_hour || new Date().toISOString().split('T')[0]];
+     }
+
+     if (isAllGamesMode) {
+       // 全部游戏模式：获取所有应用的所有数据，然后在前端进行分页
+       logger.info('开始获取全部游戏数据');
+
+       // 创建一个函数来获取单个应用的所有数据（不分页）
+       const fetchAppAllData = async (app) => {
+         try {
+           logger.debug(`正在获取应用 ${app.name} (${app.appid}) 的所有数据`);
+
+           // 检查应用是否有必要的配置
+           if (!app.appid || !app.appSecret) {
+             logger.warn(`应用 ${app.name} 缺少必要配置，跳过`);
+             return null;
+           }
+
+           // 为每个应用单独获取access_token
+           const tokenResponse = await fetch('/api/douyin/test-connection', {
+             method: 'POST',
+             headers: {
+               'Content-Type': 'application/json'
+             },
+             body: JSON.stringify({
+               appid: app.appid,
+               secret: app.appSecret
+             })
+           });
+
+           if (!tokenResponse.ok) {
+             logger.warn(`应用 ${app.name} 获取access_token失败 (HTTP ${tokenResponse.status})，跳过`);
+             return null;
+           }
+
+           const tokenResult = await tokenResponse.json();
+           if (tokenResult.code !== 0) {
+             logger.warn(`应用 ${app.name} 获取access_token失败: ${tokenResult.message || tokenResult.error}，跳过`);
+             return null;
+           }
+
+           const accessToken = tokenResult.data?.minigame_access_token;
+           if (!accessToken) {
+             logger.warn(`应用 ${app.name} 获取到的access_token为空，跳过`);
+             return null;
+           }
+
+           // 获取应用在指定日期范围内的所有数据
+           const allData = [];
+
+           for (const date of queryDates) {
+             let pageNo = 1;
+             const maxPages = 100; // 防止无限循环
+
+             while (pageNo <= maxPages) {
+               const appParams = new URLSearchParams();
+               appParams.append('mp_id', app.appid);
+               appParams.append('app_secret', app.appSecret);
+               appParams.append('date_hour', date);
+               appParams.append('page_no', pageNo.toString());
+               appParams.append('page_size', '100'); // 使用较大的页大小来减少请求次数
+
+               const response = await fetch(`/api/douyin/ecpm?${appParams.toString()}`, {
+                 method: 'GET',
+                 headers: {
+                   'Content-Type': 'application/json'
+                 }
+               });
+
+               if (!response.ok) {
+                 logger.warn(`应用 ${app.name} ${date} 第${pageNo}页API请求失败 (HTTP ${response.status})，停止获取`);
+                 break;
+               }
+
+               const result = await response.json();
+
+               if (result.code !== 0) {
+                 logger.warn(`应用 ${app.name} ${date} 第${pageNo}页API返回错误: ${result.message || result.err_msg}，停止获取`);
+                 break;
+               }
+
+               if (!result.data) {
+                 logger.warn(`应用 ${app.name} ${date} 第${pageNo}页API返回数据为空，停止获取`);
+                 break;
+               }
+
+               const records = result.data.data ? result.data.data.records : result.data.records || [];
+               if (!Array.isArray(records) || records.length === 0) {
+                 logger.debug(`应用 ${app.name} ${date} 第${pageNo}页没有更多数据`);
+                 break;
+               }
+
+               // 为每条记录添加应用信息和日期信息
+               const recordsWithAppInfo = records.map(record => ({
+                 ...record,
+                 app_name: app.name,
+                 app_id: app.appid,
+                 query_date: date
+               }));
+
+               allData.push(...recordsWithAppInfo);
+               logger.debug(`应用 ${app.name} ${date} 第${pageNo}页获取到 ${records.length} 条记录`);
+
+               // 如果返回的数据少于请求的页大小，说明已经是最后一页
+               if (records.length < 100) {
+                 break;
+               }
+
+               pageNo++;
+             }
+           }
+
+           if (allData.length > 0) {
+             logger.info(`应用 ${app.name} 总共获取到 ${allData.length} 条记录`);
+             return allData;
+           } else {
+             logger.debug(`应用 ${app.name} 没有数据`);
+             return null;
+           }
+
+         } catch (appError) {
+           logger.error(`应用 ${app.name} 数据获取失败: ${appError.message}，跳过`);
+           return null;
+         }
+       };
+
+       // 并发获取所有应用的数据，但限制并发数量避免过载
+       const MAX_CONCURRENT = 3; // 最多同时处理3个应用
+       const appPromises = [];
+
+       for (let i = 0; i < appList.value.length; i += MAX_CONCURRENT) {
+         const batch = appList.value.slice(i, i + MAX_CONCURRENT);
+         const batchPromises = batch.map(app => fetchAppAllData(app));
+         appPromises.push(...batchPromises);
        }
 
-       const records = result.data.data ? result.data.data.records : result.data.records || [];
+       // 等待所有应用的数据获取完成
+       const appResults = await Promise.allSettled(appPromises);
 
-       // 确保records是数组
-       if (!Array.isArray(records)) {
-         tableData.value = [];
-         stats.value = {
-           totalRecords: 0,
-           totalRevenue: '0.00',
-           avgEcpm: '0.00',
-           totalUsers: 0
-         };
-         return;
+       // 处理结果，收集成功的应用数据
+       let successCount = 0;
+       let totalRecords = 0;
+
+       appResults.forEach((result, index) => {
+         if (result.status === 'fulfilled' && result.value) {
+           allRecords.push(...result.value);
+           successCount++;
+           totalRecords += result.value.length;
+         }
+       });
+
+       logger.info(`全部游戏模式完成，成功获取 ${successCount}/${appList.value.length} 个应用的数据，共 ${totalRecords} 条记录`);
+
+       // 存储总记录数
+       allGamesTotalRecords.value = totalRecords;
+
+       // 计算所有数据的统计信息（在分页之前）
+       allGamesStats.totalRevenue = allRecords.reduce((sum, item) => sum + (item.cost || 0) / 100000, 0);
+       allGamesStats.totalEcpm = totalRecords > 0 ? (allGamesStats.totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
+       allGamesStats.uniqueUsers = new Set(allRecords.map(item => item.open_id)).size;
+
+       // 对合并后的数据进行前端分页
+       const pageSize = queryParams.page_size;
+       const pageNo = queryParams.page_no;
+       const startIndex = (pageNo - 1) * pageSize;
+       const endIndex = startIndex + pageSize;
+
+       // 对数据进行排序（按时间倒序）
+       allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
+
+       // 应用分页
+       allRecords = allRecords.slice(startIndex, endIndex);
+
+       // 如果全部游戏模式下没有获取到任何记录，给出提示
+       if (totalRecords === 0) {
+         logger.warn('全部游戏模式下未获取到任何有效数据，可能所有应用都存在配置问题');
        }
+
+     } else {
+       // 单应用模式：支持时间段查询
+       const tokenResponse = await fetch('/api/douyin/test-connection', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json'
+         },
+         body: JSON.stringify({
+           appid: selectedApp.appid,
+           secret: selectedApp.appSecret
+         })
+       });
+
+       const tokenResult = await tokenResponse.json()
+       if (!tokenResponse.ok || tokenResult.code !== 0) {
+         throw new Error('获取access_token失败: ' + (tokenResult.message || tokenResult.error));
+       }
+
+       const accessToken = tokenResult.data?.minigame_access_token;
+       if (!accessToken) {
+         throw new Error('获取到的access_token为空');
+       }
+
+       // 单应用模式：支持时间段查询
+       if (queryParams.query_type === 'single_day') {
+         // 单天查询：原有逻辑
+         const params = new URLSearchParams();
+         params.append('mp_id', queryParams.mp_id);
+         params.append('app_secret', selectedApp.appSecret);
+         params.append('date_hour', queryParams.date_hour || new Date().toISOString().split('T')[0]);
+         params.append('page_no', queryParams.page_no?.toString() || '1');
+         params.append('page_size', queryParams.page_size?.toString() || '50');
+
+         const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+           method: 'GET',
+           headers: {
+             'Content-Type': 'application/json'
+           }
+         });
+
+         if (!response.ok) {
+           throw new Error(`HTTP错误: ${response.status}`);
+         }
+
+         const result = await response.json();
+
+         if (result.code === 0 && result.data) {
+           if (result.err_no && result.err_no !== 0) {
+             throw new Error(result.err_msg || result.err_tips || 'API返回错误');
+           }
+
+           allRecords = result.data.data ? result.data.data.records : result.data.records || [];
+
+           if (!Array.isArray(allRecords)) {
+             tableData.value = [];
+             stats.value = {
+               totalRecords: 0,
+               totalRevenue: '0.00',
+               avgEcpm: '0.00',
+               totalUsers: 0
+             };
+             return;
+           }
+         } else {
+           throw new Error(result.message || '获取数据失败');
+         }
+       } else if (queryParams.query_type === 'date_range') {
+         // 时间段查询：获取日期范围内的所有数据，支持完整分页
+         allRecords = [];
+
+         for (const date of queryDates) {
+           let pageNo = 1;
+           const maxPages = 100; // 防止无限循环
+           let hasMoreData = true;
+
+           while (hasMoreData && pageNo <= maxPages) {
+             const params = new URLSearchParams();
+             params.append('mp_id', queryParams.mp_id);
+             params.append('app_secret', selectedApp.appSecret);
+             params.append('date_hour', date);
+             params.append('page_no', pageNo.toString());
+             params.append('page_size', '100'); // 使用较小的页大小确保能获取所有数据
+
+             const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+               method: 'GET',
+               headers: {
+                 'Content-Type': 'application/json'
+               }
+             });
+
+             if (!response.ok) {
+               logger.warn(`日期 ${date} 第${pageNo}页查询失败 (HTTP ${response.status})，停止获取该日期数据`);
+               break;
+             }
+
+             const result = await response.json();
+
+             if (result.code !== 0) {
+               logger.warn(`日期 ${date} 第${pageNo}页API返回错误: ${result.message || result.err_msg}，停止获取该日期数据`);
+               break;
+             }
+
+             if (!result.data) {
+               logger.warn(`日期 ${date} 第${pageNo}页API返回数据为空，停止获取该日期数据`);
+               break;
+             }
+
+             const records = result.data.data ? result.data.data.records : result.data.records || [];
+             if (!Array.isArray(records) || records.length === 0) {
+               logger.debug(`日期 ${date} 第${pageNo}页没有更多数据`);
+               hasMoreData = false;
+               break;
+             }
+
+             // 为每条记录添加查询日期信息
+             const recordsWithDate = records.map(record => ({
+               ...record,
+               query_date: date
+             }));
+
+             allRecords.push(...recordsWithDate);
+             logger.debug(`日期 ${date} 第${pageNo}页获取到 ${records.length} 条记录`);
+
+             // 如果返回的数据少于请求的页大小，说明已经是最后一页
+             if (records.length < 100) {
+               hasMoreData = false;
+               break;
+             }
+
+             pageNo++;
+           }
+         }
+
+         logger.info(`时间段查询完成，共获取到 ${allRecords.length} 条记录`);
+
+         // 对时间段查询的结果进行前端分页
+         const pageSize = queryParams.page_size;
+         const pageNo = queryParams.page_no;
+         const startIndex = (pageNo - 1) * pageSize;
+         const endIndex = startIndex + pageSize;
+
+         // 按时间倒序排序
+         allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
+
+         allRecords = allRecords.slice(startIndex, endIndex);
+       }
+     }
+
+     // 统一的记录处理逻辑
+     const records = allRecords;
+
+     // 确保records是数组
+     if (!Array.isArray(records)) {
+       tableData.value = [];
+       stats.value = {
+         totalRecords: 0,
+         totalRevenue: '0.00',
+         avgEcpm: '0.00',
+         totalUsers: 0
+       };
+       return;
+     }
 
        // 获取当前用户设备信息（从用户store中获取）
        const currentIP = userStore.deviceInfo?.ip || '未知';
@@ -904,7 +1312,9 @@
            phone_model: item.phone_model || currentModel,
            revenue: (item.cost || 0) / 100000,
            isBound: false,
-           isCurrentUserBound: false
+           isCurrentUserBound: false,
+           app_name: item.app_name || getCurrentAppName(), // 添加应用名称
+           query_date: item.query_date // 添加查询日期
          };
 
          // 查询用户名
@@ -948,10 +1358,18 @@
        tableData.value = processedRecords;
 
        // 计算统计数据
-       const totalRecords = tableData.value.length;
-       const totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
-       const totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
-       const uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
+       let totalRecords = tableData.value.length;
+       let totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
+       let totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
+       let uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
+
+       // 如果是全部游戏模式，使用之前计算的全部数据统计信息
+       if (selectedAppId.value === 'all_games') {
+         totalRecords = allGamesTotalRecords.value;
+         totalRevenue = allGamesStats.totalRevenue;
+         totalEcpm = allGamesStats.totalEcpm;
+         uniqueUsers = allGamesStats.uniqueUsers;
+       }
 
        stats.value = {
          totalRecords,
@@ -960,6 +1378,10 @@
          totalUsers: uniqueUsers
        };
 
+       // 计算当日游戏状态（仅在全部游戏模式且单天查询时）
+       if (selectedAppId.value === 'all_games' && queryParams.query_type === 'single_day' && allRecords.length > 0) {
+         await calculateGameStatus(allRecords);
+       }
 
        // 为指定广告ID自动生成二维码
        const targetAdId = '7550558554752532523';
@@ -972,17 +1394,12 @@
          }
        }
 
-     } else {
-       // 处理API错误
-       if (result.err_no && result.err_no !== 0) {
-         throw new Error(result.err_msg || result.err_tips || 'API返回错误');
-       }
-       throw new Error(result.message || '获取数据失败');
-     }
-
    } catch (err) {
      console.error('❌ 加载数据失败:', err);
      error.value = err.message || '加载数据失败，请稍后重试';
+     // 确保在错误情况下也设置空数据
+     tableData.value = [];
+     stats.value = null;
    } finally {
      loading.value = false;
    }
@@ -1150,9 +1567,21 @@
    try {
 
      // 获取当前选中的应用配置
-     const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
-     if (!selectedApp) {
-       throw new Error('未选择有效的应用');
+     let selectedApp = null;
+     let isAllGamesMode = false;
+
+     if (selectedAppId.value === 'all_games') {
+       isAllGamesMode = true;
+       // 选择全部游戏时，使用第一个应用作为基础配置（用于获取token等）
+       selectedApp = appList.value[0];
+       if (!selectedApp) {
+         throw new Error('未找到任何应用配置');
+       }
+     } else {
+       selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+       if (!selectedApp) {
+         throw new Error('未选择有效的应用');
+       }
      }
 
      // 检查应用是否有广告ID配置
@@ -1429,10 +1858,16 @@
  // 获取流量主金额
  const loadTrafficMasterAmount = async () => {
    try {
+     // 如果是全部游戏模式，不加载流量主金额
+     if (selectedAppId.value === 'all_games') {
+       console.log('全部游戏模式，跳过流量主金额加载');
+       return;
+     }
+
      // 获取当前选中的应用和日期
      const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
      if (!selectedApp) {
-       console.error('未选择有效的应用11');
+       console.error('未选择有效的应用');
        return;
      }
 
@@ -1562,22 +1997,222 @@
    }
  };
 
+ // 计算当日游戏状态
+ const calculateGameStatus = async (allRecords) => {
+   try {
+     console.log('🔍 开始计算游戏状态，输入参数:', {
+       allRecordsLength: allRecords.length,
+       allRecordsSample: allRecords.slice(0, 3).map(item => ({
+         app_id: item.app_id,
+         app_name: item.app_name,
+         revenue: item.revenue,
+         cost: item.cost
+       }))
+     });
+
+     // 获取所有游戏列表
+     const allGames = appList.value;
+     console.log('📋 所有游戏列表:', allGames.map(g => ({ appid: g.appid, name: g.name })));
+
+     // 从所有记录中计算每个游戏的收益
+     const gameRevenueMap = new Map();
+
+     // 初始化所有游戏收益为0
+     allGames.forEach(game => {
+       gameRevenueMap.set(game.appid, {
+         name: game.name,
+         revenue: 0,
+         hasData: false, // 标记是否有数据
+         recordCount: 0 // 记录数量
+       });
+     });
+
+     console.log('🎯 初始化游戏收益映射:', Array.from(gameRevenueMap.entries()));
+
+     // 统计所有记录中的收益 - 按游戏分组汇总
+     const gameRecordsMap = new Map();
+
+     // 先按游戏分组收集所有记录
+     allRecords.forEach((item, index) => {
+       if (!item.app_id) {
+         console.warn(`⚠️ 记录 ${index + 1} 缺少 app_id:`, item);
+         return;
+       }
+
+       if (!gameRecordsMap.has(item.app_id)) {
+         gameRecordsMap.set(item.app_id, []);
+       }
+       gameRecordsMap.get(item.app_id).push(item);
+     });
+
+     console.log('📊 按游戏分组的记录数:', Array.from(gameRecordsMap.entries()).map(([appId, records]) => ({
+       appId,
+       recordCount: records.length,
+       totalRevenue: records.reduce((sum, r) => sum + r.revenue, 0)
+     })));
+
+     // 对每个游戏进行收益汇总
+     gameRecordsMap.forEach((records, appId) => {
+       if (!gameRevenueMap.has(appId)) {
+         console.warn(`⚠️ 游戏 ${appId} 不在游戏列表中，跳过`);
+         return;
+       }
+
+       const gameData = gameRevenueMap.get(appId);
+       let totalRevenue = 0;
+
+       console.log(`🔍 汇总游戏 ${appId} (${gameData.name}) 的收益:`);
+
+       records.forEach((record, idx) => {
+         // 安全地计算收益
+         let revenue = 0;
+         if (record.revenue !== undefined && record.revenue !== null) {
+           const parsed = parseFloat(record.revenue);
+           revenue = isNaN(parsed) ? 0 : parsed;
+         } else if (record.cost !== undefined && record.cost !== null) {
+           // 如果没有revenue但有cost，从cost计算收益
+           const cost = parseFloat(record.cost);
+           revenue = isNaN(cost) ? 0 : cost / 100000;
+         }
+
+         console.log(`  记录 ${idx + 1}: revenue=${record.revenue}(${typeof record.revenue}), cost=${record.cost}(${typeof record.cost}), 计算收益=${revenue}, event_time=${record.event_time}`);
+
+         if (isNaN(revenue)) {
+           console.error(`❌ 记录 ${idx + 1} 收益计算出现 NaN:`, record);
+           revenue = 0; // 设为0避免影响总计
+         }
+
+         totalRevenue += revenue;
+       });
+
+       console.log(`💰 游戏 ${appId} (${gameData.name}) 总收益汇总: ${totalRevenue.toFixed(4)} (从 ${records.length} 条记录)`);
+
+       gameRevenueMap.set(appId, {
+         name: gameData.name,
+         revenue: totalRevenue,
+         hasData: true,
+         recordCount: records.length
+       });
+     });
+
+     console.log('📈 收益统计完成，游戏收益映射:', Array.from(gameRevenueMap.entries()));
+
+     // 分离有收益和无收益的游戏
+     const withRevenue = [];
+     const withoutRevenue = [];
+
+     gameRevenueMap.forEach((gameData, appid) => {
+       console.log(`🔍 处理游戏 ${appid} (${gameData.name}): 收益=${gameData.revenue}, 有数据=${gameData.hasData}, 记录数=${gameData.recordCount}`);
+
+       if (gameData.hasData) {
+         // 有数据的游戏都显示在"有收益的游戏"中
+         console.log(`✅ 游戏 ${appid} 有数据: ¥${gameData.revenue.toFixed(5)} (有 ${gameData.recordCount} 条记录)`);
+         withRevenue.push({
+           appid,
+           name: gameData.name,
+           revenue: gameData.revenue.toFixed(5)
+         });
+       } else {
+         // 完全没有数据的游戏显示在"无收益的游戏"中
+         console.log(`❌ 游戏 ${appid} 无数据: 显示在无收益游戏中`);
+         withoutRevenue.push({
+           appid,
+           name: gameData.name,
+           revenue: '0.00000'
+         });
+       }
+     });
+
+     // 如果没有无收益的游戏，但有游戏数据，说明所有游戏都有收益
+     // 为了显示效果，我们可以显示一些没有收益的游戏（如果有的话）
+     if (withoutRevenue.length === 0 && allRecords.length > 0) {
+       console.log('🔄 没有无收益游戏，尝试查找收益为0的游戏...');
+       // 找到一些收益为0的游戏（从API返回的数据中）
+       const gamesWithZeroRevenue = allRecords.filter(item => item.revenue === 0);
+       console.log('📊 收益为0的记录:', gamesWithZeroRevenue.map(item => ({
+         app_id: item.app_id,
+         app_name: item.app_name,
+         revenue: item.revenue
+       })));
+
+       const processedAppIds = new Set([...withRevenue.map(g => g.appid), ...withoutRevenue.map(g => g.appid)]);
+
+       gamesWithZeroRevenue.forEach(item => {
+         if (item.app_id && !processedAppIds.has(item.app_id)) {
+           const gameInfo = allGames.find(g => g.appid === item.app_id);
+           if (gameInfo) {
+             console.log(`➕ 添加无收益游戏: ${item.app_id} (${gameInfo.name})`);
+             withoutRevenue.push({
+               appid: item.app_id,
+               name: gameInfo.name,
+               revenue: '0.00'
+             });
+             processedAppIds.add(item.app_id);
+           }
+         }
+       });
+     }
+
+     // 按收益降序排序有收益的游戏
+     withRevenue.sort((a, b) => parseFloat(b.revenue) - parseFloat(a.revenue));
+
+     console.log('🎉 最终结果:', {
+       withRevenue: withRevenue.map(g => `${g.name}: ¥${g.revenue}`),
+       withoutRevenue: withoutRevenue.map(g => `${g.name}: ¥${g.revenue}`),
+       totalGames: allGames.length,
+       allRecordsLength: allRecords.length
+     });
+
+     gamesWithRevenue.value = withRevenue;
+     gamesWithoutRevenue.value = withoutRevenue;
+
+     console.log('✅ 游戏状态计算完成:', {
+       withRevenue: withRevenue.length,
+       withoutRevenue: withoutRevenue.length,
+       totalGames: allGames.length,
+       allRecordsLength: allRecords.length
+     });
+
+   } catch (error) {
+     console.error('❌ 计算游戏状态失败:', error);
+     gamesWithRevenue.value = [];
+     gamesWithoutRevenue.value = [];
+   }
+ };
+
+ // 处理分页变化
+ const handlePageChange = (page: number) => {
+   queryParams.page_no = page;
+   loadData();
+ };
+
  // 重置查询
  const resetQuery = () => {
    // 重置为默认应用
    if (appList.value.length > 0) {
-     selectedAppId.value = appList.value[0].appid;
-     queryParams.mp_id = appList.value[0].appid;
+     // 如果用户有权限显示全部游戏，默认选择全部游戏
+     if (showAllGamesOption.value) {
+       selectedAppId.value = 'all_games';
+       queryParams.mp_id = 'all_games';
+     } else {
+       selectedAppId.value = appList.value[0].appid;
+       queryParams.mp_id = appList.value[0].appid;
+     }
    } else {
      selectedAppId.value = '';
      queryParams.mp_id = '';
    }
 
+   queryParams.query_type = 'single_day';
    queryParams.date_hour = '';
+   queryParams.start_date = '';
+   queryParams.end_date = '';
    queryParams.page_no = 1;
    queryParams.page_size = 50;
    stats.value = null;
    tableData.value = [];
+   gamesWithRevenue.value = [];
+   gamesWithoutRevenue.value = [];
    error.value = null;
  };
 
@@ -1589,9 +2224,21 @@
    try {
 
      // 获取当前选中的应用配置
-     const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
-     if (!selectedApp) {
-       throw new Error('未选择有效的应用');
+     let selectedApp = null;
+     let isAllGamesMode = false;
+
+     if (selectedAppId.value === 'all_games') {
+       isAllGamesMode = true;
+       // 选择全部游戏时，使用第一个应用作为基础配置（用于获取token等）
+       selectedApp = appList.value[0];
+       if (!selectedApp) {
+         throw new Error('未找到任何应用配置');
+       }
+     } else {
+       selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
+       if (!selectedApp) {
+         throw new Error('未选择有效的应用');
+       }
      }
 
      // 获取access_token
@@ -2014,6 +2661,75 @@
    display: grid;
    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
    gap: 20px;
+ }
+
+ /* 当日游戏状态 */
+ .game-status-section {
+   margin-top: 24px;
+   padding-top: 24px;
+   border-top: 1px solid rgba(102, 126, 234, 0.1);
+ }
+
+ .game-status-grid {
+   display: grid;
+   grid-template-columns: 1fr 1fr;
+   gap: 24px;
+ }
+
+ .game-status-card {
+   background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+   border-radius: 12px;
+   padding: 20px;
+   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+   border: 1px solid rgba(102, 126, 234, 0.1);
+ }
+
+ .game-status-title {
+   font-size: 16px;
+   font-weight: 600;
+   color: #1d2129;
+   margin-bottom: 16px;
+   display: flex;
+   align-items: center;
+   gap: 8px;
+ }
+
+ .game-list {
+   max-height: 300px;
+   overflow-y: auto;
+ }
+
+ .game-item {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   padding: 8px 12px;
+   margin-bottom: 8px;
+   background: rgba(102, 126, 234, 0.05);
+   border-radius: 6px;
+   border: 1px solid rgba(102, 126, 234, 0.1);
+ }
+
+ .game-item:last-child {
+   margin-bottom: 0;
+ }
+
+ .game-name {
+   font-weight: 500;
+   color: #1d2129;
+   flex: 1;
+ }
+
+ .game-revenue {
+   font-weight: 600;
+   color: #52c41a;
+ }
+
+ .no-data {
+   text-align: center;
+   color: #86909c;
+   font-style: italic;
+   padding: 20px;
  }
 
  .stat-card {

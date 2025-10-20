@@ -40,7 +40,7 @@
           </tr>
           <tr v-else v-for="item in data" :key="item.id" class="data-row">
             <td class="event-time-cell">{{ formatDateTime(item.event_time) }}</td>
-            <td class="app-name-cell">{{ getCurrentAppName() }}</td>
+            <td class="app-name-cell">{{ item.app_name || getCurrentAppName() }}</td>
             <td>{{ item.source || '未知' }}</td>
             <td class="username-cell" :title="item.username">
               {{ item.username }}
@@ -132,6 +132,7 @@ interface TableItem {
   aid: string;
   revenue: number;
   isBound: boolean;
+  app_name?: string; // 添加应用名称字段
 }
 
 interface Props {
@@ -156,7 +157,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   currentPage: 1,
-  pageSize: 50,
+  pageSize: 10,
   total: 0,
   showPagination: false,
 });
