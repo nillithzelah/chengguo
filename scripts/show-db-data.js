@@ -14,6 +14,7 @@ async function initializeDatabase() {
   const defineUserModel = require('../models/User');
   const defineGameModel = require('../models/Game');
   const defineUserGameModel = require('../models/UserGame');
+  const defineEntityModel = require('../models/Entity');
   // const defineUserDeviceModel = require('../models/UserDevice'); // 暂时注释掉不存在的模型
 
   // 获取sequelize实例
@@ -23,6 +24,7 @@ async function initializeDatabase() {
   const User = defineUserModel(sequelize);
   const Game = defineGameModel(sequelize);
   const UserGame = defineUserGameModel(sequelize);
+  const Entity = defineEntityModel(sequelize);
   // const UserDevice = defineUserDeviceModel(sequelize); // 暂时注释掉不存在的模型
 
   // 定义模型关联关系
@@ -61,7 +63,7 @@ async function initializeDatabase() {
   //   as: 'user'
   // });
 
-  return { User, Game, UserGame };
+  return { User, Game, UserGame, Entity };
 }
 
 async function showDatabaseData() {
@@ -71,7 +73,7 @@ async function showDatabaseData() {
   try {
     // 1. 初始化数据库连接和模型
     console.log('📡 初始化数据库连接...');
-    const { User, Game, UserGame, UserDevice } = await initializeDatabase();
+    const { User, Game, UserGame, Entity, UserDevice } = await initializeDatabase();
 
     // 2. 显示用户表数据
     console.log('\n👥 用户表 (users) 数据:');
@@ -120,7 +122,29 @@ async function showDatabaseData() {
       })));
     }
 
-    // 4. 显示用户游戏关联表数据
+    // 4. 显示主体表数据
+    console.log('\n🏢 主体表 (entities) 数据:');
+    console.log('-'.repeat(30));
+    const entities = await Entity.findAll({
+      attributes: ['id', 'name', 'programmer', 'game_name', 'development_status', 'assigned_user_id', 'created_at'],
+      order: [['created_at', 'ASC']]
+    });
+
+    if (entities.length === 0) {
+      console.log('📝 主体表为空');
+    } else {
+      console.table(entities.map(entity => ({
+        ID: entity.id,
+        主体名称: entity.name,
+        程序员: entity.programmer || '未设置',
+        游戏名称: entity.game_name || '未设置',
+        开发状态: entity.development_status || '未设置',
+        分配用户ID: entity.assigned_user_id || '未分配',
+        创建时间: entity.created_at.toLocaleString('zh-CN')
+      })));
+    }
+
+    // 5. 显示用户游戏关联表数据
     console.log('\n🔗 用户游戏关联表 (user_games) 数据:');
     console.log('-'.repeat(40));
     const userGames = await UserGame.findAll({

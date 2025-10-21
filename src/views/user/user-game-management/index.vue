@@ -48,10 +48,33 @@
       </div>
     </div>
 
+    <!-- 主体筛选器 -->
+    <div v-if="selectedUserId && selectedUserId !== '' && advertiserOptions.length > 0" class="advertiser-selector">
+      <div class="selector-item">
+        <label>筛选主体：</label>
+        <select
+          v-model="selectedAdvertiserId"
+          class="advertiser-select"
+        >
+          <option value="">全部主体</option>
+          <option
+            v-for="advertiser in advertiserOptions"
+            :key="advertiser.id"
+            :value="advertiser.id"
+          >
+            {{ advertiser.name }}
+          </option>
+        </select>
+      </div>
+    </div>
+
     <!-- 数据统计 -->
     <div v-if="selectedUser && selectedUserId && selectedUserId !== ''" class="stats-section">
       <div class="stats-info">
-        <div class="total-count">用户 "{{ selectedUser.name || selectedUser.username }}" 拥有 {{ gameList.length }} 个游戏权限</div>
+        <div class="total-count">
+          用户 "{{ selectedUser.name || selectedUser.username }}" 拥有 {{ gameList.length }} 个游戏权限
+          <span v-if="selectedAdvertiserId" class="filter-info">（筛选后显示 {{ filteredGameList.length }} 个）</span>
+        </div>
       </div>
     </div>
     <div v-else class="stats-section">
@@ -96,7 +119,7 @@
 
         <a-table
           :columns="gameColumns"
-          :data="gameList"
+          :data="filteredGameList"
           :loading="gameLoading"
           row-key="id"
           :pagination="false"
@@ -350,9 +373,13 @@ console.log('🔧 [组件] 组件setup函数开始执行');
 const userLoading = ref(false);
 const gameLoading = ref(false);
 const selectedUserId = ref<string>(''); // HTML select使用字符串值
-const selectedUser = ref<UserBasicItem | null>(null);
+const selectedUser = ref<UserGameListRes['user'] | null>(null);
 const userList = ref<UserBasicItem[]>([]);
 const gameList = ref<any[]>([]);
+const entityList = ref<any[]>([]); // 主体列表
+const advertiserOptions = ref<{id: string, name: string}[]>([]); // 主体选项列表
+const selectedAdvertiserId = ref<string>(''); // 选中的主体ID
+const gameNameToEntityMap = ref<Map<string, string>>(new Map()); // 游戏名称到主体名称的映射
 
 
 // 新增游戏相关
@@ -411,6 +438,35 @@ const sortedUserList = computed(() => {
     const priorityA = rolePriority[a.role] || 999;
     const priorityB = rolePriority[b.role] || 999;
     return priorityA - priorityB;
+  });
+});
+
+// 过滤后的游戏列表
+const filteredGameList = computed(() => {
+  if (!selectedAdvertiserId.value) {
+    return gameList.value;
+  }
+
+  // 根据选中的主体名称筛选游戏
+  return gameList.value.filter(game => {
+    const gameName = game.game?.name;
+    if (!gameName) return false;
+
+    // 获取当前游戏对应的主体名称
+    let gameEntityName = gameNameToEntityMap.value.get(gameName);
+
+    if (!gameEntityName) {
+      // 尝试模糊匹配
+      const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
+      gameEntityName = gameNameToEntityMap.value.get(cleanGameName);
+    }
+
+    // 如果还是找不到，使用游戏名称本身
+    if (!gameEntityName) {
+      gameEntityName = gameName;
+    }
+
+    return gameEntityName === selectedAdvertiserId.value;
   });
 });
 
@@ -612,6 +668,38 @@ const loadUserList = async () => {
   }
 };
 
+// 加载主体列表
+const loadEntityList = async () => {
+  try {
+    console.log('🏢 [主体列表] 开始加载主体列表...');
+    const response = await fetch('/api/entity/list', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.code === 20000) {
+        entityList.value = result.data.entities || [];
+        console.log('🏢 [主体列表] 成功加载主体列表，数量:', entityList.value.length);
+        console.log('🏢 [主体列表] 主体数据:', entityList.value.map(e => ({ id: e.id, name: e.name })));
+      } else {
+        console.error('🏢 [主体列表] API返回错误:', result.message);
+        entityList.value = [];
+      }
+    } else {
+      console.error('🏢 [主体列表] 请求失败，状态码:', response.status);
+      entityList.value = [];
+    }
+  } catch (error) {
+    console.error('❌ 加载主体列表失败:', error);
+    entityList.value = [];
+  }
+};
+
 // 加载用户游戏列表
 const loadUserGames = async (userId: number) => {
   gameLoading.value = true;
@@ -619,9 +707,14 @@ const loadUserGames = async (userId: number) => {
   try {
     const response = await getUserGames(userId);
 
-
     selectedUser.value = response.data.user;
     gameList.value = response.data.games;
+
+    // 更新主体选项（基于已有的主体数据）
+    updateAdvertiserOptions();
+
+    console.log('🏢 [筛选主体] 主体名称列表:', advertiserOptions.value);
+    console.log('🎮 [筛选主体] 游戏数据条数:', response.data.games.length);
 
   } catch (error) {
     console.error('❌ 加载用户游戏列表失败:', error);
@@ -631,14 +724,124 @@ const loadUserGames = async (userId: number) => {
   }
 };
 
+// 更新主体选项列表
+const updateAdvertiserOptions = async () => {
+  // 清空现有的主体选项和映射
+  advertiserOptions.value = [];
+  gameNameToEntityMap.value.clear();
+
+  // 如果没有选中的用户，清空选项
+  if (!selectedUserId.value) {
+    console.log('🏢 [主体选项] 没有选中的用户，清空主体选项');
+    return;
+  }
+
+  try {
+    // 获取所有主体数据
+    console.log('🏢 [主体选项] 开始获取主体数据...');
+    const entityResponse = await fetch('/api/entity/list', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (entityResponse.ok) {
+      const entityResult = await entityResponse.json();
+      if (entityResult.code === 20000) {
+        const entities = entityResult.data.entities || [];
+        console.log('🏢 [主体选项] 获取到主体数据:', entities.length, '个主体');
+
+        // 创建游戏名称到主体名称的映射
+        const localGameNameToEntityMap = new Map<string, string>();
+        entities.forEach((entity: any) => {
+          if (entity.game_name && entity.name) {
+            localGameNameToEntityMap.set(entity.game_name, entity.name);
+          }
+        });
+
+        // 保存映射到全局变量
+        gameNameToEntityMap.value = localGameNameToEntityMap;
+
+        console.log('🏢 [主体选项] 游戏名称到主体名称映射:', Array.from(localGameNameToEntityMap.entries()));
+        console.log('🏢 [主体选项] 主体表中的游戏名称:', entities.map((e: any) => e.game_name));
+        console.log('🏢 [主体选项] 游戏表中的游戏名称:', gameList.value.map((g: any) => g.game?.name));
+
+        // 从当前用户的游戏数据中提取主体名称
+        const entityNameMap = new Map<string, {id: string, name: string}>();
+
+        gameList.value.forEach((game: any) => {
+          const gameName = game.game?.name;
+          if (gameName) {
+            // 尝试精确匹配
+            let entityName = localGameNameToEntityMap.get(gameName);
+
+            if (entityName) {
+              console.log('🏢 [主体选项] 找到游戏对应的主体:', gameName, '->', entityName);
+            } else {
+              // 尝试模糊匹配（去除数字后缀等）
+              const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
+              entityName = localGameNameToEntityMap.get(cleanGameName);
+
+              if (entityName) {
+                console.log('🏢 [主体选项] 通过模糊匹配找到主体:', gameName, '->', cleanGameName, '->', entityName);
+              } else {
+                // 如果还是找不到，使用游戏名称作为备选
+                console.log('🏢 [主体选项] 未找到游戏对应的主体，使用游戏名称作为备选:', gameName);
+                entityName = gameName;
+              }
+            }
+
+            if (!entityNameMap.has(entityName)) {
+              entityNameMap.set(entityName, {
+                id: entityName,
+                name: entityName
+              });
+            }
+          }
+        });
+
+        // 按字母顺序排序并设置主体选项
+        advertiserOptions.value = Array.from(entityNameMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+        console.log('🏢 [主体选项] 最终生成的主体选项（公司名称）:', advertiserOptions.value);
+      } else {
+        console.error('🏢 [主体选项] 获取主体数据失败:', entityResult.message);
+      }
+    } else {
+      console.error('🏢 [主体选项] 获取主体数据请求失败，状态码:', entityResponse.status);
+    }
+  } catch (error) {
+    console.error('🏢 [主体选项] 获取主体数据时出错:', error);
+  }
+
+  console.log('🏢 [主体选项] 当前用户游戏数量:', gameList.value.length);
+  console.log('🏢 [主体选项] 游戏数据详情:', gameList.value.map((g: any) => ({
+    游戏名称: g.game?.name,
+    entity_name: g.game?.entity_name,
+    advertiser_id: g.game?.advertiser_id,
+    promotion_id: g.game?.promotion_id
+  })));
+};
+
 // 处理用户选择变化
 const handleUserChange = (event: Event) => {
   const target = event.target as HTMLSelectElement;
   const userIdStr = target.value;
   if (userIdStr) {
     selectedUserId.value = userIdStr;
+    selectedAdvertiserId.value = ''; // 清空选中的主体筛选
     const userId = parseInt(userIdStr);
     loadUserGames(userId);
+  } else {
+    // 如果取消选择用户，清空相关数据
+    selectedUserId.value = '';
+    selectedUser.value = null;
+    gameList.value = [];
+    advertiserOptions.value = [];
+    gameNameToEntityMap.value.clear();
+    selectedAdvertiserId.value = '';
   }
 };
 
@@ -647,6 +850,11 @@ const refreshGames = () => {
   if (selectedUserId.value) {
     const userId = parseInt(selectedUserId.value);
     loadUserGames(userId);
+  } else {
+    // 如果没有选择用户，清空游戏列表和主体选项
+    gameList.value = [];
+    advertiserOptions.value = [];
+    gameNameToEntityMap.value.clear();
   }
 };
 
@@ -661,7 +869,7 @@ const handleDeleteGame = async (record: any) => {
     await removeUserGame(userId, record.game.id);
     Message.success(`游戏 "${record.game.name}" 权限移除成功`);
 
-    // 刷新游戏列表
+    // 刷新游戏列表和主体选项
     if (selectedUserId.value) {
       await loadUserGames(userId);
     }
@@ -1113,10 +1321,12 @@ const checkPermissionsAndLoadData = () => {
     return;
   }
 
-  console.log('✅ [权限检查] 权限检查通过，开始加载用户列表');
+  console.log('✅ [权限检查] 权限检查通过，开始加载用户列表和主体列表');
   console.log('📡 [权限检查] 调用loadUserList函数');
   loadUserList();
-  console.log('📡 [权限检查] loadUserList函数调用完成');
+  console.log('📡 [权限检查] 调用loadEntityList函数');
+  loadEntityList();
+  console.log('📡 [权限检查] 数据加载函数调用完成');
 };
 </script>
 
@@ -1394,6 +1604,65 @@ const checkPermissionsAndLoadData = () => {
       }
     }
   }
+}
+
+.advertiser-selector {
+  margin-bottom: 32px;
+  background: linear-gradient(135deg, #fff 0%, #f8f9ff 100%);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  animation: slideInFromLeft 0.8s ease-out 0.3s both;
+
+.selector-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  label {
+    font-weight: 600;
+    color: #1d2129;
+    white-space: nowrap;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &::before {
+      content: "🏢";
+      font-size: 18px;
+    }
+  }
+
+  .advertiser-select {
+    width: 320px;
+    padding: 12px 16px;
+    border: 2px solid #e5e6eb;
+    border-radius: 12px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      border-color: #667eea;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    option {
+      padding: 8px;
+    }
+  }
+}
 }
 
 .user-info {
