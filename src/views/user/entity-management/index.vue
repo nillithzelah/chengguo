@@ -11,7 +11,7 @@
     <!-- 数据统计 -->
     <div class="stats-section">
       <div class="stats-info">
-        <div class="total-count">系统中共有 {{ entityList.length }} 个主体</div>
+        <div class="total-count">系统中共有 {{ uniqueEntityCount }} 个主体</div>
       </div>
     </div>
 
@@ -671,6 +671,17 @@ const canCreateEntity = computed(() => {
 const canViewEntity = computed(() => {
   const role = userStore.userInfo?.role;
   return ['admin', 'internal_boss'].includes(role || ''); // 只有管理员和内部老板可以查看主体
+});
+
+// 计算去重后的主体数量
+const uniqueEntityCount = computed(() => {
+  const uniqueEntities = entityList.value.reduce((acc, entity) => {
+    if (!acc.find(e => e.name === entity.name)) {
+      acc.push(entity);
+    }
+    return acc;
+  }, []);
+  return uniqueEntities.length;
 });
 
 // 表单验证计算属性
