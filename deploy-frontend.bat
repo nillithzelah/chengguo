@@ -35,7 +35,7 @@ ECHO [4/4] 上传前端文件到服务器...
 ECHO 正在上传 dist 目录到 /var/www/html...
 
 REM 使用SCP上传整个dist目录
-scp -i ~/.ssh/id_rsa_douyin -r dist/* root@47.115.94.203:/var/www/html/
+scp -i %USERPROFILE%\.ssh\id_rsa_douyin -r dist/* root@47.115.94.203:/var/www/html/
 
 IF %ERRORLEVEL% NEQ 0 (
     ECHO ❌ 上传失败，请检查网络连接和SSH配置

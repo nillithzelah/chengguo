@@ -1218,12 +1218,24 @@ app.get('/api/game/:id/owner', authenticateJWT, async (req, res) => {
 app.get('/api/game/list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
+    const pageType = req.query.page_type || 'user'; // 默认是用户页面
 
     const mappedRole = getMappedRole(currentUser.role);
     if (mappedRole === 'admin' || mappedRole === 'internal_boss' || mappedRole === 'external_boss') {
-      // 管理员、老板可以看到所有活跃游戏
+      // 管理员、老板可以看到所有游戏，但根据页面类型过滤状态
+      let whereCondition = {};
+
+      // 根据页面类型过滤游戏状态
+      if (pageType === 'gray') {
+        // 灰游页面：只显示状态为 'gray' 的游戏
+        whereCondition.status = 'gray';
+      } else {
+        // 白游页面：只显示状态为 'active' 的游戏
+        whereCondition.status = 'active';
+      }
+
       const games = await Game.findAll({
-        where: { status: 'active' },
+        where: whereCondition,
         attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret', 'advertiser_id', 'promotion_id'],
         order: [['created_at', 'DESC']]
       });
@@ -1264,12 +1276,23 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
       });
     } else {
       // 普通用户只能看到自己有权限的游戏
+      let gameWhereCondition = {};
+
+      // 根据页面类型过滤游戏状态
+      if (pageType === 'gray') {
+        // 灰游页面：只显示状态为 'gray' 的游戏
+        gameWhereCondition.status = 'gray';
+      } else {
+        // 白游页面：只显示状态为 'active' 的游戏
+        gameWhereCondition.status = 'active';
+      }
+
       const userGames = await UserGame.findAll({
         where: { user_id: currentUser.userId },
         include: [{
           model: Game,
           as: 'game',
-          where: { status: 'active' },
+          where: gameWhereCondition,
           required: true,
           attributes: ['id', 'appid', 'name', 'description', 'status', 'validated', 'created_at', 'app_secret', 'advertiser_id', 'promotion_id']
         }],
@@ -1507,6 +1530,7 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     if (description !== undefined) updateData.description = description;
     if (advertiser_id !== undefined) updateData.advertiser_id = advertiser_id || null;
     if (promotion_id !== undefined) updateData.promotion_id = promotion_id || null;
+    if (req.body.status !== undefined) updateData.status = req.body.status;
 
     logger.debug('📝 准备更新数据:', updateData);
 

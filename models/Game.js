@@ -35,7 +35,7 @@ function defineGameModel(sequelize) {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('active', 'inactive', 'suspended'),
+    type: DataTypes.ENUM('active', 'inactive', 'suspended', 'gray'),
     defaultValue: 'active',
     allowNull: false
   },

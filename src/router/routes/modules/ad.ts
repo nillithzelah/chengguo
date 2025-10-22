@@ -24,6 +24,17 @@ const AD: AppRouteRecordRaw = {
         roles: ['*'], // 所有用户都可以访问
       },
     },
+    // 灰游ECPM数据查看 - 仅内部角色和管理员可以访问
+    {
+      path: 'ecpm-gray',
+      name: 'EcpmGray',
+      component: () => import('@/views/ad/ecpm-gray/index.vue'),
+      meta: {
+        locale: 'menu.ad.ecpm.gray',
+        requiresAuth: true,
+        roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3'], // 仅内部角色可以访问
+      },
+    },
     // Token管理页面 - 管理员可以访问
     // {
     //   path: 'token-management',

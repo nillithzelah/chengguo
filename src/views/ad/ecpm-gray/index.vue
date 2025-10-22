@@ -3,8 +3,8 @@
       <div class="page-header">
         <div class="header-content">
           <div>
-             <h1>白游ECPM数据查看</h1>
-             <p>查看当前用户的小游戏广告eCPM数据统计</p>
+             <h1>灰游ECPM数据查看</h1>
+                <p>查看灰游广告eCPM数据统计（仅内部人员可见）</p>
            </div>
         </div>
       </div>
@@ -44,7 +44,7 @@
                <option
                  v-if="showAllGamesOption"
                  value="all_games"
-                 style="font-weight: bold; color: #667eea;"
+                 style="font-weight: bold; color: #6b7280;"
                >
                  📊 显示全部游戏
                </option>
@@ -66,11 +66,11 @@
              <!-- 游戏状态切换按钮 - 仅内部角色和管理员可见 -->
              <button
                v-if="userStore.userInfo?.role === 'admin' || userStore.userInfo?.role?.startsWith('internal_')"
-               @click="selectedAppId === 'all_games' ? batchChangeToGrayGame() : changeToGrayGame()"
+               @click="selectedAppId === 'all_games' ? batchChangeToWhiteGame() : changeToWhiteGame()"
                class="btn btn-small btn-secondary gray-games-btn"
                :class="{ 'batch-change-btn': selectedAppId === 'all_games' }"
              >
-               {{ selectedAppId === 'all_games' ? '批量变为灰游' : '变为灰游' }}
+               {{ selectedAppId === 'all_games' ? '批量变为白游' : '变为白游' }}
              </button>
            </div>
          </div>
@@ -215,7 +215,7 @@
        <!-- 加载状态 -->
        <LoadingState
          v-if="loading"
-         text="正在加载eCPM数据..."
+         text="正在加载灰游eCPM数据..."
          :show-progress="true"
          :progress="loadingProgress"
        />
@@ -300,8 +300,8 @@
          <div class="modal-body">
            <div class="qr-info">
              <div class="qr-details">
-               <p><strong>用途:</strong> 广告预览</p>
-               <p><strong>说明:</strong> 扫描二维码可预览广告效果</p>
+               <p><strong>用途:</strong> 灰游广告预览</p>
+                   <p><strong>说明:</strong> 扫描二维码可预览灰游广告效果</p>
                <!-- <p><strong>广告主ID:</strong> 1843320456982026</p>
                <p><strong>广告ID:</strong> 7550558554752532523</p> -->
                <p><strong>生成时间:</strong> {{ new Date().toLocaleString() }}</p>
@@ -340,7 +340,7 @@
  import QRCode from 'qrcode';
  import LoadingState from '@/components/common/LoadingState.vue';
  import ErrorState from '@/components/common/ErrorState.vue';
- import DataTable from './components/DataTable.vue';
+ import DataTable from '../ecpm-user/components/DataTable.vue';
 
  // 日志函数
  const logger = {
@@ -674,13 +674,13 @@
  };
 
 
- // 加载主体列表 - 从用户有权限的白游游戏中提取主体信息
+ // 加载主体列表 - 从用户有权限的灰游游戏中提取主体信息
  const loadEntityList = async () => {
    try {
-     logger.info('开始从用户白游游戏列表中提取主体信息');
+     logger.info('开始从用户灰游游戏列表中提取主体信息');
 
-     // 先获取用户有权限的白游游戏列表（status为'active'）
-     const gameResponse = await fetch('/api/game/list?page_type=user', {
+     // 先获取用户有权限的灰游游戏列表（status为'gray'）
+     const gameResponse = await fetch('/api/game/list?page_type=gray', {
        method: 'GET',
        headers: {
          'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -691,11 +691,11 @@
      if (gameResponse.ok) {
        const gameResult = await gameResponse.json();
        if (gameResult.code === 20000 && gameResult.data?.games) {
-         // 先过滤出白游游戏（status为'active'），然后从这些游戏中提取主体信息并去重
-         const activeGames = gameResult.data.games.filter(game => game.status === 'active');
+         // 先过滤出灰游游戏（status为'gray'），然后从这些游戏中提取主体信息并去重
+         const grayGames = gameResult.data.games.filter(game => game.status === 'gray');
          const entityMap = new Map();
 
-         for (const game of activeGames) {
+         for (const game of grayGames) {
            // 从游戏的 entity_names 字段提取主体信息
            if (game.entity_names) {
              // entity_names 可能是逗号分隔的字符串
@@ -715,7 +715,7 @@
 
          // 转换为数组格式
          entityList.value = Array.from(entityMap.values());
-         logger.info(`成功从用户白游游戏中提取 ${entityList.value.length} 个主体`);
+         logger.info(`成功从用户灰游游戏中提取 ${entityList.value.length} 个主体`);
        } else {
          entityList.value = [];
        }
@@ -723,7 +723,7 @@
        entityList.value = [];
      }
    } catch (error) {
-     console.error('❌ 从白游游戏列表提取主体信息失败:', error);
+     console.error('❌ 从灰游游戏列表提取主体信息失败:', error);
      entityList.value = [];
    }
  };
@@ -742,8 +742,8 @@
 
      // 从数据库获取游戏列表（API已经根据用户权限过滤）
      try {
-       // 获取游戏列表 - 白游页面
-       const gameResponse = await fetch('/api/game/list?page_type=user', {
+       // 获取游戏列表 - 灰游页面
+       const gameResponse = await fetch('/api/game/list?page_type=gray', {
          method: 'GET',
          headers: {
            'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -757,8 +757,8 @@
            // API已经根据用户权限过滤，直接使用返回的游戏列表
            let filteredGames = gameResult.data.games;
 
-           // 过滤白游游戏（status为'active'）
-           filteredGames = filteredGames.filter(game => game.status === 'active');
+           // 过滤灰游游戏（status为'gray'）
+           filteredGames = filteredGames.filter(game => game.status === 'gray');
 
            // 根据选中的主体过滤游戏（与游戏管理页面保持一致的逻辑）
            if (selectedEntityName.value) {
@@ -1782,45 +1782,30 @@
    }
  };
 
- // 将游戏变为灰游
- const changeToGrayGame = async () => {
-   console.log('🔄 开始执行changeToGrayGame函数');
-
+ // 将游戏变为白游
+ const changeToWhiteGame = async () => {
    // 检查用户权限
    const currentUser = userStore.userInfo;
-   console.log('👤 当前用户信息:', currentUser);
-
    if (!currentUser || (currentUser.role !== 'admin' && !currentUser.role?.startsWith('internal_'))) {
-     console.log('❌ 权限不足');
      alert('权限不足，只有内部人员可以修改游戏状态');
      return;
    }
 
    // 获取当前选中的应用
    const selectedApp = appList.value.find(app => app.appid === selectedAppId.value);
-   console.log('🎮 选中的应用:', selectedApp);
-
    if (!selectedApp) {
-     console.log('❌ 未选择应用');
      alert('请先选择一个游戏');
      return;
    }
 
    // 确认操作
-   const confirmMessage = `确定要将游戏 "${selectedApp.name}" (${selectedApp.appid}) 变为灰游吗？\n\n变为灰游后，该游戏将只在灰游数据查看页面显示。`;
-   console.log('❓ 显示确认对话框');
-
+   const confirmMessage = `确定要将游戏 "${selectedApp.name}" (${selectedApp.appid}) 变为白游吗？\n\n变为白游后，该游戏将只在白游数据查看页面显示。`;
    if (!confirm(confirmMessage)) {
-     console.log('❌ 用户取消操作');
      return;
    }
 
-   console.log('✅ 用户确认，开始API调用');
-
    try {
      // 调用API更新游戏状态
-     console.log('📡 发送API请求:', `/api/game/update/${selectedApp.id}`);
-
      const response = await fetch(`/api/game/update/${selectedApp.id}`, {
        method: 'PUT',
        headers: {
@@ -1828,46 +1813,38 @@
          'Content-Type': 'application/json'
        },
        body: JSON.stringify({
-         status: 'gray'
+         status: 'active'
        })
      });
 
-     console.log('📡 API响应状态:', response.status);
-
      const result = await response.json();
-     console.log('📡 API响应结果:', result);
 
      if (response.ok && result.code === 20000) {
-       console.log('✅ API调用成功');
-       alert(`✅ 游戏 "${selectedApp.name}" 已成功变为灰游！\n\n该游戏现在只在灰游数据查看页面显示。`);
+       alert(`✅ 游戏 "${selectedApp.name}" 已成功变为白游！\n\n该游戏现在只在白游数据查看页面显示。`);
 
        // 重新加载主体列表和应用列表
-       console.log('🔄 重新加载主体列表和应用列表');
        await loadEntityList();
        await loadAppList();
 
        // 如果当前应用被移除了，清空选择
        if (!appList.value.find(app => app.appid === selectedAppId.value)) {
-         console.log('🗑️ 当前应用被移除，清空选择');
          selectedAppId.value = '';
          queryParams.mp_id = '';
        }
 
        // 重新加载数据
-       console.log('🔄 重新加载数据');
        await loadData();
      } else {
-       console.log('❌ API调用失败:', result);
        alert(`❌ 修改失败：${result.message || '未知错误'}`);
      }
    } catch (error) {
-     console.error('❌ 修改游戏状态失败:', error);
+     console.error('修改游戏状态失败:', error);
      alert(`❌ 修改失败：${error.message}`);
    }
  };
 
- // 批量将游戏变为灰游
- const batchChangeToGrayGame = async () => {
+ // 批量将游戏变为白游
+ const batchChangeToWhiteGame = async () => {
    // 检查用户权限
    const currentUser = userStore.userInfo;
    if (!currentUser || (currentUser.role !== 'admin' && !currentUser.role?.startsWith('internal_'))) {
@@ -1875,15 +1852,15 @@
      return;
    }
 
-   // 获取当前显示的白游游戏列表
-   const activeGames = appList.value;
-   if (activeGames.length === 0) {
-     alert('没有可操作的白游游戏');
+   // 获取当前显示的灰游游戏列表
+   const grayGames = appList.value;
+   if (grayGames.length === 0) {
+     alert('没有可操作的灰游游戏');
      return;
    }
 
    // 确认操作
-   const confirmMessage = `确定要将所有 ${activeGames.length} 个白游游戏批量变为灰游吗？\n\n游戏列表：\n${activeGames.map(game => `• ${game.name} (${game.appid})`).join('\n')}\n\n变为灰游后，这些游戏将只在灰游数据查看页面显示。`;
+   const confirmMessage = `确定要将所有 ${grayGames.length} 个灰游游戏批量变为白游吗？\n\n游戏列表：\n${grayGames.map(game => `• ${game.name} (${game.appid})`).join('\n')}\n\n变为白游后，这些游戏将只在白游数据查看页面显示。`;
    if (!confirm(confirmMessage)) {
      return;
    }
@@ -1894,7 +1871,7 @@
      const failedGames = [];
 
      // 逐个更新游戏状态
-     for (const game of activeGames) {
+     for (const game of grayGames) {
        try {
          const response = await fetch(`/api/game/update/${game.id}`, {
            method: 'PUT',
@@ -1903,7 +1880,7 @@
              'Content-Type': 'application/json'
            },
            body: JSON.stringify({
-             status: 'gray'
+             status: 'active'
            })
          });
 
@@ -2609,11 +2586,11 @@
 
  .page-header {
    margin-bottom: 30px;
-   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
    border-radius: 12px;
    padding: 24px;
    color: white;
-   box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+   box-shadow: 0 4px 20px rgba(107, 114, 128, 0.3);
  }
 
  .page-header h1 {
@@ -2718,7 +2695,7 @@
    padding: 28px;
    margin-bottom: 24px;
    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
  }
 
  .form-grid {
@@ -2753,8 +2730,8 @@
 
  .form-input:focus {
    outline: none;
-   border-color: #667eea;
-   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+   border-color: #6b7280;
+   box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
    transform: translateY(-1px);
  }
 
@@ -2840,14 +2817,14 @@
  }
 
  .btn-primary {
-   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
    color: white;
  }
 
  .btn-primary:hover:not(:disabled) {
    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
    transform: translateY(-2px);
-   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+   box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
  }
 
  .btn-secondary {
@@ -2902,7 +2879,7 @@
  }
 
  .btn-qr-preview {
-   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
    color: white;
    border: none;
    padding: 12px 24px;
@@ -2911,13 +2888,13 @@
    border-radius: 8px;
    cursor: pointer;
    transition: all 0.3s ease;
-   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+   box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4);
  }
 
  .btn-qr-preview:hover:not(:disabled) {
    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
    transform: translateY(-2px);
-   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+   box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
  }
 
  /* 统计卡片 */
@@ -2935,7 +2912,7 @@
  .game-status-section {
    margin-top: 24px;
    padding-top: 24px;
-   border-top: 1px solid rgba(102, 126, 234, 0.1);
+   border-top: 1px solid rgba(107, 114, 128, 0.1);
  }
 
  .game-status-grid {
@@ -2949,7 +2926,7 @@
    border-radius: 12px;
    padding: 20px;
    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
  }
 
  .game-status-title {
@@ -2973,9 +2950,9 @@
    align-items: center;
    padding: 8px 12px;
    margin-bottom: 8px;
-   background: rgba(102, 126, 234, 0.05);
+   background: rgba(107, 114, 128, 0.05);
    border-radius: 6px;
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
  }
 
  .game-item:last-child {
@@ -3006,7 +2983,7 @@
    padding: 24px;
    text-align: center;
    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
    transition: all 0.3s ease;
    position: relative;
    overflow: hidden;
@@ -3019,7 +2996,7 @@
    left: 0;
    right: 0;
    height: 4px;
-   background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+   background: linear-gradient(90deg, #6b7280 0%, #4b5563 100%);
  }
 
  .stat-card:hover {
@@ -3027,7 +3004,7 @@
    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
  }
 
- .stat-card:nth-child(1)::before { background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); }
+ .stat-card:nth-child(1)::before { background: linear-gradient(90deg, #6b7280 0%, #4b5563 100%); }
  .stat-card:nth-child(2)::before { background: linear-gradient(90deg, #52c41a 0%, #389e0d 100%); }
  .stat-card:nth-child(3)::before { background: linear-gradient(90deg, #faad14 0%, #d48806 100%); }
  .stat-card:nth-child(4)::before { background: linear-gradient(90deg, #13c2c2 0%, #08979c 100%); }
@@ -3053,7 +3030,7 @@
    border-radius: 12px;
    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
    overflow: hidden;
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
  }
 
  .table-header {
@@ -3311,17 +3288,17 @@
    width: 90%;
    max-height: 90vh;
    overflow-y: auto;
-   border: 1px solid rgba(102, 126, 234, 0.1);
+   border: 1px solid rgba(107, 114, 128, 0.1);
    animation: slideInScale 0.4s ease-out;
  }
 
  .modal-header {
    padding: 24px 32px;
-   border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+   border-bottom: 1px solid rgba(107, 114, 128, 0.1);
    display: flex;
    justify-content: space-between;
    align-items: center;
-   background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+   background: linear-gradient(135deg, rgba(107, 114, 128, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
  }
 
  .modal-header h3 {
@@ -3329,17 +3306,17 @@
    font-size: 20px;
    font-weight: 700;
    color: #1d2129;
-   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+   background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
    -webkit-background-clip: text;
    -webkit-text-fill-color: transparent;
    background-clip: text;
  }
 
  .modal-close {
-   background: rgba(102, 126, 234, 0.1);
+   background: rgba(107, 114, 128, 0.1);
    border: none;
    font-size: 20px;
-   color: #667eea;
+   color: #6b7280;
    cursor: pointer;
    padding: 8px;
    width: 36px;
@@ -3351,9 +3328,9 @@
    transition: all 0.3s ease;
 
    &:hover {
-     background: rgba(102, 126, 234, 0.2);
+     background: rgba(107, 114, 128, 0.2);
      transform: scale(1.1);
-     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+     box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
      transform-origin: center;
    }
  }
@@ -3364,11 +3341,11 @@
 
  .modal-footer {
    padding: 20px 32px;
-   border-top: 1px solid rgba(102, 126, 234, 0.1);
+   border-top: 1px solid rgba(107, 114, 128, 0.1);
    display: flex;
    justify-content: flex-end;
    gap: 16px;
-   background: rgba(102, 126, 234, 0.02);
+   background: rgba(107, 114, 128, 0.02);
  }
 
  /* 绑定操作样式 */
@@ -3438,10 +3415,10 @@
  }
 }
  </style>
-   background: rgba(102, 126, 234, 0.1);
+   background: rgba(107, 114, 128, 0.1);
    border: none;
    font-size: 20px;
-   color: #667eea;
+   color: #6b7280;
    cursor: pointer;
    padding: 8px;
    width: 36px;
@@ -3453,9 +3430,9 @@
    transition: all 0.3s ease;
 
    &:hover {
-     background: rgba(102, 126, 234, 0.2);
+     background: rgba(107, 114, 128, 0.2);
      transform: scale(1.1);
-     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+     box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
      transform-origin: center;
    }
  }
@@ -3466,11 +3443,11 @@
 
  .modal-footer {
    padding: 20px 32px;
-   border-top: 1px solid rgba(102, 126, 234, 0.1);
+   border-top: 1px solid rgba(107, 114, 128, 0.1);
    display: flex;
    justify-content: flex-end;
    gap: 16px;
-   background: rgba(102, 126, 234, 0.02);
+   background: rgba(107, 114, 128, 0.02);
  }
 
  /* 绑定操作样式 */
