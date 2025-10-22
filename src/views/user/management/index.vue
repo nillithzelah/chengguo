@@ -1672,6 +1672,13 @@ const handleCreateUser = async () => {
     return;
   }
 
+  // 检查客服角色创建权限：只有admin、internal_boss、external_boss可以创建客服角色
+  if ((createForm.role === 'internal_service' || createForm.role === 'external_service') &&
+      !['admin', 'internal_boss', 'external_boss'].includes(currentRole || '')) {
+    Message.error('只有管理员和老板可以创建客服角色');
+    return;
+  }
+
   // 检查internal_service只能创建internal_user角色
   if (['internal_service', 'moderator'].includes(currentRole || '') && !createForm.role.startsWith('internal_user_')) {
     Message.error('您只能创建内部普通用户账号');
@@ -1690,11 +1697,6 @@ const handleCreateUser = async () => {
     return;
   }
 
-  // 检查客服角色是否被支持
-  if (createForm.role === 'internal_service' || createForm.role === 'external_service') {
-    Message.error('客服角色暂不支持创建，请选择其他角色');
-    return;
-  }
 
   // 检查上级用户选择
   if (showParentSelector.value && !createForm.parent_id) {

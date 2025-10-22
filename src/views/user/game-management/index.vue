@@ -83,13 +83,53 @@
     <div v-if="isInitialized" class="games-section">
       <a-card title="游戏列表" class="games-card">
         <template #extra>
-          <a-button @click="refreshGames" :loading="loading">
-            <template #icon>
-              <icon-refresh />
-            </template>
-            刷新
-          </a-button>
-        </template>
+           <a-button @click="refreshGames" :loading="loading">
+             <template #icon>
+               <icon-refresh />
+             </template>
+             刷新
+           </a-button>
+           <a-popconfirm
+             v-if="canBulkAssign && selectedUserId && displayMode === 'unowned' && filteredGames.length > 0"
+             :title="`确定要为用户批量分配${selectedEntityName ? '当前主体下' : '所有'}的游戏权限吗？`"
+             ok-text="确定分配"
+             cancel-text="取消"
+             @ok="bulkAssignGames"
+           >
+             <template #content>
+               <div style="color: #1890ff; font-weight: 500;">
+                 此操作将为用户 "{{ getSelectedUserName() }}" 分配{{ selectedEntityName ? `当前主体（${selectedEntityName}）下` : '所有' }}未拥有的游戏权限。<br>
+                 共需分配 {{ filteredGames.length }} 个游戏权限。
+               </div>
+             </template>
+             <a-button type="primary" :loading="bulkAssigning">
+               <template #icon>
+                 <icon-plus />
+               </template>
+               一键分配{{ selectedEntityName ? '当前主体' : '全部' }}游戏
+             </a-button>
+           </a-popconfirm>
+           <a-popconfirm
+             v-if="canBulkRemove && selectedUserId && displayMode === 'owned' && filteredGames.length > 0"
+             :title="`确定要为用户批量移除${selectedEntityName ? '当前主体下' : '所有'}的游戏权限吗？`"
+             ok-text="确定移除"
+             cancel-text="取消"
+             @ok="bulkRemoveGames"
+           >
+             <template #content>
+               <div style="color: #ff4d4f; font-weight: 500;">
+                 此操作将移除用户 "{{ getSelectedUserName() }}" {{ selectedEntityName ? `当前主体（${selectedEntityName}）下` : '所有' }}已拥有的游戏权限。<br>
+                 共需移除 {{ filteredGames.length }} 个游戏权限。
+               </div>
+             </template>
+             <a-button type="primary" danger :loading="bulkRemoving">
+               <template #icon>
+                 <icon-delete />
+               </template>
+               一键移除{{ selectedEntityName ? '当前主体' : '全部' }}游戏
+             </a-button>
+           </a-popconfirm>
+         </template>
 
         <a-table
           :columns="gameColumns"
@@ -505,6 +545,25 @@
         </div>
 
         <div class="modal-body">
+          <!-- 批量操作区域 -->
+          <div v-if="gameUsers.length > 0 && canBulkRemove" class="bulk-actions">
+            <div class="bulk-actions-content">
+              <span class="bulk-info">共 {{ gameUsers.length }} 个用户拥有权限</span>
+              <a-button
+                type="primary"
+                danger
+                @click="confirmRemoveAllUserGames"
+                :loading="removingAll"
+                size="small"
+              >
+                <template #icon>
+                  <icon-delete />
+                </template>
+                一键移除全部权限
+              </a-button>
+            </div>
+          </div>
+
           <div class="game-users-list">
             <div v-if="gameUsers.length === 0" class="empty-state">
               <p>该游戏暂无用户权限</p>
@@ -666,6 +725,9 @@ const creating = ref(false);
 const editing = ref(false);
 const testing = ref(false);
 const assigning = ref(false);
+const removingAll = ref(false);
+const bulkAssigning = ref(false);
+const bulkRemoving = ref(false);
 const testResult = ref(null);
 const isInitialized = ref(false);
 const entityLoading = ref(false);
@@ -694,6 +756,14 @@ const canAssign = computed(() => {
   const role = userStore.role;
   return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
 }); // 管理员、老板和客服可以分配游戏
+const canBulkAssign = computed(() => {
+  const role = userStore.role;
+  return ['admin', 'internal_boss', 'internal_service'].includes(role || '');
+}); // 只有管理员、内部老板和内部客服可以看见一键分配按钮
+const canBulkRemove = computed(() => {
+  const role = userStore.role;
+  return ['admin', 'internal_boss', 'internal_service'].includes(role || '');
+}); // 只有管理员、内部老板和内部客服可以看见一键移除按钮
 
 // 按权限高低排序用户列表
 const sortedUsers = computed(() => {
@@ -1540,6 +1610,180 @@ const assignGameToUser = async () => {
   }
 };
 
+// 一键批量分配游戏权限
+const bulkAssignGames = async () => {
+  if (!selectedUserId.value || filteredGames.value.length === 0) {
+    Message.warning('没有游戏可以分配');
+    return;
+  }
+
+  bulkAssigning.value = true;
+
+  try {
+    console.log('🎯 开始批量分配游戏权限');
+
+    const userId = parseInt(selectedUserId.value);
+
+    // 获取所有主体信息，用于检查分配用户角色
+    let entities = [];
+    try {
+      const entityResponse = await fetch('/api/entity/list', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (entityResponse.ok) {
+        const entityResult = await entityResponse.json();
+        if (entityResult.code === 20000) {
+          entities = entityResult.data.entities || [];
+        }
+      }
+    } catch (error) {
+      console.warn('获取主体列表失败:', error);
+    }
+
+    // 创建主体名称到分配用户角色的映射
+    const entityRoleMap = {};
+    entities.forEach(entity => {
+      entityRoleMap[entity.name] = entity.assigned_user_role;
+    });
+
+    // 过滤掉主体分配用户为外部老板的游戏
+    const assignableGames = [];
+
+    for (const game of filteredGames.value) {
+      let shouldAssign = true;
+
+      if (game.entity_names) {
+        // 获取游戏的主体名称（可能有多个，用"、"分隔）
+        const entityNames = game.entity_names.split('、');
+
+        for (const entityName of entityNames) {
+          // 检查主体的分配用户角色是否为外部老板
+          const assignedUserRole = entityRoleMap[entityName];
+
+          if (assignedUserRole === 'external_boss') {
+            console.log(`⚠️ 跳过游戏 "${game.name}" - 主体 "${entityName}" 的分配用户是外部老板`);
+            shouldAssign = false;
+            break;
+          }
+        }
+      }
+
+      if (shouldAssign) {
+        assignableGames.push(game);
+      }
+    }
+
+    if (assignableGames.length === 0) {
+      Message.warning('所有游戏的主体都已分配给外部老板，无法分配');
+      return;
+    }
+
+    console.log(`📋 可分配游戏数量: ${assignableGames.length}/${filteredGames.value.length}`);
+
+    const assignPromises = assignableGames.map(game =>
+      fetch('/api/game/assign', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: userId,
+          gameId: game.id,
+          role: 'viewer' // 默认分配查看者权限
+        })
+      })
+    );
+
+    const responses = await Promise.all(assignPromises);
+    const results = await Promise.all(responses.map(r => r.json()));
+
+    // 检查所有请求是否成功
+    const successCount = results.filter(result => result.code === 20000).length;
+    const failCount = results.length - successCount;
+    const skippedCount = filteredGames.value.length - assignableGames.length;
+
+    let message = `✅ 批量分配完成！\n成功分配 ${successCount} 个游戏权限`;
+    if (failCount > 0) {
+      message += `，失败 ${failCount} 个`;
+    }
+    if (skippedCount > 0) {
+      message += `，跳过 ${skippedCount} 个（主体分配用户为外部老板）`;
+    }
+
+    if (failCount === 0) {
+      Message.success(message);
+    } else {
+      Message.warning(message);
+    }
+
+    // 重新加载游戏列表以反映分配结果
+    await applyAllFilters();
+  } catch (error) {
+    console.error('批量分配游戏权限失败:', error);
+    Message.error(`❌ 批量分配失败: ${error.message}`);
+  } finally {
+    bulkAssigning.value = false;
+  }
+};
+
+// 一键批量移除游戏权限
+const bulkRemoveGames = async () => {
+  if (!selectedUserId.value || filteredGames.value.length === 0) {
+    Message.warning('没有游戏可以移除');
+    return;
+  }
+
+  bulkRemoving.value = true;
+
+  try {
+    console.log('🗑️ 开始批量移除游戏权限');
+
+    const userId = parseInt(selectedUserId.value);
+
+    const removePromises = filteredGames.value.map(game =>
+      fetch(`/api/game/remove/${userId}/${game.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    );
+
+    const responses = await Promise.all(removePromises);
+    const results = await Promise.all(responses.map(r => r.json()));
+
+    // 检查所有请求是否成功
+    const successCount = results.filter(result => result.code === 20000).length;
+    const failCount = results.length - successCount;
+
+    let message = `✅ 批量移除完成！\n成功移除 ${successCount} 个游戏权限`;
+    if (failCount > 0) {
+      message += `，失败 ${failCount} 个`;
+    }
+
+    if (failCount === 0) {
+      Message.success(message);
+    } else {
+      Message.warning(message);
+    }
+
+    // 重新加载游戏列表以反映移除结果
+    await applyAllFilters();
+  } catch (error) {
+    console.error('批量移除游戏权限失败:', error);
+    Message.error(`❌ 批量移除失败: ${error.message}`);
+  } finally {
+    bulkRemoving.value = false;
+  }
+};
+
 const viewUserGames = async (user) => {
   selectedUser.value = user;
 
@@ -1623,6 +1867,62 @@ const removeUserGame = async (userGame) => {
     }
   } catch (error) {
     alert(`移除失败: ${error.message}`);
+  }
+};
+
+// 确认一键移除全部用户游戏权限
+const confirmRemoveAllUserGames = async () => {
+  if (!selectedGame.value || gameUsers.value.length === 0) {
+    return;
+  }
+
+  const confirmed = confirm(`确定要移除游戏 "${selectedGame.value.name}" 的全部用户权限吗？\n\n这将移除 ${gameUsers.value.length} 个用户的权限，此操作不可恢复！`);
+
+  if (confirmed) {
+    await removeAllUserGames();
+  }
+};
+
+// 一键移除全部用户游戏权限
+const removeAllUserGames = async () => {
+  if (!selectedGame.value) {
+    return;
+  }
+
+  removingAll.value = true;
+
+  try {
+    // 批量移除所有用户的游戏权限
+    const removePromises = gameUsers.value.map(userGame =>
+      fetch(`/api/game/remove/${userGame.user_id}/${userGame.game_id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    );
+
+    const responses = await Promise.all(removePromises);
+    const results = await Promise.all(responses.map(r => r.json()));
+
+    // 检查所有请求是否成功
+    const successCount = results.filter(result => result.code === 20000).length;
+    const failCount = results.length - successCount;
+
+    if (failCount === 0) {
+      alert(`✅ 批量移除成功！\n已移除 ${successCount} 个用户的游戏权限。`);
+    } else {
+      alert(`⚠️ 批量移除完成！\n成功移除 ${successCount} 个用户权限，失败 ${failCount} 个。`);
+    }
+
+    // 重新加载游戏用户列表
+    await viewGameUsers(selectedGame.value);
+  } catch (error) {
+    console.error('批量移除用户游戏权限失败:', error);
+    alert(`❌ 批量移除失败: ${error.message}`);
+  } finally {
+    removingAll.value = false;
   }
 };
 
@@ -2573,6 +2873,36 @@ watch(
   padding: 16px;
   border-radius: 6px;
   margin-bottom: 20px;
+}
+
+/* 批量操作区域 */
+.bulk-actions {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffebe9 100%);
+  border: 1px solid #ffccc7;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.bulk-actions-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.bulk-info {
+  font-weight: 600;
+  color: #1d2129;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-info::before {
+  content: "👥";
+  font-size: 16px;
 }
 
 .game-info-section h4 {

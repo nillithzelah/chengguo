@@ -115,6 +115,26 @@
             </template>
             刷新
           </a-button>
+          <a-popconfirm
+            :title="`确定要移除该用户${selectedAdvertiserId ? '当前主体下' : '所有'}的游戏权限吗？`"
+            ok-text="确定移除"
+            cancel-text="取消"
+            @ok="removeAllUserGames"
+          >
+            <template #content>
+              <div style="color: #ff4d4f; font-weight: 500;">
+                此操作将移除用户对{{ selectedAdvertiserId ? `当前主体（${selectedAdvertiserId}）下` : '所有' }}游戏的访问权限。<br>
+                游戏本身不会被删除，其他用户仍可正常使用。<br>
+                此操作不可恢复！
+              </div>
+            </template>
+            <a-button type="primary" danger :loading="removingAll">
+              <template #icon>
+                <icon-delete />
+              </template>
+              一键移除{{ selectedAdvertiserId ? '当前主体' : '全部' }}权限
+            </a-button>
+          </a-popconfirm>
         </template>
 
         <a-table
@@ -391,6 +411,9 @@ const testResult = ref(null);
 // 广告测试相关
 const adTesting = ref(false);
 const adTestResult = ref(null);
+
+// 批量移除相关
+const removingAll = ref(false);
 
 const newGame = reactive({
   name: '',
@@ -876,6 +899,38 @@ const handleDeleteGame = async (record: any) => {
   } catch (error) {
     console.error('移除游戏权限失败:', error);
     Message.error('移除游戏权限失败');
+  }
+};
+
+// 一键移除当前主体下的所有游戏权限
+const removeAllUserGames = async () => {
+  if (!selectedUserId.value || filteredGameList.value.length === 0) {
+    Message.warning('当前筛选条件下没有游戏权限可以移除');
+    return;
+  }
+
+  removingAll.value = true;
+
+  try {
+    console.log('🗑️ 开始批量移除用户当前主体下的游戏权限');
+
+    const userId = parseInt(selectedUserId.value);
+    const subjectName = selectedAdvertiserId.value || '全部主体';
+    const removePromises = filteredGameList.value.map(record =>
+      removeUserGame(userId, record.game.id)
+    );
+
+    await Promise.all(removePromises);
+
+    Message.success(`成功移除 ${filteredGameList.value.length} 个游戏权限（${subjectName}）`);
+
+    // 刷新游戏列表和主体选项
+    await loadUserGames(userId);
+  } catch (error) {
+    console.error('批量移除游戏权限失败:', error);
+    Message.error('批量移除游戏权限失败');
+  } finally {
+    removingAll.value = false;
   }
 };
 
