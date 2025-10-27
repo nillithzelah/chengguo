@@ -100,7 +100,8 @@ function getRoleText(role) {
     'internal_user_3': '内部3级用户',
     'external_user_1': '外部1级用户',
     'external_user_2': '外部2级用户',
-    'external_user_3': '外部3级用户'
+    'external_user_3': '外部3级用户',
+    'programmer': '程序员'
   };
   return roleTexts[role] || role;
 }
@@ -388,6 +389,9 @@ const requireAdminOrBoss = requireRoles(['admin', 'internal_boss', 'external_bos
 
 // 管理员、老板和客服权限检查中间件
 const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service']);
+
+// 程序员权限检查中间件（只能访问主体管理）
+const requireProgrammer = requireRoles(['admin', 'programmer']);
 
 // 用户登录
 app.post('/api/user/login', async (req, res) => {
@@ -1643,7 +1647,7 @@ app.get('/api/user/assigned-options', authenticateJWT, async (req, res) => {
 
     // 检查权限：管理员、老板和客服可以查看分配用户选项
     const mappedRole = getMappedRole(currentUser.role);
-    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
+    const allowedRoles = ['admin','programmer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'];
     if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
@@ -1723,12 +1727,12 @@ app.post('/api/entity/create', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { name, programmer, assigned_user_id, game_name } = req.body;
 
-    // 检查权限：只有管理员可以创建主体
+    // 检查权限：管理员和程序员可以创建主体
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    if (mappedRole !== 'admin' && mappedRole !== 'programmer') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以创建主体'
+        message: '权限不足，只有管理员和程序员可以创建主体'
       });
     }
 
@@ -1806,12 +1810,12 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
     const { id } = req.params;
     const { name, programmer, assigned_user_id } = req.body;
 
-    // 检查权限：只有管理员可以更新主体
+    // 检查权限：管理员和程序员可以更新主体
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    if (mappedRole !== 'admin' && mappedRole !== 'programmer') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以更新主体'
+        message: '权限不足，只有管理员和程序员可以更新主体'
       });
     }
 
@@ -1918,12 +1922,12 @@ app.delete('/api/entity/delete/:id', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { id } = req.params;
 
-    // 检查权限：只有管理员可以删除主体
+    // 检查权限：管理员和程序员可以删除主体
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    if (mappedRole !== 'admin' && mappedRole !== 'programmer') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以删除主体'
+        message: '权限不足，只有管理员和程序员可以删除主体'
       });
     }
 
@@ -1960,18 +1964,45 @@ app.get('/api/entity/list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
 
-    // 检查权限：只有管理员和内部老板可以查看主体列表
+    // 检查权限：管理员、内部老板和程序员可以查看主体列表
     const mappedRole = getMappedRole(currentUser.role);
-    const allowedRoles = ['admin', 'internal_boss'];
+    const allowedRoles = ['admin', 'internal_boss', 'programmer'];
     if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员和内部老板可以查看主体列表'
+        message: '权限不足，只有管理员、内部老板和程序员可以查看主体列表'
       });
+    }
+
+    // 构建查询条件
+    const whereCondition = {};
+
+    // 如果是程序员角色，添加程序员筛选条件
+    if (mappedRole === 'programmer') {
+      const programmerFilter = req.query.programmer_filter;
+      if (programmerFilter) {
+        // 解码URL编码的参数
+        const decodedProgrammer = decodeURIComponent(programmerFilter);
+        whereCondition.programmer = decodedProgrammer;
+
+        logger.info(`👨‍💻 [后端筛选] 程序员 ${currentUser.name || currentUser.username} (角色: ${currentUser.role}) 筛选自己负责的主体: ${decodedProgrammer}`);
+      } else {
+        // 如果程序员没有提供筛选参数，返回空结果
+        logger.warn(`⚠️ [程序员筛选警告] 程序员 ${currentUser.name || currentUser.username} 未提供programmer_filter参数`);
+        return res.json({
+          code: 20000,
+          data: {
+            entities: [],
+            total: 0
+          },
+          message: '获取主体列表成功'
+        });
+      }
     }
 
     // 获取主体列表，包含分配用户信息
     const entities = await Entity.findAll({
+      where: whereCondition,
       include: [{
         model: User,
         as: 'assignedUser',
@@ -1994,6 +2025,8 @@ app.get('/api/entity/list', authenticateJWT, async (req, res) => {
       }
       return frontendFormat;
     });
+
+    logger.info(`📊 [主体列表] 返回 ${formattedEntities.length} 条主体记录`);
 
     res.json({
       code: 20000,
@@ -2019,12 +2052,12 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { entity_id, game_name, programmer, development_status } = req.body;
 
-    // 检查权限：只有管理员可以分配游戏给主体
+    // 检查权限：管理员和程序员可以分配游戏给主体
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    if (mappedRole !== 'admin' && mappedRole !== 'programmer') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以分配游戏给主体'
+        message: '权限不足，只有管理员和程序员可以分配游戏给主体'
       });
     }
 
@@ -2157,12 +2190,12 @@ app.delete('/api/entity/remove-game/:entityId', authenticateJWT, async (req, res
     const currentUser = req.user;
     const { entityId } = req.params;
 
-    // 检查权限：只有管理员可以移除主体的游戏分配
+    // 检查权限：管理员和程序员可以移除主体的游戏分配
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin') {
+    if (mappedRole !== 'admin' && mappedRole !== 'programmer') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以移除主体的游戏分配'
+        message: '权限不足，只有管理员和程序员可以移除主体的游戏分配'
       });
     }
 

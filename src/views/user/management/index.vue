@@ -568,9 +568,9 @@ const userStore = useUserStore();
 // 权限检查
 const canCreateUser = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator'].includes(role || '');
+  return ['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator', 'programmer'].includes(role || '');
 });
-const canViewUsers = computed(() => ['admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user', 'super_viewer', 'viewer', 'moderator', 'user'].includes(userStore.userInfo?.role || ''));
+const canViewUsers = computed(() => ['admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user', 'super_viewer', 'viewer', 'moderator', 'user', 'programmer'].includes(userStore.userInfo?.role || ''));
 
 // 可创建的用户角色（根据当前用户角色限制）
 const availableRoles = computed(() => {
@@ -588,9 +588,19 @@ const availableRoles = computed(() => {
       { value: 'internal_user_3', label: '内部普通用户3级' },
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
-      { value: 'admin', label: '管理员' }
+      { value: 'admin', label: '管理员' },
+      { value: 'programmer', label: '程序员' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
+    // 内部老板可以创建内部客服和内用户
+    return [
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' },
+      { value: 'programmer', label: '程序员' }
+    ];
+  } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
     // 内部老板可以创建内部客服和内用户
     return [
       { value: 'internal_service', label: '内部客服' },
@@ -639,7 +649,8 @@ const getEditableRoles = () => {
       { value: 'internal_user_2', label: '内部普通用户2级' },
       { value: 'internal_user_3', label: '内部普通用户3级' },
       { value: 'internal_service', label: '内部客服' },
-      { value: 'internal_boss', label: '内部老板' }
+      { value: 'internal_boss', label: '内部老板' },
+      { value: 'programmer', label: '程序员' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
     // 内部老板可以编辑内部客服和内部用户
@@ -647,7 +658,8 @@ const getEditableRoles = () => {
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_user_1', label: '内部普通用户1级' },
       { value: 'internal_user_2', label: '内部普通用户2级' },
-      { value: 'internal_user_3', label: '内部普通用户3级' }
+      { value: 'internal_user_3', label: '内部普通用户3级' },
+      { value: 'programmer', label: '程序员' }
     ];
   } else if (['internal_service', 'moderator'].includes(currentRole || '')) {
     // 内部客服只能编辑内部普通用户
@@ -691,12 +703,13 @@ const allFilterableRoles = computed(() => {
     'external_boss': 3,
     'internal_service': 4,
     'external_service': 5,
-    'internal_user_1': 6,
-    'internal_user_2': 7,
-    'internal_user_3': 8,
-    'external_user_1': 9,
-    'external_user_2': 10,
-    'external_user_3': 11
+    'programmer': 6,
+    'internal_user_1': 7,
+    'internal_user_2': 8,
+    'internal_user_3': 9,
+    'external_user_1': 10,
+    'external_user_2': 11,
+    'external_user_3': 12
   };
 
   // 从实际用户列表中提取存在的角色
@@ -723,6 +736,7 @@ const allFilterableRoles = computed(() => {
       'external_boss': '外部老板',
       'internal_service': '内部客服',
       'external_service': '外部客服',
+      'programmer': '程序员',
       'internal_user_1': '内部普通用户1级',
       'internal_user_2': '内部普通用户2级',
       'internal_user_3': '内部普通用户3级',
@@ -1039,6 +1053,7 @@ const getRoleText = (role: string) => {
     admin: '管理员',
     internal_boss: '内部老板',
     internal_service: '内部客服',
+    programmer: '程序员',
     internal_user_1: '内部普通用户1级',
     internal_user_2: '内部普通用户2级',
     internal_user_3: '内部普通用户3级',
@@ -1202,6 +1217,7 @@ const applyFilters = () => {
         'external_service': ['external_service'],
         'external_boss': ['external_boss'],
         'admin': ['admin'],
+        'programmer': ['programmer'],
         'internal_user_2': ['internal_user_2'],
         'internal_user_3': ['internal_user_3'],
         'external_user_2': ['external_user_2'],

@@ -26,6 +26,12 @@ export default function usePermission() {
         route.meta?.roles?.includes('*') ||
         route.meta?.roles?.includes(mappedRole)
       );
+
+      // 程序员特殊处理：如果路由标记为hideForProgrammer且用户是程序员，则隐藏
+      if (mappedRole === 'programmer' && route.meta?.hideForProgrammer) {
+        return false;
+      }
+
       return hasAccess;
     },
     findFirstPermissionRoute(_routers: any, role = 'admin') {

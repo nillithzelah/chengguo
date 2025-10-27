@@ -10,7 +10,7 @@ const AD: AppRouteRecordRaw = {
     requiresAuth: true,
     icon: 'icon-bar-chart',
     order: 2,
-    roles: ['*'], // 父级路由允许所有登录用户访问，具体权限由子路由控制
+    roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3'], // 程序员不显示广告数据菜单
   },
   children: [
     // 用户ECPM数据查看 - 所有登录用户都可以访问

@@ -19,7 +19,9 @@ const USER_LEVELS = {
     'external_user_3': 'external_user_2',
     'external_user_2': 'external_user_1',
     'external_user_1': 'external_service'
-  }
+  },
+  // 程序员等级链（独立，不参与晋升）
+  programmer: {}
 };
 
 /**
@@ -32,7 +34,8 @@ const LEGACY_ROLE_MAPPING = {
   'viewer': 'internal_user_1',
   'super_viewer': 'internal_boss',
   'internal_user': 'internal_user_1',
-  'external_user': 'external_user_1'
+  'external_user': 'external_user_1',
+  'programmer': 'programmer'
 };
 
 /**
@@ -55,6 +58,8 @@ function getUserType(role) {
     return 'internal';
   } else if (mappedRole.startsWith('external_')) {
     return 'external';
+  } else if (mappedRole === 'programmer') {
+    return 'programmer';
   }
   return null;
 }
@@ -92,7 +97,8 @@ function getAllAvailableRoles() {
   const newRoles = [
     'admin',
     'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3',
-    'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3'
+    'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3',
+    'programmer'
   ];
 
   const legacyRoles = Object.keys(LEGACY_ROLE_MAPPING);
@@ -118,6 +124,7 @@ function getRoleDisplayName(role) {
     'external_user_1': '外部普通用户1级',
     'external_user_2': '外部普通用户2级',
     'external_user_3': '外部普通用户3级',
+    'programmer': '程序员',
     // 旧角色名称
     'user': '内部普通用户1级',
     'moderator': '内部客服',

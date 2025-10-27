@@ -28,6 +28,15 @@
         </template>
         新增主体
       </a-button>
+      <a-button
+        v-if="canCreateEntity"
+        @click="handleEditEntityName"
+      >
+        <template #icon>
+          <icon-edit />
+        </template>
+        修改主体名
+      </a-button>
       <!-- 分配游戏主体按钮 -->
       <a-button
         v-if="canCreateEntity"
@@ -615,6 +624,90 @@
         </div>
       </div>
     </div>
+
+    <!-- 修改主体名模态框 -->
+    <div v-if="showEditEntityModal && canCreateEntity" class="modal-overlay">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>修改主体名</h3>
+          <button @click="resetEditEntityForm" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- 权限提示 -->
+          <div v-if="!canCreateEntity" class="permission-warning">
+            <p>您没有权限修改主体。</p>
+          </div>
+
+          <!-- 有权限时显示表单 -->
+          <div v-else>
+            <div class="form-item">
+              <label>选择主体</label>
+              <select
+                v-model="editEntityForm.entity_id"
+                @change="onEntityChange"
+                class="form-input"
+              >
+                <option value="">请选择要修改的主体</option>
+                <option
+                  v-for="entity in existingEntities"
+                  :key="entity.id"
+                  :value="entity.id"
+                >
+                  {{ entity.name }}
+                </option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">选择要修改的主体</small>
+            </div>
+
+            <div class="form-item">
+              <label>新主体名</label>
+              <input
+                v-model="editEntityForm.new_name"
+                type="text"
+                placeholder="输入新的主体名称"
+                class="form-input"
+                :class="{ 'error': editEntityForm.new_name && !editEntityFormValidation.new_name.isValid }"
+              />
+              <small style="color: #666; margin-top: 4px;">输入新的主体名称</small>
+              <small v-if="editEntityForm.new_name && !editEntityFormValidation.new_name.isValid" style="color: #ff4d4f; margin-top: 4px;">
+                {{ editEntityFormValidation.new_name.message }}
+              </small>
+            </div>
+
+            <div class="form-item">
+              <label>分配用户</label>
+              <select
+                v-model="editEntityForm.assigned_user_id"
+                class="form-input"
+              >
+                <option value="">请选择分配用户</option>
+                <option
+                  v-for="user in assignedUsers"
+                  :key="user.id"
+                  :value="user.id"
+                >
+                  {{ user.name || user.username }} ({{ getRoleText(user.role) }})
+                </option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">选择负责该主体的用户</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button @click="resetEditEntityForm" class="btn btn-secondary" :disabled="editEntityLoading">取消</button>
+          <button
+            v-if="canCreateEntity"
+            @click="handleUpdateEntity"
+            :disabled="!editEntityForm.entity_id || !editEntityForm.new_name || !editEntityForm.assigned_user_id || editEntityLoading"
+            class="btn btn-primary"
+          >
+            {{ editEntityLoading ? '修改中...' : '修改主体' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -638,8 +731,10 @@ const loading = ref(false);
 const createLoading = ref(false);
 const deleteLoading = ref(false);
 const editLoading = ref(false);
+const editEntityLoading = ref(false);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+const showEditEntityModal = ref(false);
 const showDeleteModal = ref(false);
 const showAssignModal = ref(false);
 const entityList = ref<any[]>([]);
@@ -665,12 +760,12 @@ const userStore = useUserStore();
 // 权限检查
 const canCreateEntity = computed(() => {
   const role = userStore.userInfo?.role;
-  return role === 'admin'; // 只有管理员可以创建和编辑主体
+  return role === 'admin' || role === 'programmer'; // 管理员和程序员可以创建和编辑主体
 });
 
 const canViewEntity = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'internal_boss'].includes(role || ''); // 只有管理员和内部老板可以查看主体
+  return ['admin', 'internal_boss', 'external_boss', 'programmer'].includes(role || ''); // 管理员、老板和程序员可以查看主体
 });
 
 // 计算去重后的主体数量
@@ -711,6 +806,13 @@ const editFormValidation = computed(() => ({
   }
 }));
 
+const editEntityFormValidation = computed(() => ({
+  new_name: {
+    isValid: editEntityForm.new_name.trim().length > 0,
+    message: editEntityForm.new_name && !editEntityForm.new_name.trim() ? '请输入新的主体名称' : ''
+  }
+}));
+
 // 表单数据
 const createForm = reactive({
   name: '',
@@ -725,6 +827,12 @@ const editForm = reactive({
   programmer: '',
   name: '',
   development_status: ''
+});
+
+const editEntityForm = reactive({
+  entity_id: '',
+  new_name: '',
+  assigned_user_id: ''
 });
 
 // 开发状态选项
@@ -827,14 +935,14 @@ const pagination = reactive({
 // 权限检查
 const checkCanEditEntity = (entity: any) => {
   const currentUserRole = userStore.userInfo?.role;
-  // 只有管理员可以编辑主体
-  return currentUserRole === 'admin';
+  // 管理员和程序员可以编辑主体
+  return currentUserRole === 'admin' || currentUserRole === 'programmer';
 };
 
 const checkCanDeleteEntity = (entity: any) => {
-  // 只有管理员可以删除主体
+  // 管理员和程序员可以删除主体
   const currentUserRole = userStore.userInfo?.role;
-  const canDelete = currentUserRole === 'admin';
+  const canDelete = currentUserRole === 'admin' || currentUserRole === 'programmer';
 
   return canDelete;
 };
@@ -883,7 +991,8 @@ const getRoleText = (role: string) => {
     'internal_user_3': '内部3级用户',
     'external_user_1': '外部1级用户',
     'external_user_2': '外部2级用户',
-    'external_user_3': '外部3级用户'
+    'external_user_3': '外部3级用户',
+    'programmer': '程序员'
   };
   return roleTexts[role] || role;
 };
@@ -950,8 +1059,31 @@ const loadAssignedUsers = async () => {
 const loadEntityList = async () => {
   loading.value = true;
   try {
+    // 构建API URL，如果是程序员角色，添加程序员姓名筛选参数
+    let apiUrl = '/api/entity/list';
+    const currentUserRole = userStore.userInfo?.role;
+    const currentUserName = userStore.userInfo?.name;
+
+    if (currentUserRole === 'programmer' && currentUserName) {
+      // 程序员只看到自己负责的主体记录
+      apiUrl += `?programmer_filter=${encodeURIComponent(currentUserName)}`;
+      console.log(`👨‍💻 [程序员查询] 程序员 ${currentUserName} (角色: ${currentUserRole}) 正在查询自己负责的主体列表`);
+    } else {
+      console.log(`🔍 [主体查询] 用户角色: ${currentUserRole || '未登录'}, 用户名: ${currentUserName || '未知'} 正在查询主体列表`);
+    }
+
     // 调用获取主体列表API
-    const response = await fetch('/api/entity/list', {
+    console.log(`📡 [API调用] 发送主体列表查询请求: ${apiUrl}`);
+    if (currentUserRole === 'programmer' && currentUserName) {
+      console.log(`👨‍💻 [API调试] 程序员筛选参数详情:`, {
+        currentUserName,
+        encodedName: encodeURIComponent(currentUserName),
+        apiUrl,
+        expectedFilter: `programmer_filter=${encodeURIComponent(currentUserName)}`
+      });
+    }
+
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -959,21 +1091,61 @@ const loadEntityList = async () => {
       }
     });
 
+    console.log(`📡 [API响应] 主体列表查询响应状态: ${response.status}`);
+
     if (!response.ok) {
+      console.error(`❌ [API错误] 主体列表查询失败，HTTP状态码: ${response.status}`);
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
+    console.log(`📊 [API数据] 主体列表查询结果:`, {
+      code: result.code,
+      message: result.message,
+      entitiesCount: result.data?.entities?.length || 0
+    });
 
     if (result.code === 20000) {
       entityList.value = result.data.entities || [];
       pagination.total = entityList.value.length;
 
+      if (currentUserRole === 'programmer' && currentUserName) {
+        console.log(`👨‍💻 [程序员数据] 程序员 ${currentUserName} 获取到 ${entityList.value.length} 条主体记录`);
+
+        // 统计程序员分布
+        const programmerStats = entityList.value.reduce((acc, entity) => {
+          const programmer = entity.programmer || '未分配';
+          acc[programmer] = (acc[programmer] || 0) + 1;
+          return acc;
+        }, {});
+        console.log(`📊 [程序员统计] 主体记录中程序员分布:`, programmerStats);
+
+        // 检查是否包含其他程序员的记录
+        const otherProgrammers = Object.keys(programmerStats).filter(p => p !== currentUserName && p !== '未分配');
+        if (otherProgrammers.length > 0) {
+          console.warn(`⚠️ [筛选警告] 程序员 ${currentUserName} 的查询结果中包含其他程序员的记录:`, otherProgrammers);
+          console.warn(`⚠️ [筛选警告] 筛选参数: programmer_filter=${encodeURIComponent(currentUserName)}`);
+        }
+
+        // 记录前5条主体的详细信息用于调试
+        const displayCount = Math.min(5, entityList.value.length);
+        console.log(`📋 [主体记录详情] 显示前 ${displayCount} 条记录:`);
+        entityList.value.slice(0, displayCount).forEach((entity, index) => {
+          console.log(`📋 [记录 ${index + 1}] ID: ${entity.id}, 名称: ${entity.name}, 程序员: ${entity.programmer || '未分配'}, 游戏: ${entity.game_name || '无'}, 状态: ${entity.development_status}`);
+        });
+
+        if (entityList.value.length > displayCount) {
+          console.log(`📋 [主体记录详情] ... 还有 ${entityList.value.length - displayCount} 条记录`);
+        }
+      } else {
+        console.log(`📊 [主体数据] 成功加载 ${entityList.value.length} 条主体记录`);
+      }
+
       // 保存原始主体列表用于筛选
       originalEntityList.value = [...entityList.value];
 
-      // 更新现有主体选项（去重）
-      const uniqueEntities = entityList.value.reduce((acc, entity) => {
+      // 更新现有主体选项（去重，从完整列表）
+      const uniqueEntities = originalEntityList.value.reduce((acc, entity) => {
         if (!acc.find(e => e.name === entity.name)) {
           acc.push(entity);
         }
@@ -984,6 +1156,7 @@ const loadEntityList = async () => {
       // 重新应用筛选
       applyFilters();
     } else {
+      console.error(`❌ [API业务错误] 主体列表查询失败: ${result.message}`);
       Message.error(result.message || '加载主体列表失败');
       entityList.value = [];
       originalEntityList.value = [];
@@ -991,7 +1164,14 @@ const loadEntityList = async () => {
       pagination.total = 0;
     }
   } catch (error: any) {
-    console.error('加载主体列表失败:', error);
+    console.error('❌ [加载异常] 加载主体列表失败:', error);
+    const currentUserRole = userStore.userInfo?.role;
+    const currentUserName = userStore.userInfo?.name;
+    if (currentUserRole === 'programmer' && currentUserName) {
+      console.error(`👨‍💻 [程序员查询失败] 程序员 ${currentUserName} 查询主体列表时发生异常:`, error.message);
+    } else {
+      console.error(`🔍 [查询失败] 用户查询主体列表时发生异常:`, error.message);
+    }
     Message.error('加载主体列表失败，请稍后重试');
     entityList.value = [];
     originalEntityList.value = [];
@@ -999,6 +1179,7 @@ const loadEntityList = async () => {
     pagination.total = 0;
   } finally {
     loading.value = false;
+    console.log(`✅ [加载完成] 主体列表加载流程结束，当前状态: ${entityList.value.length} 条记录`);
   }
 };
 
@@ -1191,6 +1372,17 @@ const openCreateModal = () => {
   showCreateModal.value = true;
 };
 
+// 处理修改主体名
+const handleEditEntityName = () => {
+  if (entityList.value.length === 0) {
+    Message.warning('当前没有主体数据');
+    return;
+  }
+
+  // 打开修改主体模态框
+  openEditEntityModal();
+};
+
 // 重置创建表单
 const resetCreateForm = () => {
   createForm.name = '';
@@ -1209,6 +1401,36 @@ const resetEditForm = () => {
   editForm.development_status = '';
   showEditModal.value = false;
   editEntityInfo.value = null;
+};
+
+// 重置修改主体表单
+const resetEditEntityForm = () => {
+  editEntityForm.entity_id = '';
+  editEntityForm.new_name = '';
+  editEntityForm.assigned_user_id = '';
+  showEditEntityModal.value = false;
+};
+
+// 重置并打开修改主体模态框
+const openEditEntityModal = () => {
+  editEntityForm.entity_id = '';
+  editEntityForm.new_name = '';
+  editEntityForm.assigned_user_id = '';
+  showEditEntityModal.value = true;
+};
+
+// 当选择主体时，设置默认的分配用户和新主体名
+const onEntityChange = () => {
+  const selectedEntity = existingEntities.value.find(entity => entity.id === editEntityForm.entity_id);
+  if (selectedEntity) {
+    // 设置新主体名为当前主体名
+    editEntityForm.new_name = selectedEntity.name;
+    // 设置分配用户为当前分配用户
+    editEntityForm.assigned_user_id = selectedEntity.assigned_user_id;
+  } else {
+    editEntityForm.new_name = '';
+    editEntityForm.assigned_user_id = '';
+  }
 };
 
 // 加载可用游戏列表（过滤掉已被分配的游戏）
@@ -1316,6 +1538,103 @@ const handleEditEntity = async () => {
     Message.error('编辑主体失败，请稍后重试');
   } finally {
     editLoading.value = false;
+  }
+};
+
+// 处理修改主体
+const handleUpdateEntity = async () => {
+  try {
+    // 基础表单验证
+    if (!editEntityForm.entity_id) {
+      Message.error('请选择要修改的主体');
+      return;
+    }
+
+    if (!editEntityForm.new_name.trim()) {
+      Message.error('请输入新的主体名称');
+      return;
+    }
+
+    if (!editEntityForm.assigned_user_id) {
+      Message.error('请选择分配用户');
+      return;
+    }
+
+    editEntityLoading.value = true;
+
+    // 获取选中的主体
+    const selectedEntity = existingEntities.value.find(entity => entity.id === editEntityForm.entity_id);
+    if (!selectedEntity) {
+      Message.error('选择的主体不存在');
+      return;
+    }
+
+    const oldName = selectedEntity.name;
+    const newName = editEntityForm.new_name.trim();
+    const assignedUserId = editEntityForm.assigned_user_id;
+
+    // 查找所有具有相同名称的主体（从完整列表中查找）
+    const entitiesToUpdate = originalEntityList.value.filter(entity => entity.name === oldName);
+
+    if (entitiesToUpdate.length === 0) {
+      Message.error('没有找到需要修改的主体');
+      return;
+    }
+
+    const updateData = {
+      name: newName,
+      assigned_user_id: assignedUserId
+    };
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // 逐个更新所有相关主体
+    for (const entity of entitiesToUpdate) {
+      try {
+        const response = await fetch(`/api/entity/update/${entity.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(updateData)
+        });
+
+        const result = await response.json();
+
+        if (result.code === 20000) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`更新主体 ${entity.id} 失败:`, result.message);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`更新主体 ${entity.id} 异常:`, error);
+      }
+    }
+
+    // 显示结果
+    if (successCount > 0) {
+      const message = errorCount > 0
+        ? `成功修改 ${successCount} 个主体，${errorCount} 个失败`
+        : `成功修改 ${successCount} 个主体名称为"${newName}"`;
+
+      Message.success(message);
+      showEditEntityModal.value = false;
+      resetEditEntityForm();
+
+      // 重新加载主体列表
+      loadEntityList();
+    } else {
+      Message.error('修改主体失败');
+    }
+  } catch (error: any) {
+    console.error('修改主体失败:', error);
+    Message.error('修改主体失败，请稍后重试');
+  } finally {
+    editEntityLoading.value = false;
   }
 };
 
@@ -1565,7 +1884,7 @@ onMounted(async () => {
 
   // 检查用户权限
   if (!canViewEntity.value) {
-    Message.error('您没有权限访问此页面，只有管理员和内部老板可以访问主体管理');
+    Message.error('您没有权限访问此页面，只有管理员、老板和程序员可以访问主体管理');
     return;
   }
 

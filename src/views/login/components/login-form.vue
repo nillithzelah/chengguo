@@ -109,10 +109,10 @@
         console.log('登录成功，准备跳转...');
 
         const { redirect, ...othersQuery } = router.currentRoute.value.query;
-        console.log('跳转目标:', redirect || 'EcpmUser');
+        console.log('跳转目标:', redirect || (userStore.role === 'programmer' ? 'EntityManagement' : 'EcpmUser'));
 
         router.push({
-          name: (redirect as string) || 'EcpmUser',
+          name: (redirect as string) || (userStore.role === 'programmer' ? 'EntityManagement' : 'EcpmUser'),
           query: {
             ...othersQuery,
           },

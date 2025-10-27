@@ -54,7 +54,7 @@
                  :value="app.appid"
                  :style="getAppStyle(app)"
                >
-                 {{ app.name }} ({{ app.entity_name || '未知主体' }})
+                 {{ app.name }}
                  <!-- <span v-if="!app.advertiser_id || !app.promotion_id" style="color: #ff4d4f; font-size: 12px; margin-left: 8px;">
                    (未配置广告)
                  </span>
@@ -70,7 +70,7 @@
                class="btn btn-small btn-secondary gray-games-btn"
                :class="{ 'batch-change-btn': selectedAppId === 'all_games' }"
              >
-               {{ selectedAppId === 'all_games' ? '批量变为白游' : '变为白游' }}
+               {{ selectedAppId === 'all_games' ? '批量取消锁定' : '取消锁定' }}
              </button>
            </div>
          </div>
@@ -1782,7 +1782,7 @@
    }
  };
 
- // 将游戏变为白游
+ // 将游戏取消锁定
  const changeToWhiteGame = async () => {
    // 检查用户权限
    const currentUser = userStore.userInfo;
@@ -1799,7 +1799,7 @@
    }
 
    // 确认操作
-   const confirmMessage = `确定要将游戏 "${selectedApp.name}" (${selectedApp.appid}) 变为白游吗？\n\n变为白游后，该游戏将只在白游数据查看页面显示。`;
+   const confirmMessage = `确定要将游戏 "${selectedApp.name}" (${selectedApp.appid}) 取消锁定吗？\n\n取消锁定后，该游戏将只在白游数据查看页面显示。`;
    if (!confirm(confirmMessage)) {
      return;
    }
@@ -1820,7 +1820,7 @@
      const result = await response.json();
 
      if (response.ok && result.code === 20000) {
-       alert(`✅ 游戏 "${selectedApp.name}" 已成功变为白游！\n\n该游戏现在只在白游数据查看页面显示。`);
+       alert(`✅ 游戏 "${selectedApp.name}" 已成功取消锁定！\n\n该游戏现在只在白游数据查看页面显示。`);
 
        // 重新加载主体列表和应用列表
        await loadEntityList();
@@ -1843,7 +1843,7 @@
    }
  };
 
- // 批量将游戏变为白游
+ // 批量将游戏取消锁定
  const batchChangeToWhiteGame = async () => {
    // 检查用户权限
    const currentUser = userStore.userInfo;
@@ -1860,7 +1860,7 @@
    }
 
    // 确认操作
-   const confirmMessage = `确定要将所有 ${grayGames.length} 个灰游游戏批量变为白游吗？\n\n游戏列表：\n${grayGames.map(game => `• ${game.name} (${game.appid})`).join('\n')}\n\n变为白游后，这些游戏将只在白游数据查看页面显示。`;
+   const confirmMessage = `确定要将所有 ${grayGames.length} 个灰游游戏批量取消锁定吗？\n\n游戏列表：\n${grayGames.map(game => `• ${game.name} (${game.appid})`).join('\n')}\n\n取消锁定后，这些游戏将只在白游数据查看页面显示。`;
    if (!confirm(confirmMessage)) {
      return;
    }
