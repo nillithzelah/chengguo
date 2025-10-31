@@ -32,8 +32,8 @@
         v-if="canCreateEntity"
         @click="handleEditEntityName"
       >
-        <template #icon>
-          <icon-edit />
+      <icon-edit />
+      <template #icon>
         </template>
         修改主体名
       </a-button>
@@ -214,15 +214,28 @@
             </template>
             升级
           </a-button>
+          <a-button
+            v-if="canDowngradeStatus(record.development_status || '游戏创建') && checkCanEditEntity(record) && record.game_name"
+            type="text"
+            size="small"
+            @click="downgradeEntityStatus(record)"
+            class="downgrade-btn-inline"
+            style="color: #fa8c16;"
+          >
+            <template #icon>
+              <icon-arrow-down />
+            </template>
+            降级
+          </a-button>
         </div>
       </template>
 
       <template #created_at="{ record }">
-        {{ formatDate(record.created_at) }}
+        {{ formatDateShort(record.created_at) }}
       </template>
 
       <template #development_status_updated_at="{ record }">
-        {{ record.development_status_updated_at ? formatDate(record.development_status_updated_at) : '未更新' }}
+        {{ record.development_status_updated_at ? formatDateShort(record.development_status_updated_at) : '未更新' }}
       </template>
 
       <template #action="{ record }">
@@ -721,7 +734,8 @@ import {
   IconDelete,
   IconSearch,
   IconLink,
-  IconArrowUp
+  IconArrowUp,
+  IconArrowDown
 } from '@arco-design/web-vue/es/icon';
 import useUserStore from '@/store/modules/user';
 import Breadcrumb from '@/components/breadcrumb/index.vue';
@@ -873,8 +887,8 @@ const columns = [
   {
     title: '程序员',
     dataIndex: 'programmer',
-    width: 100,
-    minWidth: 80,
+    width: 80,
+    minWidth: 60,
     ellipsis: true
   },
   {
@@ -888,8 +902,8 @@ const columns = [
     title: '开发状态',
     dataIndex: 'development_status',
     slotName: 'development_status',
-    width: 180,
-    minWidth: 150
+    width: 220,
+    minWidth: 180
   },
   {
     title: '创建时间',
@@ -1004,11 +1018,23 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN');
 };
 
+// 格式化日期（仅年月日）
+const formatDateShort = (dateStr: string) => {
+  return new Date(dateStr).toLocaleDateString('zh-CN');
+};
+
 // 检查是否可以升级状态（是否可以显示升级按钮）
 const canUpgradeStatus = (currentStatus: string) => {
   const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
   // 如果还没到最后一个状态，就可以升级
   return currentIndex < developmentStatuses.length - 1;
+};
+
+// 检查是否可以降级状态（是否可以显示降级按钮）
+const canDowngradeStatus = (currentStatus: string) => {
+  const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
+  // 如果还没到第一个状态，就可以降级
+  return currentIndex > 0;
 };
 
 // 升级状态到下一级（编辑模态框中使用）
@@ -1877,6 +1903,43 @@ const upgradeEntityStatus = async (entity: any) => {
   }
 };
 
+// 降级主体开发状态
+const downgradeEntityStatus = async (entity: any) => {
+  try {
+    const currentIndex = developmentStatuses.findIndex(s => s.value === entity.development_status);
+    if (currentIndex > 0) {
+      const newStatus = developmentStatuses[currentIndex - 1].value;
+
+      const response = await fetch(`/api/entity/update/${entity.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          name: entity.name,
+          programmer: entity.programmer,
+          game_name: entity.game_name,
+          development_status: newStatus
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.code === 20000) {
+        Message.success(`主体"${entity.name}"开发状态已降级到"${getStatusText(newStatus)}"`);
+        // 重新加载主体列表
+        loadEntityList();
+      } else {
+        Message.error(result.message || '降级开发状态失败');
+      }
+    }
+  } catch (error) {
+    console.error('降级开发状态失败:', error);
+    Message.error('降级开发状态失败，请稍后重试');
+  }
+};
+
 // 组件挂载时加载数据
 onMounted(async () => {
   // 先获取用户信息
@@ -2438,6 +2501,13 @@ onMounted(async () => {
 }
 
 .upgrade-btn-inline {
+  font-size: 12px;
+  padding: 4px 8px;
+  height: auto;
+  border-radius: 6px;
+}
+
+.downgrade-btn-inline {
   font-size: 12px;
   padding: 4px 8px;
   height: auto;

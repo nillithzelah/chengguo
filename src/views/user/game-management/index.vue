@@ -401,38 +401,37 @@
 
           <!-- 测试连接区域 -->
           <div class="test-section" v-if="editGameData.appid && editGameData.appSecret">
-            <div class="test-header">
-              <h4>🔗 连接测试</h4>
-              <button
-                @click="testEditGameConnection"
-                :disabled="testing"
-                class="btn btn-outline"
-              >
-                {{ testing ? '测试中...' : '测试连接' }}
-              </button>
-            </div>
-
-
-            <div v-if="testResult" class="test-result" :class="{ 'success': testResult.success, 'error': !testResult.success }">
-              <div class="test-message">{{ testResult.message }}</div>
-              <div v-if="testResult.success" class="test-details">
-                <small>Token: {{ testResult.token }}</small><br>
-                <small>有效期: {{ testResult.expiresIn }}秒</small>
-              </div>
+            <div v-if="testResult" class="test-result-indicator" :class="{ 'success': testResult.success, 'error': !testResult.success }">
+              <a-tooltip :content="getTestResultTooltipContent()" placement="top">
+                <div class="test-status">
+                  <span class="test-icon">{{ testResult.success ? '✅' : '❌' }}</span>
+                  <span class="test-text">{{ testResult.success ? '连接成功' : '连接失败' }}</span>
+                </div>
+              </a-tooltip>
             </div>
           </div>
         </div>
 
         <div class="modal-footer">
-          <button @click="closeEditGameModal" class="btn btn-secondary" :disabled="editing">取消</button>
-          <button
-            @click="updateGame"
-            :disabled="!editGameData.name || !editGameData.appid || !editGameData.appSecret || editing"
-            class="btn btn-primary"
-          >
-            {{ editing ? '保存中...' : '保存修改' }}
-          </button>
-        </div>
+           <div class="footer-buttons">
+             <button
+               v-if="editGameData.appid && editGameData.appSecret"
+               @click="testEditGameConnection"
+               :disabled="testing"
+               class="btn btn-outline"
+             >
+               {{ testing ? '测试中...' : '测试连接' }}
+             </button>
+             <button @click="closeEditGameModal" class="btn btn-secondary" :disabled="editing">取消</button>
+             <button
+               @click="updateGame"
+               :disabled="!editGameData.name || !editGameData.appid || !editGameData.appSecret || editing"
+               class="btn btn-primary"
+             >
+               {{ editing ? '保存中...' : '保存修改' }}
+             </button>
+           </div>
+         </div>
       </div>
     </div>
 
@@ -799,6 +798,16 @@ const getSelectedUserName = () => {
   if (!selectedUserId.value) return '';
   const user = users.value.find(u => u.id === Number(selectedUserId.value));
   return user ? (user.name || user.username) : '';
+};
+
+// 获取测试结果提示框内容
+const getTestResultTooltipContent = () => {
+  if (!testResult.value) return '';
+  let content = testResult.value.message;
+  if (testResult.value.success && testResult.value.token) {
+    content += `\nToken: ${testResult.value.token}\n有效期: ${testResult.value.expiresIn}秒`;
+  }
+  return content;
 };
 
 // 游戏表格列配置
@@ -2734,6 +2743,14 @@ watch(
 
 .edit-game-modal .modal-footer {
   padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-buttons {
+  display: flex;
+  gap: 16px;
 }
 
 .large-modal {
@@ -2813,57 +2830,40 @@ watch(
   border: 1px solid #e9ecef;
 }
 
-.test-header {
+.test-result-indicator {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-
-.test-header h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d2129;
-}
-
-.test-result {
-  padding: 12px;
+  gap: 8px;
+  padding: 8px 12px;
   border-radius: 4px;
   font-size: 13px;
-  line-height: 1.4;
+  font-weight: 500;
 }
 
-.test-result.success {
+.test-result-indicator.success {
   background: #f6ffed;
   border: 1px solid #b7eb8f;
   color: #52c41a;
 }
 
-.test-result.error {
+.test-result-indicator.error {
   background: #fff2f0;
   border: 1px solid #ffccc7;
   color: #ff4d4f;
 }
 
-.test-message {
-  font-weight: 500;
-  margin-bottom: 4px;
+.test-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
 }
 
-.test-details small {
-  display: block;
-  margin-bottom: 2px;
+.test-icon {
+  font-size: 14px;
 }
 
-.test-suggestion {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.test-suggestion small {
-  color: #ff7875;
+.test-text {
   font-weight: 500;
 }
 
@@ -3083,7 +3083,20 @@ watch(
     gap: 8px;
   }
 
-  .modal-footer .btn {
+  .modal-footer .btn,
+  .footer-buttons .btn {
+    width: 100%;
+  }
+
+  .edit-game-modal .modal-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .footer-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     width: 100%;
   }
 
