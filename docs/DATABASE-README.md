@@ -237,6 +237,37 @@ CREATE TABLE user_games (
 -- );
 ```
 
+### entities表 (主体信息表)
+```sql
+-- SQLite 语法
+CREATE TABLE entities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name VARCHAR(255) NOT NULL,
+  programmer VARCHAR(100),
+  account_name VARCHAR(255),
+  game_name VARCHAR(255),
+  development_status TEXT DEFAULT '游戏创建' CHECK(development_status IN ('游戏创建', '基础/资质', '开发/提审', '游戏备案', 'ICP备案', '上线运营')),
+  assigned_user_id INTEGER REFERENCES users(id),
+  development_status_updated_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- PostgreSQL 语法（如果切换）
+-- CREATE TABLE entities (
+--   id SERIAL PRIMARY KEY,
+--   name VARCHAR(255) NOT NULL,
+--   programmer VARCHAR(100),
+--   account_name VARCHAR(255),
+--   game_name VARCHAR(255),
+--   development_status ENUM('游戏创建', '基础/资质', '开发/提审', '游戏备案', 'ICP备案', '上线运营') DEFAULT '游戏创建',
+--   assigned_user_id INTEGER REFERENCES users(id),
+--   development_status_updated_at TIMESTAMP,
+--   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
+```
+
 ## 📝 eCPM数据存储策略
 
 ### 🎯 为什么不存储eCPM数据？
