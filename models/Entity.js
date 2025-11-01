@@ -25,6 +25,11 @@ function defineEntityModel(sequelize) {
       },
       comment: '程序员姓名'
     },
+    account_name: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: '账号名'
+    },
     game_name: {
       type: DataTypes.STRING(255),
       allowNull: true,
@@ -100,6 +105,7 @@ function defineEntityModel(sequelize) {
       id: this.id,
       name: this.name,
       programmer: this.programmer,
+      account_name: this.account_name,
       game_name: this.game_name,
       development_status: this.development_status,
       assigned_user_id: this.assigned_user_id,

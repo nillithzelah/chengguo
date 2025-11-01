@@ -70,7 +70,7 @@
           <a-input
             v-model="searchKeyword"
             @input="handleSearchChange"
-            placeholder="输入主体名、程序员或游戏名"
+            placeholder="输入主体名、程序员、账号名或游戏名"
             class="search-input"
             allow-clear
           >
@@ -299,6 +299,17 @@
             </div>
 
             <div class="form-item">
+              <label>账号名</label>
+              <input
+                v-model="createForm.account_name"
+                type="text"
+                placeholder="输入账号名"
+                class="form-input"
+              />
+              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
+            </div>
+
+            <div class="form-item">
               <label>分配用户</label>
               <select
                 v-model="createForm.assigned_user_id"
@@ -330,7 +341,7 @@
                 />
                 <small style="color: #666; margin-top: 4px;">游戏的名称（可选）</small>
               </div>
-              
+
               <div class="form-item">
                 <label>程序员</label>
                 <select
@@ -689,6 +700,17 @@
             </div>
 
             <div class="form-item">
+              <label>账号名</label>
+              <input
+                v-model="editEntityForm.account_name"
+                type="text"
+                placeholder="输入账号名"
+                class="form-input"
+              />
+              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
+            </div>
+
+            <div class="form-item">
               <label>分配用户</label>
               <select
                 v-model="editEntityForm.assigned_user_id"
@@ -831,6 +853,7 @@ const editEntityFormValidation = computed(() => ({
 const createForm = reactive({
   name: '',
   programmer: '',
+  account_name: '',
   game_name: '',
   development_status: '',
   assigned_user_id: ''
@@ -846,6 +869,7 @@ const editForm = reactive({
 const editEntityForm = reactive({
   entity_id: '',
   new_name: '',
+  account_name: '',
   assigned_user_id: ''
 });
 
@@ -889,6 +913,13 @@ const columns = [
     dataIndex: 'programmer',
     width: 80,
     minWidth: 60,
+    ellipsis: true
+  },
+  {
+    title: '账号名',
+    dataIndex: 'account_name',
+    width: 120,
+    minWidth: 100,
     ellipsis: true
   },
   {
@@ -1244,6 +1275,7 @@ const applyFilters = () => {
     filteredEntities = filteredEntities.filter(entity =>
       entity.name.toLowerCase().includes(keyword) ||
       entity.programmer.toLowerCase().includes(keyword) ||
+      entity.account_name.toLowerCase().includes(keyword) ||
       entity.game_name.toLowerCase().includes(keyword)
     );
   }
@@ -1413,6 +1445,7 @@ const handleEditEntityName = () => {
 const resetCreateForm = () => {
   createForm.name = '';
   createForm.programmer = '';
+  createForm.account_name = '';
   createForm.game_name = '';
   createForm.development_status = '';
   createForm.assigned_user_id = '';
@@ -1433,6 +1466,7 @@ const resetEditForm = () => {
 const resetEditEntityForm = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
+  editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   showEditEntityModal.value = false;
 };
@@ -1441,6 +1475,7 @@ const resetEditEntityForm = () => {
 const openEditEntityModal = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
+  editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   showEditEntityModal.value = true;
 };
@@ -1451,10 +1486,13 @@ const onEntityChange = () => {
   if (selectedEntity) {
     // 设置新主体名为当前主体名
     editEntityForm.new_name = selectedEntity.name;
+    // 设置账号名为当前账号名
+    editEntityForm.account_name = selectedEntity.account_name || '';
     // 设置分配用户为当前分配用户
     editEntityForm.assigned_user_id = selectedEntity.assigned_user_id;
   } else {
     editEntityForm.new_name = '';
+    editEntityForm.account_name = '';
     editEntityForm.assigned_user_id = '';
   }
 };
@@ -1609,6 +1647,7 @@ const handleUpdateEntity = async () => {
 
     const updateData = {
       name: newName,
+      account_name: editEntityForm.account_name ? editEntityForm.account_name.trim() : '',
       assigned_user_id: assignedUserId
     };
 
@@ -1703,6 +1742,12 @@ const handleCreateEntity = async () => {
       entityData.programmer = createForm.programmer.trim();
     } else {
       entityData.programmer = '';
+    }
+
+    if (createForm.account_name.trim()) {
+      entityData.account_name = createForm.account_name.trim();
+    } else {
+      entityData.account_name = '';
     }
 
     if (createForm.game_name.trim()) {

@@ -1727,7 +1727,7 @@ app.get('/api/entity/programmer-options', authenticateJWT, async (req, res) => {
 app.post('/api/entity/create', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
-    const { name, programmer, assigned_user_id, game_name } = req.body;
+    const { name, programmer, assigned_user_id, game_name, account_name } = req.body;
 
     // 检查权限：管理员和程序员可以创建主体
     const mappedRole = getMappedRole(currentUser.role);
@@ -1780,12 +1780,13 @@ app.post('/api/entity/create', authenticateJWT, async (req, res) => {
     const newEntity = await Entity.create({
       name: name.trim(),
       programmer: programmer ? programmer.trim() : '',
+      account_name: account_name ? account_name.trim() : '',
       game_name: game_name ? game_name.trim() : '',
       development_status: '游戏创建',
       assigned_user_id: assigned_user_id || null
     });
 
-    logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 游戏名称: ${game_name || '未设置'}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
+    logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 账号名: ${account_name || '未设置'}, 游戏名称: ${game_name || '未设置'}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
 
     res.json({
       code: 20000,
@@ -1810,7 +1811,7 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     const { id } = req.params;
-    const { name, programmer, assigned_user_id } = req.body;
+    const { name, programmer, assigned_user_id, account_name } = req.body;
 
     // 检查权限：管理员和程序员可以更新主体
     const mappedRole = getMappedRole(currentUser.role);
@@ -1868,6 +1869,7 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
     if (programmer !== undefined) updateData.programmer = programmer.trim();
+    if (account_name !== undefined) updateData.account_name = account_name ? account_name.trim() : '';
     if (req.body.game_name !== undefined) updateData.game_name = req.body.game_name;
     if (req.body.development_status !== undefined) {
       updateData.development_status = req.body.development_status;
