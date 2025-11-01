@@ -1229,14 +1229,8 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
       // 管理员、老板可以看到所有游戏，但根据页面类型过滤状态
       let whereCondition = {};
 
-      // 根据页面类型过滤游戏状态
-      if (pageType === 'gray') {
-        // 灰游页面：只显示状态为 'gray' 的游戏
-        whereCondition.status = 'gray';
-      } else {
-        // 白游页面：只显示状态为 'active' 的游戏
-        whereCondition.status = 'active';
-      }
+      // 显示所有游戏状态，不再按页面类型过滤
+      // 移除游戏状态筛选，显示所有游戏（active、suspended等）
 
       const games = await Game.findAll({
         where: whereCondition,
@@ -1282,14 +1276,8 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
       // 普通用户只能看到自己有权限的游戏
       let gameWhereCondition = {};
 
-      // 根据页面类型过滤游戏状态
-      if (pageType === 'gray') {
-        // 灰游页面：只显示状态为 'gray' 的游戏
-        gameWhereCondition.status = 'gray';
-      } else {
-        // 白游页面：只显示状态为 'active' 的游戏
-        gameWhereCondition.status = 'active';
-      }
+      // 显示所有游戏状态，不再按页面类型过滤
+      // 移除游戏状态筛选，显示所有游戏（active、suspended等）
 
       const userGames = await UserGame.findAll({
         where: { user_id: currentUser.userId },

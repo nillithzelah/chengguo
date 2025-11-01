@@ -169,10 +169,10 @@
 
           <template #status="{ record }">
             <a-tag
-              :color="record.validated ? 'green' : 'orange'"
+              :color="record.status === 'active' ? 'green' : (record.status === 'suspended' || record.status === 'gray') ? 'black' : 'blue'"
               size="small"
             >
-              {{ record.validated ? '已验证' : '未验证' }}
+              {{ record.status === 'active' ? '白游' : (record.status === 'suspended' || record.status === 'gray') ? '黑游' : record.status }}
             </a-tag>
           </template>
 
@@ -858,7 +858,8 @@ const formatDate = (dateStr) => {
 const loadGamesWithEntities = async () => {
   console.log('📡 游戏管理页面开始加载游戏列表（包含主体信息）...');
   try {
-    const response = await fetch('/api/game/list', {
+    // 游戏管理页面需要获取所有游戏（包括白游和灰游）
+    const response = await fetch('/api/game/list?page_type=all', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1004,6 +1005,7 @@ const applyAllFilters = async () => {
     filtered = filtered.filter(game => game.status === gameStatusFilter.value);
   }
 
+
   filteredGames.value = filtered;
   pagination.total = filteredGames.value.length;
   isInitialized.value = true;
@@ -1021,6 +1023,7 @@ const filterGames = () => {
 const filterGamesByEntity = () => {
   applyAllFilters();
 };
+
 
 // 刷新游戏列表
 const refreshGames = async () => {
@@ -2045,6 +2048,7 @@ onMounted(async () => {
 
   // 重置显示模式
   displayMode.value = 'owned';
+
 });
 
 // 监听路由变化，当路由变化时重新加载数据
