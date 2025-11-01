@@ -40,6 +40,11 @@ function defineEntityModel(sequelize) {
       allowNull: true,
       comment: '分配的用户ID'
     },
+    account_name: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: '账号名'
+    },
     development_status_updated_at: {
       type: DataTypes.DATE,
       allowNull: true,
@@ -103,6 +108,7 @@ function defineEntityModel(sequelize) {
       game_name: this.game_name,
       development_status: this.development_status,
       assigned_user_id: this.assigned_user_id,
+      account_name: this.account_name,
       development_status_updated_at: this.development_status_updated_at ? this.development_status_updated_at.toISOString() : null,
       created_at: this.created_at ? this.created_at.toISOString() : null,
       updated_at: this.updated_at ? this.updated_at.toISOString() : null,
