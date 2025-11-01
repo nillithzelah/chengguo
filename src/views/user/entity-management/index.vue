@@ -299,17 +299,6 @@
             </div>
 
             <div class="form-item">
-              <label>账号名</label>
-              <input
-                v-model="createForm.account_name"
-                type="text"
-                placeholder="输入账号名（可选）"
-                class="form-input"
-              />
-              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
-            </div>
-
-            <div class="form-item">
               <label>分配用户</label>
               <select
                 v-model="createForm.assigned_user_id"
@@ -428,17 +417,6 @@
                 class="form-input"
               />
               <small style="color: #666; margin-top: 4px;">输入游戏的名称</small>
-            </div>
-
-            <div class="form-item">
-              <label>账号名</label>
-              <input
-                v-model="editForm.account_name"
-                type="text"
-                placeholder="输入账号名（可选）"
-                class="form-input"
-              />
-              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
             </div>
 
             <div class="form-item">
@@ -609,17 +587,6 @@
               <small style="color: #666; margin-top: 4px;">从现有主体中选择</small>
             </div>
 
-            <div class="form-item">
-              <label>账号名</label>
-              <input
-                v-model="assignForm.account_name"
-                type="text"
-                placeholder="输入账号名（可选）"
-                class="form-input"
-              />
-              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
-            </div>
-
             <!-- 开发状态字段 -->
             <div class="form-section">
               <h4>开发状态</h4>
@@ -719,17 +686,6 @@
               <small v-if="editEntityForm.new_name && !editEntityFormValidation.new_name.isValid" style="color: #ff4d4f; margin-top: 4px;">
                 {{ editEntityFormValidation.new_name.message }}
               </small>
-            </div>
-
-            <div class="form-item">
-              <label>账号名</label>
-              <input
-                v-model="editEntityForm.account_name"
-                type="text"
-                placeholder="输入账号名（可选）"
-                class="form-input"
-              />
-              <small style="color: #666; margin-top: 4px;">账号名（可选）</small>
             </div>
 
             <div class="form-item">
@@ -877,23 +833,20 @@ const createForm = reactive({
   programmer: '',
   game_name: '',
   development_status: '',
-  assigned_user_id: '',
-  account_name: ''
+  assigned_user_id: ''
 });
 
 const editForm = reactive({
   game_name: '',
   programmer: '',
   name: '',
-  development_status: '',
-  account_name: ''
+  development_status: ''
 });
 
 const editEntityForm = reactive({
   entity_id: '',
   new_name: '',
-  assigned_user_id: '',
-  account_name: ''
+  assigned_user_id: ''
 });
 
 // 开发状态选项
@@ -913,8 +866,7 @@ const assignForm = reactive({
   game_name: '',
   programmer: '',
   name: '',
-  development_status: '',
-  account_name: ''
+  development_status: ''
 });
 
 // 表格列配置
@@ -974,13 +926,6 @@ const columns = [
     dataIndex: 'assigned_user_name',
     width: 120,
     minWidth: 100,
-    ellipsis: true
-  },
-  {
-    title: '账号名',
-    dataIndex: 'account_name',
-    width: 150,
-    minWidth: 120,
     ellipsis: true
   },
   {
@@ -1359,7 +1304,6 @@ const editEntity = (entity: any) => {
   editForm.programmer = entity.programmer || '';
   editForm.name = entity.name || '';
   editForm.development_status = entity.development_status || '游戏创建';
-  editForm.account_name = entity.account_name || '';
 
   showEditModal.value = true;
 };
@@ -1472,7 +1416,6 @@ const resetCreateForm = () => {
   createForm.game_name = '';
   createForm.development_status = '';
   createForm.assigned_user_id = '';
-  createForm.account_name = '';
   showCreateModal.value = false;
 };
 
@@ -1482,7 +1425,6 @@ const resetEditForm = () => {
   editForm.programmer = '';
   editForm.name = '';
   editForm.development_status = '';
-  editForm.account_name = '';
   showEditModal.value = false;
   editEntityInfo.value = null;
 };
@@ -1492,7 +1434,6 @@ const resetEditEntityForm = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
   editEntityForm.assigned_user_id = '';
-  editEntityForm.account_name = '';
   showEditEntityModal.value = false;
 };
 
@@ -1501,7 +1442,6 @@ const openEditEntityModal = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
   editEntityForm.assigned_user_id = '';
-  editEntityForm.account_name = '';
   showEditEntityModal.value = true;
 };
 
@@ -1513,12 +1453,9 @@ const onEntityChange = () => {
     editEntityForm.new_name = selectedEntity.name;
     // 设置分配用户为当前分配用户
     editEntityForm.assigned_user_id = selectedEntity.assigned_user_id;
-    // 设置账号名为当前账号名
-    editEntityForm.account_name = selectedEntity.account_name || '';
   } else {
     editEntityForm.new_name = '';
     editEntityForm.assigned_user_id = '';
-    editEntityForm.account_name = '';
   }
 };
 
@@ -1569,7 +1506,6 @@ const resetAssignForm = () => {
   assignForm.programmer = '';
   assignForm.name = '';
   assignForm.development_status = '';
-  assignForm.account_name = '';
   showAssignModal.value = false;
 };
 
@@ -1592,8 +1528,7 @@ const handleEditEntity = async () => {
       name: editForm.name,
       programmer: editForm.programmer.trim(),
       game_name: editForm.game_name,
-      development_status: editForm.development_status,
-      account_name: editForm.account_name.trim() || ''
+      development_status: editForm.development_status
     };
 
     // 调用更新API
@@ -1674,8 +1609,7 @@ const handleUpdateEntity = async () => {
 
     const updateData = {
       name: newName,
-      assigned_user_id: assignedUserId,
-      account_name: editEntityForm.account_name.trim() || ''
+      assigned_user_id: assignedUserId
     };
 
     let successCount = 0;
@@ -1777,12 +1711,6 @@ const handleCreateEntity = async () => {
       entityData.game_name = '';
     }
 
-    if (createForm.account_name.trim()) {
-      entityData.account_name = createForm.account_name.trim();
-    } else {
-      entityData.account_name = '';
-    }
-
     console.log('📡 最终发送的数据:', entityData);
 
     console.log('📡 发送创建请求，数据:', entityData);
@@ -1869,8 +1797,7 @@ const handleAssignEntity = async () => {
         entity_id: selectedEntity.id,
         game_name: assignForm.game_name.trim(),
         programmer: assignForm.programmer.trim(),
-        development_status: assignForm.development_status,
-        account_name: assignForm.account_name.trim() || ''
+        development_status: assignForm.development_status
       };
 
       const response = await fetch('/api/entity/assign-game', {
