@@ -53,6 +53,15 @@
         </template>
         刷新
       </a-button>
+      <a-button
+        type="outline"
+        @click="openDouyinPlatform"
+      >
+        <template #icon>
+          <icon-link />
+        </template>
+        抖音开放平台
+      </a-button>
     </div>
 
     <!-- 数据统计 -->
@@ -1983,6 +1992,11 @@ const downgradeEntityStatus = async (entity: any) => {
     console.error('降级开发状态失败:', error);
     Message.error('降级开发状态失败，请稍后重试');
   }
+};
+
+// 打开抖音开放平台
+const openDouyinPlatform = () => {
+  window.open('https://developer.open-douyin.com/login?', '_blank');
 };
 
 // 组件挂载时加载数据
