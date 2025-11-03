@@ -832,7 +832,7 @@ const gameColumns = computed(() => [
     title: '创建时间',
     dataIndex: 'created_at',
     slotName: 'created_at',
-    width: 160
+    width: 120
   }] : []),
   {
     title: '游戏状态',
@@ -974,7 +974,7 @@ const applyAllFilters = async () => {
       if (userGamesResponse.ok) {
         const userGamesResult = await userGamesResponse.json();
         if (userGamesResult.code === 20000) {
-          const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
+          const userGameIds = userGamesResult.data.games.map(userGame => userGame.game?.id).filter(id => id !== undefined);
           filtered = filtered.filter(game => userGameIds.includes(game.id));
         } else {
           filtered = [];

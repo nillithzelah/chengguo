@@ -151,7 +151,7 @@
       :loading="loading"
       :pagination="pagination"
       row-key="id"
-      :scroll="{ x: 1700 }"
+      :scroll="{ x: 1600 }"
       @change="handleTableChange"
     >
       <template #empty>
@@ -907,34 +907,34 @@ const columns = [
   {
     title: 'ID',
     dataIndex: 'id',
-    width: 60,
+    width: 54,
     minWidth: 40
   },
   {
     title: '主体名',
     dataIndex: 'name',
-    width: 150,
+    width: 135,
     minWidth: 120,
     ellipsis: true
   },
   {
     title: '程序员',
     dataIndex: 'programmer',
-    width: 80,
+    width: 72,
     minWidth: 60,
     ellipsis: true
   },
   {
     title: '账号名',
     dataIndex: 'account_name',
-    width: 120,
+    width: 108,
     minWidth: 100,
     ellipsis: true
   },
   {
     title: '游戏名字',
     dataIndex: 'game_name',
-    width: 150,
+    width: 135,
     minWidth: 120,
     ellipsis: true
   },
@@ -942,36 +942,36 @@ const columns = [
     title: '开发状态',
     dataIndex: 'development_status',
     slotName: 'development_status',
-    width: 220,
+    width: 198,
     minWidth: 180
   },
   {
     title: '创建时间',
     dataIndex: 'created_at',
     slotName: 'created_at',
-    width: 160,
-    minWidth: 140,
+    width: 90,
+    minWidth: 80,
     ellipsis: true
   },
   {
     title: '开发状态更新时间',
     dataIndex: 'development_status_updated_at',
     slotName: 'development_status_updated_at',
-    width: 180,
-    minWidth: 160,
+    width: 90,
+    minWidth: 80,
     ellipsis: true
   },
   {
     title: '分配用户',
     dataIndex: 'assigned_user_name',
-    width: 120,
+    width: 108,
     minWidth: 100,
     ellipsis: true
   },
   {
     title: '操作',
     slotName: 'action',
-    width: 150,
+    width: 135,
     minWidth: 130,
     fixed: 'right'
   }
