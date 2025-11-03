@@ -240,6 +240,30 @@
       "preview": "images/剑来.mp4",
       "category": "动作",
       "enabled": true
+    },
+    {
+      "id": "topimage",
+      "name": "top-image",
+      "preview": "images/top-image.jpg",
+      "url": "games/topimage/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "梦幻城堡保卫战",
+      "name": "梦幻城堡保卫战",
+      "preview": "images/梦幻城堡保卫战.png",
+      "url": "games/梦幻城堡保卫战/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "欢乐找茬大冒险",
+      "name": "欢乐找茬大冒险",
+      "preview": "images/欢乐找茬大冒险.png",
+      "url": "games/欢乐找茬大冒险/index.html",
+      "category": "益智",
+      "enabled": true
     }
   ],
   "categories": [
