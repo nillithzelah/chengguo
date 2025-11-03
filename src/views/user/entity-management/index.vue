@@ -1282,10 +1282,10 @@ const applyFilters = () => {
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.toLowerCase().trim();
     filteredEntities = filteredEntities.filter(entity =>
-      entity.name.toLowerCase().includes(keyword) ||
-      entity.programmer.toLowerCase().includes(keyword) ||
-      entity.account_name.toLowerCase().includes(keyword) ||
-      entity.game_name.toLowerCase().includes(keyword)
+      (entity.name && entity.name.toLowerCase().includes(keyword)) ||
+      (entity.programmer && entity.programmer.toLowerCase().includes(keyword)) ||
+      (entity.account_name && entity.account_name.toLowerCase().includes(keyword)) ||
+      (entity.game_name && entity.game_name.toLowerCase().includes(keyword))
     );
   }
 
