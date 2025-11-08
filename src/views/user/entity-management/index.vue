@@ -1338,7 +1338,20 @@ const applyFilters = () => {
 
   // 应用状态筛选
   if (statusFilter.value) {
-    filteredEntities = filteredEntities.filter(entity => entity.development_status === statusFilter.value);
+    // 兼容旧状态名称的映射，用于筛选
+    const statusMapping: { [key: string]: string[] } = {
+      '基础/资质进行中': ['基础/资质进行中', '基础/资质'],
+      '基础/资质已完成': ['基础/资质已完成'],
+      '开发/提审进行中': ['开发/提审进行中', '开发/提审'],
+      '开发/提审已完成': ['开发/提审已完成'],
+      '游戏备案进行中': ['游戏备案进行中', '游戏备案'],
+      '游戏备案已完成': ['游戏备案已完成'],
+      'ICP备案进行中': ['ICP备案进行中', 'ICP备案'],
+      'ICP备案已完成': ['ICP备案已完成']
+    };
+
+    const matchingStatuses = statusMapping[statusFilter.value] || [statusFilter.value];
+    filteredEntities = filteredEntities.filter(entity => matchingStatuses.includes(entity.development_status));
   }
 
   // 应用分配用户筛选
