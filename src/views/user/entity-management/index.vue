@@ -97,10 +97,15 @@
           >
             <option value="">全部状态</option>
             <option value="游戏创建">游戏创建</option>
-            <option value="基础/资质">基础/资质</option>
-            <option value="开发/提审">开发/提审</option>
-            <option value="游戏备案">游戏备案</option>
-            <option value="ICP备案">ICP备案</option>
+            <option value="基础/资质进行中">基础/资质进行中</option>
+            <option value="基础/资质已完成">基础/资质已完成</option>
+            <option value="创建流量主">创建流量主</option>
+            <option value="开发/提审进行中">开发/提审进行中</option>
+            <option value="开发/提审已完成">开发/提审已完成</option>
+            <option value="游戏备案进行中">游戏备案进行中</option>
+            <option value="游戏备案已完成">游戏备案已完成</option>
+            <option value="ICP备案进行中">ICP备案进行中</option>
+            <option value="ICP备案已完成">ICP备案已完成</option>
             <option value="上线运营">上线运营</option>
           </select>
         </div>
@@ -151,7 +156,7 @@
       :loading="loading"
       :pagination="pagination"
       row-key="id"
-      :scroll="{ x: 1600 }"
+      :scroll="{ x: 1400 }"
       @change="handleTableChange"
     >
       <template #empty>
@@ -885,10 +890,15 @@ const editEntityForm = reactive({
 // 开发状态选项
 const developmentStatuses = [
   { value: '游戏创建', label: '游戏创建' },
-  { value: '基础/资质', label: '基础/资质' },
-  { value: '开发/提审', label: '开发/提审' },
-  { value: '游戏备案', label: '游戏备案' },
-  { value: 'ICP备案', label: 'ICP备案' },
+  { value: '基础/资质进行中', label: '基础/资质进行中' },
+  { value: '基础/资质已完成', label: '基础/资质已完成' },
+  { value: '创建流量主', label: '创建流量主' },
+  { value: '开发/提审进行中', label: '开发/提审进行中' },
+  { value: '开发/提审已完成', label: '开发/提审已完成' },
+  { value: '游戏备案进行中', label: '游戏备案进行中' },
+  { value: '游戏备案已完成', label: '游戏备案已完成' },
+  { value: 'ICP备案进行中', label: 'ICP备案进行中' },
+  { value: 'ICP备案已完成', label: 'ICP备案已完成' },
   { value: '上线运营', label: '上线运营' }
 ];
 
@@ -905,30 +915,24 @@ const assignForm = reactive({
 // 表格列配置
 const columns = [
   {
-    title: 'ID',
-    dataIndex: 'id',
-    width: 54,
-    minWidth: 40
-  },
-  {
     title: '主体名',
     dataIndex: 'name',
-    width: 135,
-    minWidth: 120,
+    width: 100,
+    minWidth: 100,
     ellipsis: true
   },
   {
     title: '程序员',
     dataIndex: 'programmer',
-    width: 72,
-    minWidth: 60,
+    width: 50,
+    minWidth: 50,
     ellipsis: true
   },
   {
     title: '账号名',
     dataIndex: 'account_name',
-    width: 108,
-    minWidth: 100,
+    width: 150,
+    minWidth: 150,
     ellipsis: true
   },
   {
@@ -949,14 +953,6 @@ const columns = [
     title: '创建时间',
     dataIndex: 'created_at',
     slotName: 'created_at',
-    width: 90,
-    minWidth: 80,
-    ellipsis: true
-  },
-  {
-    title: '开发状态更新时间',
-    dataIndex: 'development_status_updated_at',
-    slotName: 'development_status_updated_at',
     width: 90,
     minWidth: 80,
     ellipsis: true
@@ -1010,10 +1006,20 @@ const getStatusColor = (status: string) => {
     '暂停中': 'red',
     '1': 'green',
     '游戏创建': 'blue',
+    // 兼容旧状态名称，默认当作进行中
     '基础/资质': 'cyan',
     '开发/提审': 'orange',
     '游戏备案': 'purple',
     'ICP备案': 'magenta',
+    '基础/资质进行中': 'cyan',
+    '基础/资质已完成': 'green',
+    '创建流量主': 'lime',
+    '开发/提审进行中': 'orange',
+    '开发/提审已完成': 'green',
+    '游戏备案进行中': 'purple',
+    '游戏备案已完成': 'green',
+    'ICP备案进行中': 'magenta',
+    'ICP备案已完成': 'green',
     '上线运营': 'green'
   };
   return colors[status] || 'default';
@@ -1027,7 +1033,12 @@ const getStatusText = (status: string) => {
     '审核中': '审核中',
     '排队中': '排队中',
     '暂停中': '暂停中',
-    '1': '已完成'
+    '1': '已完成',
+    // 兼容旧状态名称，默认当作进行中
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中'
   };
   return texts[status] || status;
 };
@@ -1065,14 +1076,32 @@ const formatDateShort = (dateStr: string) => {
 
 // 检查是否可以升级状态（是否可以显示升级按钮）
 const canUpgradeStatus = (currentStatus: string) => {
-  const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
+  // 兼容旧状态名称的映射
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中'
+  };
+
+  const mappedStatus = statusMapping[currentStatus] || currentStatus;
+  const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
   // 如果还没到最后一个状态，就可以升级
   return currentIndex < developmentStatuses.length - 1;
 };
 
 // 检查是否可以降级状态（是否可以显示降级按钮）
 const canDowngradeStatus = (currentStatus: string) => {
-  const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
+  // 兼容旧状态名称的映射
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中'
+  };
+
+  const mappedStatus = statusMapping[currentStatus] || currentStatus;
+  const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
   // 如果还没到第一个状态，就可以降级
   return currentIndex > 0;
 };
@@ -1087,15 +1116,33 @@ const upgradeStatus = () => {
 
 // 获取进度条宽度百分比
 const getProgressWidth = (currentStatus: string) => {
-  const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
+  // 兼容旧状态名称的映射
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中'
+  };
+
+  const mappedStatus = statusMapping[currentStatus] || currentStatus;
+  const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
   const progress = ((currentIndex + 1) / developmentStatuses.length) * 100;
   return `${progress}%`;
 };
 
 // 检查状态是否激活（已完成）
 const isStatusActive = (statusValue: string, currentStatus: string) => {
+  // 兼容旧状态名称的映射
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中'
+  };
+
+  const mappedStatus = statusMapping[currentStatus] || currentStatus;
   const statusIndex = developmentStatuses.findIndex(s => s.value === statusValue);
-  const currentIndex = developmentStatuses.findIndex(s => s.value === currentStatus);
+  const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
   return statusIndex <= currentIndex;
 };
 
@@ -1923,7 +1970,16 @@ const loadUserInfo = async () => {
 // 升级主体开发状态
 const upgradeEntityStatus = async (entity: any) => {
   try {
-    const currentIndex = developmentStatuses.findIndex(s => s.value === entity.development_status);
+    // 兼容旧状态名称的映射
+    const statusMapping: { [key: string]: string } = {
+      '基础/资质': '基础/资质进行中',
+      '开发/提审': '开发/提审进行中',
+      '游戏备案': '游戏备案进行中',
+      'ICP备案': 'ICP备案进行中'
+    };
+
+    const mappedStatus = statusMapping[entity.development_status] || entity.development_status;
+    const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
     if (currentIndex < developmentStatuses.length - 1) {
       const newStatus = developmentStatuses[currentIndex + 1].value;
 
@@ -1960,7 +2016,16 @@ const upgradeEntityStatus = async (entity: any) => {
 // 降级主体开发状态
 const downgradeEntityStatus = async (entity: any) => {
   try {
-    const currentIndex = developmentStatuses.findIndex(s => s.value === entity.development_status);
+    // 兼容旧状态名称的映射
+    const statusMapping: { [key: string]: string } = {
+      '基础/资质': '基础/资质进行中',
+      '开发/提审': '开发/提审进行中',
+      '游戏备案': '游戏备案进行中',
+      'ICP备案': 'ICP备案进行中'
+    };
+
+    const mappedStatus = statusMapping[entity.development_status] || entity.development_status;
+    const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
     if (currentIndex > 0) {
       const newStatus = developmentStatuses[currentIndex - 1].value;
 
