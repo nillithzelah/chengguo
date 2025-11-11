@@ -2408,12 +2408,14 @@ onMounted(async () => {
 
 .form-input {
   width: 100%;
-  padding: 12px 16px;
+  height: 40px;
+  padding: 8px 16px;
   border: 2px solid #e5e6eb;
   border-radius: 12px;
   font-size: 14px;
   transition: all 0.3s ease;
   background: white;
+  box-sizing: border-box;
 
   &:focus {
     outline: none;
