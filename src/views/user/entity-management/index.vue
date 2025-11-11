@@ -109,7 +109,7 @@
             <option value="上线运营">上线运营</option>
           </select>
         </div>
-        <div class="filter-item">
+        <div class="filter-item filter-item-narrow">
           <label>分配用户：</label>
           <select
             v-model="assignedUserFilter"
@@ -126,7 +126,7 @@
             </option>
           </select>
         </div>
-        <div class="filter-item">
+        <div class="filter-item filter-item-narrow">
           <label>用户类型：</label>
           <select
             v-model="userTypeFilter"
@@ -137,6 +137,25 @@
             <option value="internal">内部用户</option>
             <option value="external">外部用户</option>
           </select>
+        </div>
+        <div class="filter-item filter-item-narrow">
+          <label>开始日期</label>
+          <input
+            v-model="startDate"
+            type="date"
+            class="form-input"
+            @change="handleDateRangeChange"
+          />
+        </div>
+
+        <div class="filter-item filter-item-narrow">
+          <label>结束日期</label>
+          <input
+            v-model="endDate"
+            type="date"
+            class="form-input"
+            @change="handleDateRangeChange"
+          />
         </div>
         <div class="filter-item">
           <a-button @click="clearAllFilters" type="secondary" class="clear-filters-btn">
@@ -356,18 +375,6 @@
                 <small style="color: #666; margin-top: 4px;">游戏的名称（可选）</small>
               </div>
 
-              <div class="form-item">
-                <label>程序员</label>
-                <select
-                  v-model="createForm.programmer"
-                  class="form-input"
-                >
-                  <option value="">请选择程序员</option>
-                  <option value="冯">冯</option>
-                  <option value="张">张</option>
-                </select>
-                <small style="color: #666; margin-top: 4px;">负责该主体的程序员（可选）</small>
-              </div>
 
        
 
@@ -581,18 +588,6 @@
               <small style="color: #666; margin-top: 4px;">输入游戏的名称</small>
             </div>
 
-            <div class="form-item">
-              <label>程序员</label>
-              <select
-                v-model="assignForm.programmer"
-                class="form-input"
-              >
-                <option value="">请选择程序员</option>
-                <option value="冯">冯</option>
-                <option value="张">张</option>
-              </select>
-              <small style="color: #666; margin-top: 4px;">负责该主体的程序员</small>
-            </div>
 
             <div class="form-item">
               <label>主体名</label>
@@ -654,7 +649,7 @@
           <button
             v-if="canCreateEntity"
             @click="handleAssignEntity"
-            :disabled="!assignForm.programmer || !assignForm.game_name || !assignForm.name || createLoading"
+            :disabled="!assignForm.game_name || !assignForm.name || createLoading"
             class="btn btn-primary"
           >
             {{ createLoading ? '分配中...' : '分配主体' }}
@@ -796,6 +791,8 @@ const statusFilter = ref('');
 const searchKeyword = ref('');
 const assignedUserFilter = ref('');
 const userTypeFilter = ref('');
+const startDate = ref('');
+const endDate = ref('');
 const originalEntityList = ref<any[]>([]); // 保存原始主体列表
 
 // 分配用户选项
@@ -834,10 +831,6 @@ const createFormValidation = computed(() => ({
   name: {
     isValid: createForm.name.trim().length > 0,
     message: createForm.name && !createForm.name.trim() ? '请输入主体名称' : ''
-  },
-  programmer: {
-    isValid: createForm.programmer.trim().length > 0,
-    message: createForm.programmer && !createForm.programmer.trim() ? '请输入程序员姓名' : ''
   },
   game_name: {
     isValid: createForm.game_name.trim().length > 0,
@@ -907,7 +900,6 @@ const availableGames = ref<any[]>([]);
 
 const assignForm = reactive({
   game_name: '',
-  programmer: '',
   name: '',
   development_status: ''
 });
@@ -1321,6 +1313,11 @@ const handleUserTypeFilterChange = () => {
   applyFilters();
 };
 
+// 处理创建时间段筛选变化
+const handleDateRangeChange = () => {
+  applyFilters();
+};
+
 // 应用所有筛选
 const applyFilters = () => {
   let filteredEntities = [...originalEntityList.value];
@@ -1373,6 +1370,16 @@ const applyFilters = () => {
     });
   }
 
+  // 应用创建时间段筛选
+  if (startDate.value && endDate.value) {
+    const start = new Date(startDate.value);
+    const end = new Date(endDate.value);
+    filteredEntities = filteredEntities.filter(entity => {
+      const createdAt = new Date(entity.created_at);
+      return createdAt >= start && createdAt <= end;
+    });
+  }
+
   entityList.value = filteredEntities;
   // 更新分页
   pagination.total = entityList.value.length;
@@ -1385,6 +1392,8 @@ const clearAllFilters = () => {
   statusFilter.value = '';
   assignedUserFilter.value = '';
   userTypeFilter.value = '';
+  startDate.value = '';
+  endDate.value = '';
   applyFilters();
 };
 
@@ -1513,7 +1522,6 @@ const handleEditEntityName = () => {
 // 重置创建表单
 const resetCreateForm = () => {
   createForm.name = '';
-  createForm.programmer = '';
   createForm.account_name = '';
   createForm.game_name = '';
   createForm.development_status = '';
@@ -1601,7 +1609,6 @@ const loadAvailableGames = async () => {
 // 打开分配游戏主体模态框
 const openAssignModal = () => {
   assignForm.game_name = '';
-  assignForm.programmer = '';
   assignForm.name = '';
   assignForm.development_status = '游戏创建';
   showAssignModal.value = true;
@@ -1610,7 +1617,6 @@ const openAssignModal = () => {
 // 重置分配表单
 const resetAssignForm = () => {
   assignForm.game_name = '';
-  assignForm.programmer = '';
   assignForm.name = '';
   assignForm.development_status = '';
   showAssignModal.value = false;
@@ -1806,12 +1812,7 @@ const handleCreateEntity = async () => {
       assigned_user_id: createForm.assigned_user_id
     };
 
-    // 包含游戏信息（程序员和游戏名字可以单独填写）
-    if (createForm.programmer.trim()) {
-      entityData.programmer = createForm.programmer.trim();
-    } else {
-      entityData.programmer = '';
-    }
+    // 包含游戏信息（游戏名字可以单独填写）
 
     if (createForm.account_name.trim()) {
       entityData.account_name = createForm.account_name.trim();
@@ -1886,11 +1887,6 @@ const handleAssignEntity = async () => {
       return;
     }
 
-    if (!assignForm.programmer.trim()) {
-      Message.error('请选择程序员');
-      return;
-    }
-
     if (!assignForm.name.trim()) {
       Message.error('请选择主体');
       return;
@@ -1910,7 +1906,6 @@ const handleAssignEntity = async () => {
       const assignData = {
         entity_id: selectedEntity.id,
         game_name: assignForm.game_name.trim(),
-        programmer: assignForm.programmer.trim(),
         development_status: assignForm.development_status
       };
 
@@ -2547,6 +2542,11 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-width: 200px;
+}
+
+.filter-item-narrow {
+  min-width: 150px;
+  max-width: 180px;
 }
 
 .filter-item label {

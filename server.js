@@ -4632,12 +4632,7 @@ async function startServer() {
       console.log(`📈 转化事件统计: http://localhost:${PORT}/api/conversion/stats`);
       console.log(`📝 转化事件列表: http://localhost:${PORT}/api/conversion/events`);
       console.log(`🎫 广告投放Token刷新状态: 按需刷新（过期前5分钟）`);
-      console.log('');
-      console.log('📝 默认用户:');
-      console.log('   管理员: admin / admin123');
-      console.log('   用户: user / user123');
-      console.log('   审核员: moderator / mod123');
-      console.log('   查看用户: viewer / viewer123');
+
     });
 
   } catch (error) {
