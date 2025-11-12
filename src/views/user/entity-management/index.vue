@@ -709,6 +709,19 @@
             </div>
 
             <div class="form-item">
+              <label>程序员</label>
+              <select
+                v-model="editEntityForm.programmer"
+                class="form-input"
+              >
+                <option value="">请选择程序员</option>
+                <option value="冯">冯</option>
+                <option value="张">张</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">选择负责该主体的程序员</small>
+            </div>
+
+            <div class="form-item">
               <label>账号名</label>
               <input
                 v-model="editEntityForm.account_name"
@@ -876,6 +889,7 @@ const editForm = reactive({
 const editEntityForm = reactive({
   entity_id: '',
   new_name: '',
+  programmer: '',
   account_name: '',
   assigned_user_id: ''
 });
@@ -1543,6 +1557,7 @@ const resetEditForm = () => {
 const resetEditEntityForm = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
+  editEntityForm.programmer = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   showEditEntityModal.value = false;
@@ -1552,6 +1567,7 @@ const resetEditEntityForm = () => {
 const openEditEntityModal = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
+  editEntityForm.programmer = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   showEditEntityModal.value = true;
@@ -1563,12 +1579,15 @@ const onEntityChange = () => {
   if (selectedEntity) {
     // 设置新主体名为当前主体名
     editEntityForm.new_name = selectedEntity.name;
+    // 设置程序员为当前程序员
+    editEntityForm.programmer = selectedEntity.programmer || '';
     // 设置账号名为当前账号名
     editEntityForm.account_name = selectedEntity.account_name || '';
     // 设置分配用户为当前分配用户
     editEntityForm.assigned_user_id = selectedEntity.assigned_user_id;
   } else {
     editEntityForm.new_name = '';
+    editEntityForm.programmer = '';
     editEntityForm.account_name = '';
     editEntityForm.assigned_user_id = '';
   }
@@ -1699,6 +1718,11 @@ const handleUpdateEntity = async () => {
       return;
     }
 
+    if (!editEntityForm.programmer.trim()) {
+      Message.error('请选择程序员');
+      return;
+    }
+
     editEntityLoading.value = true;
 
     // 获取选中的主体
@@ -1711,6 +1735,7 @@ const handleUpdateEntity = async () => {
     const oldName = selectedEntity.name;
     const newName = editEntityForm.new_name.trim();
     const assignedUserId = editEntityForm.assigned_user_id;
+    const programmer = editEntityForm.programmer.trim();
 
     // 查找所有具有相同名称的主体（从完整列表中查找）
     const entitiesToUpdate = originalEntityList.value.filter(entity => entity.name === oldName);
@@ -1722,6 +1747,7 @@ const handleUpdateEntity = async () => {
 
     const updateData = {
       name: newName,
+      programmer: programmer,
       account_name: editEntityForm.account_name ? editEntityForm.account_name.trim() : '',
       assigned_user_id: assignedUserId
     };
@@ -1759,7 +1785,7 @@ const handleUpdateEntity = async () => {
     if (successCount > 0) {
       const message = errorCount > 0
         ? `成功修改 ${successCount} 个主体，${errorCount} 个失败`
-        : `成功修改 ${successCount} 个主体名称为"${newName}"`;
+        : `成功修改 ${successCount} 个主体名称为"${newName}"，程序员分配为"${programmer}"`;
 
       Message.success(message);
       showEditEntityModal.value = false;
