@@ -98,14 +98,14 @@
             <option value="">全部状态</option>
             <option value="游戏创建">游戏创建</option>
             <option value="基础/资质进行中">基础/资质进行中</option>
-            <option value="基础/资质已完成">基础/资质已完成</option>
+            <option value="基础/资质已提交">基础/资质已提交</option>
             <option value="创建流量主">创建流量主</option>
             <option value="开发/提审进行中">开发/提审进行中</option>
-            <option value="开发/提审已完成">开发/提审已完成</option>
+            <option value="开发/提审已提交">开发/提审已提交</option>
             <option value="游戏备案进行中">游戏备案进行中</option>
-            <option value="游戏备案已完成">游戏备案已完成</option>
+            <option value="游戏备案已提交">游戏备案已提交</option>
             <option value="ICP备案进行中">ICP备案进行中</option>
-            <option value="ICP备案已完成">ICP备案已完成</option>
+            <option value="ICP备案已提交">ICP备案已提交</option>
             <option value="上线运营">上线运营</option>
           </select>
         </div>
@@ -898,14 +898,14 @@ const editEntityForm = reactive({
 const developmentStatuses = [
   { value: '游戏创建', label: '游戏创建' },
   { value: '基础/资质进行中', label: '基础/资质进行中' },
-  { value: '基础/资质已完成', label: '基础/资质已完成' },
+  { value: '基础/资质已提交', label: '基础/资质已提交' },
   { value: '创建流量主', label: '创建流量主' },
   { value: '开发/提审进行中', label: '开发/提审进行中' },
-  { value: '开发/提审已完成', label: '开发/提审已完成' },
+  { value: '开发/提审已提交', label: '开发/提审已提交' },
   { value: '游戏备案进行中', label: '游戏备案进行中' },
-  { value: '游戏备案已完成', label: '游戏备案已完成' },
+  { value: '游戏备案已提交', label: '游戏备案已提交' },
   { value: 'ICP备案进行中', label: 'ICP备案进行中' },
-  { value: 'ICP备案已完成', label: 'ICP备案已完成' },
+  { value: 'ICP备案已提交', label: 'ICP备案已提交' },
   { value: '上线运营', label: '上线运营' }
 ];
 
@@ -959,6 +959,14 @@ const columns = [
     title: '创建时间',
     dataIndex: 'created_at',
     slotName: 'created_at',
+    width: 90,
+    minWidth: 80,
+    ellipsis: true
+  },
+  {
+    title: '修改时间',
+    dataIndex: 'development_status_updated_at',
+    slotName: 'development_status_updated_at',
     width: 90,
     minWidth: 80,
     ellipsis: true
@@ -1018,14 +1026,14 @@ const getStatusColor = (status: string) => {
     '游戏备案': 'purple',
     'ICP备案': 'magenta',
     '基础/资质进行中': 'cyan',
-    '基础/资质已完成': 'green',
+    '基础/资质已提交': 'green',
     '创建流量主': 'lime',
     '开发/提审进行中': 'orange',
-    '开发/提审已完成': 'green',
+    '开发/提审已提交': 'green',
     '游戏备案进行中': 'purple',
-    '游戏备案已完成': 'green',
+    '游戏备案已提交': 'green',
     'ICP备案进行中': 'magenta',
-    'ICP备案已完成': 'green',
+    'ICP备案已提交': 'green',
     '上线运营': 'green'
   };
   return colors[status] || 'default';
@@ -1044,7 +1052,12 @@ const getStatusText = (status: string) => {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
     '游戏备案': '游戏备案进行中',
-    'ICP备案': 'ICP备案进行中'
+    'ICP备案': 'ICP备案进行中',
+    // 兼容旧的"已完成"状态，映射到新的"已提交"
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交'
   };
   return texts[status] || status;
 };
@@ -1087,7 +1100,12 @@ const canUpgradeStatus = (currentStatus: string) => {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
     '游戏备案': '游戏备案进行中',
-    'ICP备案': 'ICP备案进行中'
+    'ICP备案': 'ICP备案进行中',
+    // 兼容旧的"已完成"状态
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交'
   };
 
   const mappedStatus = statusMapping[currentStatus] || currentStatus;
@@ -1103,7 +1121,12 @@ const canDowngradeStatus = (currentStatus: string) => {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
     '游戏备案': '游戏备案进行中',
-    'ICP备案': 'ICP备案进行中'
+    'ICP备案': 'ICP备案进行中',
+    // 兼容旧的"已完成"状态
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交'
   };
 
   const mappedStatus = statusMapping[currentStatus] || currentStatus;
@@ -1127,7 +1150,12 @@ const getProgressWidth = (currentStatus: string) => {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
     '游戏备案': '游戏备案进行中',
-    'ICP备案': 'ICP备案进行中'
+    'ICP备案': 'ICP备案进行中',
+    // 兼容旧的"已完成"状态
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交'
   };
 
   const mappedStatus = statusMapping[currentStatus] || currentStatus;
@@ -1143,7 +1171,12 @@ const isStatusActive = (statusValue: string, currentStatus: string) => {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
     '游戏备案': '游戏备案进行中',
-    'ICP备案': 'ICP备案进行中'
+    'ICP备案': 'ICP备案进行中',
+    // 兼容旧的"已完成"状态
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交'
   };
 
   const mappedStatus = statusMapping[currentStatus] || currentStatus;
@@ -1227,6 +1260,7 @@ const loadEntityList = async () => {
     if (result.code === 20000) {
       entityList.value = result.data.entities || [];
       pagination.total = entityList.value.length;
+      // 注意：不在这里重置 pagination.current，以保持编辑后的当前页码
 
       if (currentUserRole === 'programmer' && currentUserName) {
         console.log(`👨‍💻 [程序员数据] 程序员 ${currentUserName} 获取到 ${entityList.value.length} 条主体记录`);
@@ -1272,8 +1306,8 @@ const loadEntityList = async () => {
       }, []);
       existingEntities.value = uniqueEntities;
 
-      // 重新应用筛选
-      applyFilters();
+      // 重新应用筛选（编辑后不重置页码）
+      applyFilters(false);
     } else {
       console.error(`❌ [API业务错误] 主体列表查询失败: ${result.message}`);
       Message.error(result.message || '加载主体列表失败');
@@ -1333,7 +1367,7 @@ const handleDateRangeChange = () => {
 };
 
 // 应用所有筛选
-const applyFilters = () => {
+const applyFilters = (resetPage = true) => {
   let filteredEntities = [...originalEntityList.value];
 
   // 应用搜索筛选
@@ -1352,13 +1386,13 @@ const applyFilters = () => {
     // 兼容旧状态名称的映射，用于筛选
     const statusMapping: { [key: string]: string[] } = {
       '基础/资质进行中': ['基础/资质进行中', '基础/资质'],
-      '基础/资质已完成': ['基础/资质已完成'],
+      '基础/资质已提交': ['基础/资质已提交'],
       '开发/提审进行中': ['开发/提审进行中', '开发/提审'],
-      '开发/提审已完成': ['开发/提审已完成'],
+      '开发/提审已提交': ['开发/提审已提交'],
       '游戏备案进行中': ['游戏备案进行中', '游戏备案'],
-      '游戏备案已完成': ['游戏备案已完成'],
+      '游戏备案已提交': ['游戏备案已提交'],
       'ICP备案进行中': ['ICP备案进行中', 'ICP备案'],
-      'ICP备案已完成': ['ICP备案已完成']
+      'ICP备案已提交': ['ICP备案已提交']
     };
 
     const matchingStatuses = statusMapping[statusFilter.value] || [statusFilter.value];
@@ -1397,7 +1431,9 @@ const applyFilters = () => {
   entityList.value = filteredEntities;
   // 更新分页
   pagination.total = entityList.value.length;
-  pagination.current = 1; // 重置到第一页
+  if (resetPage) {
+    pagination.current = 1; // 重置到第一页
+  }
 };
 
 // 清除所有筛选条件
