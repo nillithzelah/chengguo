@@ -11,7 +11,7 @@ const USER: AppRouteRecordRaw = {
     icon: 'icon-user',
     requiresAuth: true,
     order: 7,
-    roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'programmer'], // 管理员、超级查看者、老板、客服、程序员可以访问
+    roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'programmer', 'clerk'], // 管理员、超级查看者、老板、客服、程序员可以访问
   },
   children: [
     {
@@ -21,7 +21,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.management',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'], // 管理员、超级查看者、老板、客服可以访问
+        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'clerk'], // 管理员、超级查看者、老板、客服、文员可以访问
         hideForProgrammer: true, // 程序员不显示此菜单
       },
     },
@@ -32,7 +32,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.entity',
         requiresAuth: true,
-        roles: ['admin', 'internal_boss', 'programmer'], // 管理员、内部老板和程序员可以访问
+        roles: ['admin', 'internal_boss', 'programmer', 'clerk'], // 管理员、内部老板、程序员和文员可以访问
       },
     },
     {
@@ -42,7 +42,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.user',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'], // 管理员、超级查看者、老板、客服可以访问
+        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'clerk'], // 管理员、超级查看者、老板、客服、文员可以访问
         hideForProgrammer: true, // 程序员不显示此菜单
       },
     },
@@ -53,7 +53,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.game.admin',
         requiresAuth: true,
-        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service'], // 管理员、超级查看者、老板、客服可以访问
+        roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'clerk'], // 管理员、超级查看者、老板、客服、文员可以访问
         hideForProgrammer: true, // 程序员不显示此菜单
       },
     },

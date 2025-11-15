@@ -568,9 +568,9 @@ const userStore = useUserStore();
 // 权限检查
 const canCreateUser = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator', 'programmer'].includes(role || '');
+  return ['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator', 'programmer','clerk'].includes(role || '');
 });
-const canViewUsers = computed(() => ['admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user', 'super_viewer', 'viewer', 'moderator', 'user', 'programmer'].includes(userStore.userInfo?.role || ''));
+const canViewUsers = computed(() => ['admin', 'internal_boss', 'internal_service', 'internal_user', 'external_boss', 'external_service', 'external_user', 'super_viewer', 'viewer', 'moderator', 'user', 'programmer','clerk'].includes(userStore.userInfo?.role || ''));
 
 // 可创建的用户角色（根据当前用户角色限制）
 const availableRoles = computed(() => {
@@ -589,7 +589,24 @@ const availableRoles = computed(() => {
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' },
-      { value: 'programmer', label: '程序员' }
+      { value: 'programmer', label: '程序员' },
+      { value: 'clerk', label: '文员' }
+    ];
+  } else if (currentRole === 'clerk') {
+    // 文员可以创建除管理员外的所有角色
+    return [
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' },
+      { value: 'external_service', label: '外部客服' },
+      { value: 'external_boss', label: '外部老板' },
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' },
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_boss', label: '内部老板' },
+      { value: 'programmer', label: '程序员' },
+      { value: 'clerk', label: '文员' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
     // 内部老板可以创建内部客服和内用户
@@ -650,7 +667,24 @@ const getEditableRoles = () => {
       { value: 'internal_user_3', label: '内部普通用户3级' },
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
-      { value: 'programmer', label: '程序员' }
+      { value: 'programmer', label: '程序员' },
+      { value: 'clerk', label: '文员' }
+    ];
+  } else if (currentRole === 'clerk') {
+    // 文员可以编辑除管理员外的所有角色
+    return [
+      { value: 'external_user_1', label: '外部普通用户1级' },
+      { value: 'external_user_2', label: '外部普通用户2级' },
+      { value: 'external_user_3', label: '外部普通用户3级' },
+      { value: 'external_service', label: '外部客服' },
+      { value: 'external_boss', label: '外部老板' },
+      { value: 'internal_user_1', label: '内部普通用户1级' },
+      { value: 'internal_user_2', label: '内部普通用户2级' },
+      { value: 'internal_user_3', label: '内部普通用户3级' },
+      { value: 'internal_service', label: '内部客服' },
+      { value: 'internal_boss', label: '内部老板' },
+      { value: 'programmer', label: '程序员' },
+      { value: 'clerk', label: '文员' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
     // 内部老板可以编辑内部客服和内部用户
@@ -737,6 +771,7 @@ const allFilterableRoles = computed(() => {
       'internal_service': '内部客服',
       'external_service': '外部客服',
       'programmer': '程序员',
+      'clerk': '文员',
       'internal_user_1': '内部普通用户1级',
       'internal_user_2': '内部普通用户2级',
       'internal_user_3': '内部普通用户3级',
@@ -943,9 +978,19 @@ const checkCanEditUser = (user: UserListItem) => {
     return false;
   }
 
+  // 不能编辑管理员
+  if (targetUserRole === 'admin') {
+    return false;
+  }
+
   // admin可以编辑所有用户
   if (currentUserRole === 'admin') {
     return true;
+  }
+
+  // clerk可以编辑所有用户（除了管理员）
+  if (currentUserRole === 'clerk') {
+    return targetUserRole !== 'admin';
   }
 
   // internal_boss可以编辑内部和外部用户
@@ -991,11 +1036,12 @@ const checkCanEditUser = (user: UserListItem) => {
 };
 
 const checkCanDeleteUser = (user: UserListItem) => {
-  // 只有admin可以删除用户，且不能删除自己
-  const isAdmin = userStore.userInfo?.role === 'admin';
+  // admin和clerk可以删除用户，且不能删除自己和管理员
+  const canDelete = ['admin', 'clerk'].includes(userStore.userInfo?.role || '');
   const isNotSelf = user.id !== Number(userStore.userInfo?.accountId);
+  const isNotAdmin = user.role !== 'admin';
 
-  return isAdmin && isNotSelf;
+  return canDelete && isNotSelf && isNotAdmin;
 };
 
 // 检查用户是否可以晋升
@@ -1028,6 +1074,8 @@ const getRoleColor = (role: string) => {
     admin: 'red',
     internal_boss: 'purple',
     internal_service: 'orange',
+    programmer: 'geekblue',
+    clerk: 'gold',
     internal_user_1: 'blue',
     internal_user_2: 'magenta',
     internal_user_3: 'arcoblue',
@@ -1054,6 +1102,7 @@ const getRoleText = (role: string) => {
     internal_boss: '内部老板',
     internal_service: '内部客服',
     programmer: '程序员',
+    clerk: '文员',
     internal_user_1: '内部普通用户1级',
     internal_user_2: '内部普通用户2级',
     internal_user_3: '内部普通用户3级',
@@ -1090,8 +1139,8 @@ const loadUserList = async () => {
     const currentUserId = Number(userStore.userInfo?.accountId);
 
     let filteredUsers: any[] = [];
-    if (currentUserRole === 'admin') {
-      // admin可以看到所有用户
+    if (currentUserRole === 'admin' || currentUserRole === 'clerk') {
+      // admin和clerk可以看到所有用户
       filteredUsers = users;
     } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
       // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
@@ -1682,8 +1731,8 @@ const loadEditParentOptions = async (targetRole: string) => {
 const handleCreateUser = async () => {
   const currentRole = userStore.userInfo?.role;
 
-  // 检查权限：admin、internal_boss、internal_service、external_boss、external_service可以创建用户
-  if (!['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator'].includes(currentRole || '')) {
+  // 检查权限：admin、internal_boss、internal_service、external_boss、external_service、clerk可以创建用户
+  if (!['admin', 'internal_boss', 'internal_service', 'external_boss', 'external_service', 'super_viewer', 'viewer', 'moderator', 'clerk'].includes(currentRole || '')) {
     Message.error('您没有权限执行此操作');
     return;
   }

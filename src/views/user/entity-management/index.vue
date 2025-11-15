@@ -820,12 +820,12 @@ const userStore = useUserStore();
 // 权限检查
 const canCreateEntity = computed(() => {
   const role = userStore.userInfo?.role;
-  return role === 'admin' || role === 'programmer'; // 管理员和程序员可以创建和编辑主体
+  return role === 'admin' || role === 'programmer' || role === 'clerk'; // 管理员、程序员和文员可以创建和编辑主体
 });
 
 const canViewEntity = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'internal_boss', 'external_boss', 'programmer'].includes(role || ''); // 管理员、老板和程序员可以查看主体
+  return ['admin', 'internal_boss', 'external_boss', 'programmer','clerk'].includes(role || ''); // 管理员、老板和程序员可以查看主体
 });
 
 // 计算去重后的主体数量
@@ -999,14 +999,14 @@ const pagination = reactive({
 // 权限检查
 const checkCanEditEntity = (entity: any) => {
   const currentUserRole = userStore.userInfo?.role;
-  // 管理员和程序员可以编辑主体
-  return currentUserRole === 'admin' || currentUserRole === 'programmer';
+  // 管理员、程序员和文员可以编辑主体
+  return currentUserRole === 'admin' || currentUserRole === 'programmer' || currentUserRole === 'clerk';
 };
 
 const checkCanDeleteEntity = (entity: any) => {
-  // 管理员和程序员可以删除主体
+  // 管理员、程序员和文员可以删除主体
   const currentUserRole = userStore.userInfo?.role;
-  const canDelete = currentUserRole === 'admin' || currentUserRole === 'programmer';
+  const canDelete = currentUserRole === 'admin' || currentUserRole === 'programmer' || currentUserRole === 'clerk';
 
   return canDelete;
 };

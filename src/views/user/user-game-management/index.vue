@@ -428,11 +428,11 @@ const newGame = reactive({
 const userStore = useUserStore();
 
 // 用户权限检查
-const isAdmin = computed(() => userStore.userInfo?.role === 'admin');
+const isAdmin = computed(() => userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'clerk');
 const canModify = computed(() => isAdmin.value); // 只有admin可以修改（创建、编辑、删除）
 const canAssign = computed(() => {
   const role = userStore.userInfo?.role;
-  return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(role || '');
+  return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service','clerk'].includes(role || '');
 }); // 管理员、老板和客服可以分配游戏
 
 // 按权限高低排序用户列表
@@ -450,6 +450,7 @@ const sortedUserList = computed(() => {
     'external_user_1': 9,
     'external_user_2': 10,
     'external_user_3': 11,
+    'clerk': 12,
     // 兼容旧角色名称
     'super_viewer': 2, // internal_boss
     'moderator': 4, // internal_service
@@ -540,7 +541,8 @@ const getRoleColor = (role: string) => {
     moderator: 'orange',
     user: 'lime',
     internal_user: 'blue',
-    external_user: 'lime'
+    external_user: 'lime',
+    clerk: 'blue'
   };
   return colors[role] || 'default';
 };
@@ -637,7 +639,7 @@ const loadUserList = async () => {
         const currentUserRole = userStore.userInfo?.role;
         const currentUserId = Number(userStore.userInfo?.accountId);
 
-        if (currentUserRole === 'admin') {
+        if (currentUserRole === 'admin' || currentUserRole === 'clerk') {
           // admin可以看到所有用户
           userList.value = users;
         } else if (['internal_boss', 'external_boss', 'internal_service', 'external_service'].includes(currentUserRole || '')) {
@@ -937,7 +939,7 @@ const removeAllUserGames = async () => {
 // 显示新增游戏模态框
 const openAddGameModal = () => {
   // 检查管理员权限
-  if (userStore.userInfo?.role !== 'admin') {
+  if (userStore.userInfo?.role !== 'admin' && userStore.userInfo?.role !== 'clerk') {
     Message.error('您没有权限执行此操作');
     return;
   }
@@ -1186,7 +1188,7 @@ const validateGameConfig = async (appid, appSecret) => {
 // 保存新游戏
 const saveNewGame = async () => {
   // 检查管理员权限
-  if (userStore.userInfo?.role !== 'admin') {
+  if (userStore.userInfo?.role !== 'admin' && userStore.userInfo?.role !== 'clerk') {
     Message.error('您没有权限执行此操作');
     return;
   }
@@ -1365,7 +1367,7 @@ const checkPermissionsAndLoadData = () => {
 
   // 检查用户权限：允许admin、内部老板、外部老板、内部客服、外部客服访问
   // 兼容旧角色名：super_viewer -> internal_boss, moderator -> internal_service
-  const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'super_viewer', 'moderator'];
+  const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'super_viewer', 'moderator', 'clerk'];
   console.log('📋 [权限检查] 允许的角色:', allowedRoles);
   console.log('✅ [权限检查] 角色检查结果:', allowedRoles.includes(userStore.userInfo?.role || ''));
 
