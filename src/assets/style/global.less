@@ -95,3 +95,56 @@ body {
     }
   }
 }
+
+/* 超期未达标记录高亮样式 */
+.red-row {
+  background-color: #ffe6e6 !important;
+  border-left: 4px solid #ff4d4f !important;
+}
+
+.red-row:hover {
+  background-color: #ffcccc !important;
+}
+
+.red-row td {
+  background-color: #ffe6e6 !important;
+  border-color: #ffccc7 !important;
+  color: #ff4d4f !important;
+}
+
+.red-text {
+  color: #ff4d4f !important;
+  font-weight: 600 !important;
+}
+
+/* 确保表格中所有文本都变红 */
+.red-row .status-value-compact,
+.red-row .status-with-action,
+.red-row .no-game-status,
+.red-row .arco-table-td,
+.red-row .arco-table-td *,
+.red-row td {
+  color: #ff4d4f !important;
+}
+
+.red-row .arco-tag {
+  color: #ff4d4f !important;
+  border-color: #ff4d4f !important;
+  background-color: #ffe6e6 !important;
+}
+
+/* 特别针对主体名等普通文本列 */
+.red-row td[data-column-key="name"],
+.red-row td[data-column-key="programmer"],
+.red-row td[data-column-key="account_name"],
+.red-row td[data-column-key="game_name"],
+.red-row td[data-column-key="assigned_user_name"],
+.red-row td[data-column-key="name"] *,
+.red-row td[data-column-key="programmer"] *,
+.red-row td[data-column-key="account_name"] *,
+.red-row td[data-column-key="game_name"] *,
+.red-row td[data-column-key="assigned_user_name"] * {
+  color: #ff4d4f !important;
+}
+
+

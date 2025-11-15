@@ -176,6 +176,7 @@
       :pagination="pagination"
       row-key="id"
       :scroll="{ x: 1400 }"
+      :row-class-name="getRowClassName"
       @change="handleTableChange"
     >
       <template #empty>
@@ -263,12 +264,46 @@
         </div>
       </template>
 
+      <template #name="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.name }}
+        </span>
+      </template>
+
+      <template #programmer="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.programmer }}
+        </span>
+      </template>
+
+      <template #account_name="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.account_name }}
+        </span>
+      </template>
+
+      <template #game_name="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.game_name }}
+        </span>
+      </template>
+
+      <template #assigned_user_name="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.assigned_user_name }}
+        </span>
+      </template>
+
       <template #created_at="{ record }">
-        {{ formatDateShort(record.created_at) }}
+        <span :class="getDateClass(record)">
+          {{ formatDateShort(record.created_at) }}
+        </span>
       </template>
 
       <template #development_status_updated_at="{ record }">
-        {{ record.development_status_updated_at ? formatDateShort(record.development_status_updated_at) : '未更新' }}
+        <span :class="getDateClass(record)">
+          {{ record.development_status_updated_at ? formatDateShort(record.development_status_updated_at) : '未更新' }}
+        </span>
       </template>
 
       <template #action="{ record }">
@@ -923,6 +958,7 @@ const columns = [
   {
     title: '主体名',
     dataIndex: 'name',
+    slotName: 'name',
     width: 100,
     minWidth: 100,
     ellipsis: true
@@ -930,6 +966,7 @@ const columns = [
   {
     title: '程序员',
     dataIndex: 'programmer',
+    slotName: 'programmer',
     width: 50,
     minWidth: 50,
     ellipsis: true
@@ -937,6 +974,7 @@ const columns = [
   {
     title: '账号名',
     dataIndex: 'account_name',
+    slotName: 'account_name',
     width: 150,
     minWidth: 150,
     ellipsis: true
@@ -944,6 +982,7 @@ const columns = [
   {
     title: '游戏名字',
     dataIndex: 'game_name',
+    slotName: 'game_name',
     width: 135,
     minWidth: 120,
     ellipsis: true
@@ -974,6 +1013,7 @@ const columns = [
   {
     title: '分配用户',
     dataIndex: 'assigned_user_name',
+    slotName: 'assigned_user_name',
     width: 108,
     minWidth: 100,
     ellipsis: true
@@ -1037,6 +1077,108 @@ const getStatusColor = (status: string) => {
     '上线运营': 'green'
   };
   return colors[status] || 'default';
+};
+
+// 获取行类名（用于高亮超期未达标记录）
+const getRowClassName = (record: any) => {
+  const now = new Date();
+
+  // 先映射状态到标准状态
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中',
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交',
+    '进行中……': '基础/资质进行中',
+    '审核中': '开发/提审进行中',
+    '排队中': '游戏备案进行中',
+    '暂停中': 'ICP备案进行中',
+    '1': '上线运营'
+  };
+
+  const mappedStatus = statusMapping[record.development_status] || record.development_status;
+  const statusIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
+
+  // 如果状态不在标准列表中，跳过判断
+  if (statusIndex === -1) return '';
+
+  // 条件1: 创建时间超过5天，还没有到创建流量主状态
+  const createdAt = new Date(record.created_at);
+  const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+  if (createDaysDiff > 5 && statusIndex < 3) { // 创建流量主是索引3
+    return 'red-row';
+  }
+
+  // 条件2: 创建时间超过10天，还没有到游戏备案进行中状态
+  if (createDaysDiff > 10 && statusIndex < 6) { // 游戏备案进行中是索引6
+    return 'red-row';
+  }
+
+  // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
+  if (record.development_status_updated_at) {
+    const updatedAt = new Date(record.development_status_updated_at);
+    const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
+      return 'red-row';
+    }
+  }
+
+  return '';
+};
+
+// 获取日期文本类名（用于高亮超期未达标记录的日期）
+const getDateClass = (record: any) => {
+  const now = new Date();
+
+  // 先映射状态到标准状态
+  const statusMapping: { [key: string]: string } = {
+    '基础/资质': '基础/资质进行中',
+    '开发/提审': '开发/提审进行中',
+    '游戏备案': '游戏备案进行中',
+    'ICP备案': 'ICP备案进行中',
+    '基础/资质已完成': '基础/资质已提交',
+    '开发/提审已完成': '开发/提审已提交',
+    '游戏备案已完成': '游戏备案已提交',
+    'ICP备案已完成': 'ICP备案已提交',
+    '进行中……': '基础/资质进行中',
+    '审核中': '开发/提审进行中',
+    '排队中': '游戏备案进行中',
+    '暂停中': 'ICP备案进行中',
+    '1': '上线运营'
+  };
+
+  const mappedStatus = statusMapping[record.development_status] || record.development_status;
+  const statusIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
+
+  // 如果状态不在标准列表中，跳过判断
+  if (statusIndex === -1) return '';
+
+  // 条件1: 创建时间超过5天，还没有到创建流量主状态
+  const createdAt = new Date(record.created_at);
+  const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+  if (createDaysDiff > 5 && statusIndex < 3) { // 创建流量主是索引3
+    return 'red-text';
+  }
+
+  // 条件2: 创建时间超过10天，还没有到游戏备案进行中状态
+  if (createDaysDiff > 10 && statusIndex < 6) { // 游戏备案进行中是索引6
+    return 'red-text';
+  }
+
+  // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
+  if (record.development_status_updated_at) {
+    const updatedAt = new Date(record.development_status_updated_at);
+    const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
+      return 'red-text';
+    }
+  }
+
+  return '';
 };
 
 
@@ -1262,6 +1404,70 @@ const loadEntityList = async () => {
       pagination.total = entityList.value.length;
       // 注意：不在这里重置 pagination.current，以保持编辑后的当前页码
 
+      // 对初始数据进行排序，将变红的记录排在前面
+      entityList.value.sort((a, b) => {
+        const now = new Date();
+
+        // 先映射状态到标准状态
+        const statusMapping: { [key: string]: string } = {
+          '基础/资质': '基础/资质进行中',
+          '开发/提审': '开发/提审进行中',
+          '游戏备案': '游戏备案进行中',
+          'ICP备案': 'ICP备案进行中',
+          '基础/资质已完成': '基础/资质已提交',
+          '开发/提审已完成': '开发/提审已提交',
+          '游戏备案已完成': '游戏备案已提交',
+          'ICP备案已完成': 'ICP备案已提交',
+          '进行中……': '基础/资质进行中',
+          '审核中': '开发/提审进行中',
+          '排队中': '游戏备案进行中',
+          '暂停中': 'ICP备案进行中',
+          '1': '上线运营'
+        };
+
+        // 判断是否变红的逻辑
+        const getIsRed = (record: any) => {
+          const mappedStatus = statusMapping[record.development_status] || record.development_status;
+          const statusIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
+
+          // 如果状态不在标准列表中，跳过判断
+          if (statusIndex === -1) return false;
+
+          // 条件1: 创建时间超过5天，还没有到创建流量主状态
+          const createdAt = new Date(record.created_at);
+          const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (createDaysDiff > 5 && statusIndex < 3) { // 创建流量主是索引3
+            return true;
+          }
+
+          // 条件2: 创建时间超过10天，还没有到游戏备案进行中状态
+          if (createDaysDiff > 10 && statusIndex < 6) { // 游戏备案进行中是索引6
+            return true;
+          }
+
+          // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
+          if (record.development_status_updated_at) {
+            const updatedAt = new Date(record.development_status_updated_at);
+            const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+            if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
+              return true;
+            }
+          }
+
+          return false;
+        };
+
+        const aIsRed = getIsRed(a);
+        const bIsRed = getIsRed(b);
+
+        // 变红的记录排在前面
+        if (aIsRed && !bIsRed) return -1;
+        if (!aIsRed && bIsRed) return 1;
+
+        // 如果都是变红或都不是，按创建时间倒序（最新的在前面）
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
       if (currentUserRole === 'programmer' && currentUserName) {
         console.log(`👨‍💻 [程序员数据] 程序员 ${currentUserName} 获取到 ${entityList.value.length} 条主体记录`);
 
@@ -1427,6 +1633,70 @@ const applyFilters = (resetPage = true) => {
       return createdAt >= start && createdAt <= end;
     });
   }
+
+  // 对筛选后的数据进行排序，将变红的记录排在前面
+  filteredEntities.sort((a, b) => {
+    const now = new Date();
+
+    // 先映射状态到标准状态
+    const statusMapping: { [key: string]: string } = {
+      '基础/资质': '基础/资质进行中',
+      '开发/提审': '开发/提审进行中',
+      '游戏备案': '游戏备案进行中',
+      'ICP备案': 'ICP备案进行中',
+      '基础/资质已完成': '基础/资质已提交',
+      '开发/提审已完成': '开发/提审已提交',
+      '游戏备案已完成': '游戏备案已提交',
+      'ICP备案已完成': 'ICP备案已提交',
+      '进行中……': '基础/资质进行中',
+      '审核中': '开发/提审进行中',
+      '排队中': '游戏备案进行中',
+      '暂停中': 'ICP备案进行中',
+      '1': '上线运营'
+    };
+
+    // 判断是否变红的逻辑
+    const getIsRed = (record: any) => {
+      const mappedStatus = statusMapping[record.development_status] || record.development_status;
+      const statusIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
+
+      // 如果状态不在标准列表中，跳过判断
+      if (statusIndex === -1) return false;
+
+      // 条件1: 创建时间超过5天，还没有到创建流量主状态
+      const createdAt = new Date(record.created_at);
+      const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (createDaysDiff > 5 && statusIndex < 3) { // 创建流量主是索引3
+        return true;
+      }
+
+      // 条件2: 创建时间超过10天，还没有到游戏备案进行中状态
+      if (createDaysDiff > 10 && statusIndex < 6) { // 游戏备案进行中是索引6
+        return true;
+      }
+
+      // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
+      if (record.development_status_updated_at) {
+        const updatedAt = new Date(record.development_status_updated_at);
+        const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    const aIsRed = getIsRed(a);
+    const bIsRed = getIsRed(b);
+
+    // 变红的记录排在前面
+    if (aIsRed && !bIsRed) return -1;
+    if (!aIsRed && bIsRed) return 1;
+
+    // 如果都是变红或都不是，按创建时间倒序（最新的在前面）
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   entityList.value = filteredEntities;
   // 更新分页
@@ -2868,4 +3138,5 @@ onMounted(async () => {
     transform: scale(1);
   }
 }
+
 </style>
