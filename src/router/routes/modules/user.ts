@@ -5,7 +5,7 @@ const USER: AppRouteRecordRaw = {
   path: '/user',
   name: 'user',
   component: DEFAULT_LAYOUT,
-  redirect: '/user/entity-management', // 程序员重定向到主体管理页面
+  redirect: '/user/entity-management', // 程序员和文员重定向到主体管理页面
   meta: {
     locale: 'menu.user',
     icon: 'icon-user',

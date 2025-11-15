@@ -10,8 +10,8 @@ export default function setupUserLoginInfoGuard(router: Router) {
     const userStore = useUserStore();
     if (isLogin()) {
       if (userStore.role) {
-        // 程序员登录后重定向到主体管理页面
-        if (userStore.role === 'programmer' && to.name === 'login') {
+        // 程序员和文员登录后重定向到主体管理页面
+        if ((userStore.role === 'programmer' || userStore.role === 'clerk') && to.name === 'login') {
           next({ name: 'EntityManagement' });
           return;
         }
@@ -19,8 +19,8 @@ export default function setupUserLoginInfoGuard(router: Router) {
       } else {
         try {
           await userStore.info();
-          // 程序员登录后重定向到主体管理页面
-          if (userStore.role === 'programmer' && to.name === 'login') {
+          // 程序员和文员登录后重定向到主体管理页面
+          if ((userStore.role === 'programmer' || userStore.role === 'clerk') && to.name === 'login') {
             next({ name: 'EntityManagement' });
             return;
           }
