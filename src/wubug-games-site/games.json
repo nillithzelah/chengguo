@@ -1,0 +1,276 @@
+{
+  "games": [
+    {
+      "id": "game1",
+      "name": "治愈养宠游戏软件",
+      "preview": "images/治愈养宠游戏软件.png",
+      "url": "games/game1/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game2",
+      "name": "快速清理绿色版",
+      "preview": "images/快速清理绿色版.png",
+      "url": "games/game2/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game3",
+      "name": "过不去的钉子",
+      "preview": "images/过不去的钉子.png",
+      "url": "games/game3/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game4",
+      "name": "一箱一世界",
+      "preview": "images/一箱一世界.png",
+      "category": "策略",
+      "enabled": true
+    },
+    {
+      "id": "game5",
+      "name": "仙侠传奇录游戏软件",
+      "preview": "images/仙侠传奇录游戏软件.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game6",
+      "name": "银河争霸战游戏软件",
+      "preview": "images/银河争霸战游戏软件.png",
+      "category": "策略",
+      "enabled": true
+    },
+    {
+      "id": "game8",
+      "name": "趣萌答题游戏软件",
+      "preview": "images/趣萌答题游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game9",
+      "name": "竞技赛车游戏软件",
+      "preview": "images/竞技赛车游戏软件.png",
+      "category": "动作",
+      "enabled": true
+    },
+    {
+      "id": "game31",
+      "name": "策略塔防",
+      "preview": "images/策略塔防.png",
+      "category": "策略",
+      "enabled": true
+    },
+    {
+      "id": "game32",
+      "name": "成语接龙大挑战",
+      "preview": "images/成语接龙大挑战.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game33",
+      "name": "疯狂赛车冲刺",
+      "preview": "images/疯狂赛车冲刺.png",
+      "category": "动作",
+      "enabled": true
+    },
+    {
+      "id": "game34",
+      "name": "海滨消除",
+      "preview": "images/海滨消除.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game35",
+      "name": "合成2048",
+      "preview": "images/合成2048.png",
+      "category": "策略",
+      "enabled": true
+    },
+    {
+      "id": "game34",
+      "name": "海滨消除",
+      "preview": "images/海滨消除.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game35",
+      "name": "合成2048",
+      "preview": "images/合成2048.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game36",
+      "name": "欢乐泡泡消除",
+      "preview": "images/欢乐泡泡消除.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game37",
+      "name": "萌趣动物消除",
+      "preview": "images/萌趣动物消除.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game38",
+      "name": "迷你冒险园",
+      "preview": "images/迷你冒险园.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game39",
+      "name": "赛车狂飙竞技场",
+      "preview": "images/赛车狂飙竞技场.png",
+      "category": "动作",
+      "enabled": true
+    },
+    {
+      "id": "game40",
+      "name": "神话游",
+      "preview": "images/神话游.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game41",
+      "name": "神活杀",
+      "preview": "images/神活杀.png",
+      "category": "动作",
+      "enabled": true
+    },
+    {
+      "id": "game42",
+      "name": "松弛找茬",
+      "preview": "images/松弛找茬.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game43",
+      "name": "坦克策略战",
+      "preview": "images/坦克策略战.png",
+      "category": "策略",
+      "enabled": true
+    },
+    {
+      "id": "game44",
+      "name": "温馨农村",
+      "preview": "images/温馨农村.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game45",
+      "name": "限时闯关",
+      "preview": "images/限时闯关.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game46",
+      "name": "萌萌连连看",
+      "preview": "images/萌萌连连看.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game47",
+      "name": "欢乐消除游戏软件",
+      "preview": "images/欢乐消除游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game48",
+      "name": "梦幻农场物语游戏软件",
+      "preview": "images/梦幻农场物语游戏软件.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game49",
+      "name": "森林冒险之旅游戏软件",
+      "preview": "images/森林冒险之旅游戏软件.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game50",
+      "name": "神速清理助手",
+      "preview": "images/神速清理助手.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game51",
+      "name": "神仙游",
+      "preview": "images/神仙游.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game52",
+      "name": "天神游",
+      "preview": "images/天神游.png",
+      "category": "冒险",
+      "enabled": true
+    },
+    {
+      "id": "game53",
+      "name": "水果对碰游戏软件",
+      "preview": "images/水果对碰游戏软件.png",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "game54",
+      "name": "剑来",
+      "preview": "images/剑来.mp4",
+      "category": "动作",
+      "enabled": true
+    },
+    {
+      "id": "topimage",
+      "name": "top-image",
+      "preview": "images/top-image.jpg",
+      "url": "games/topimage/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "梦幻城堡保卫战",
+      "name": "梦幻城堡保卫战",
+      "preview": "images/梦幻城堡保卫战.png",
+      "url": "games/梦幻城堡保卫战/index.html",
+      "category": "益智",
+      "enabled": true
+    },
+    {
+      "id": "欢乐找茬大冒险",
+      "name": "欢乐找茬大冒险",
+      "preview": "images/欢乐找茬大冒险.png",
+      "url": "games/欢乐找茬大冒险/index.html",
+      "category": "益智",
+      "enabled": true
+    }
+  ],
+  "categories": [
+    "全部",
+    "益智",
+    "冒险",
+    "动作",
+    "策略"
+  ]
+}
