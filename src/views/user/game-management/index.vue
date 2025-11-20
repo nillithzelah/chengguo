@@ -58,6 +58,38 @@
           <option value="unowned">显示未拥有的游戏</option>
         </select>
       </div>
+      <div v-if="canFilterByEntityType" class="selector-item">
+        <label>内部/外部：</label>
+        <div class="radio-group">
+          <label class="radio-option">
+            <input
+              type="radio"
+              v-model="selectedEntityType"
+              value=""
+              @change="filterGamesByEntity"
+            />
+            <span>显示所有</span>
+          </label>
+          <label class="radio-option">
+            <input
+              type="radio"
+              v-model="selectedEntityType"
+              value="internal"
+              @change="filterGamesByEntity"
+            />
+            <span>内部</span>
+          </label>
+          <label class="radio-option">
+            <input
+              type="radio"
+              v-model="selectedEntityType"
+              value="external"
+              @change="filterGamesByEntity"
+            />
+            <span>外部</span>
+          </label>
+        </div>
+      </div>
       <div class="selector-item">
         <label>选择主体：</label>
         <select
@@ -68,11 +100,11 @@
         >
           <option value="">显示所有主体</option>
           <option
-            v-for="entity in entities"
-            :key="entity.id"
-            :value="entity.name"
+            v-for="entity in filteredEntities"
+            :key="entity?.id || entity"
+            :value="entity?.name || entity"
           >
-            {{ entity.name }}
+            {{ entity?.name || entity }}
           </option>
         </select>
         <span v-if="entityLoading" class="loading-text">加载中...</span>
@@ -145,6 +177,7 @@
               <div class="game-appid">AppID: {{ record.appid }}</div>
             </div>
           </template>
+
 
 
           <template #ad_info="{ record }">
@@ -607,6 +640,7 @@ const userLoading = ref(false);
 
 // 筛选数据
 const selectedUserId = ref('');
+const selectedEntityType = ref('');
 const selectedEntityName = ref('');
 const gameStatusFilter = ref('');
 const displayMode = ref('owned'); // 'owned' 或 'unowned'
@@ -715,6 +749,37 @@ const categorizedUsers = computed(() => {
   }
 });
 
+// 过滤后的主体列表
+const filteredEntities = computed(() => {
+  // 安全检查：确保entities.value存在且为数组
+  if (!entities.value || !Array.isArray(entities.value)) {
+    return [];
+  }
+
+  if (!selectedEntityType.value) {
+    return entities.value.filter(entity => entity != null);
+  }
+
+  return entities.value.filter(entity => {
+    // 安全检查：确保entity存在且有assigned_user_role字段
+    if (!entity || typeof entity !== 'object' || !entity.assigned_user_role) {
+      return false;
+    }
+
+    // 根据分配用户角色判断内部/外部
+    const isInternal = entity.assigned_user_role.startsWith('internal');
+    const isExternal = entity.assigned_user_role.startsWith('external');
+
+    if (selectedEntityType.value === 'internal') {
+      return isInternal;
+    } else if (selectedEntityType.value === 'external') {
+      return isExternal;
+    }
+
+    return false;
+  });
+});
+
 // 向后兼容的计算属性
 const assignedUsers = computed(() => categorizedUsers.value.assigned);
 const unassignedUsers = computed(() => categorizedUsers.value.unassigned);
@@ -763,6 +828,10 @@ const canBulkRemove = computed(() => {
   const role = userStore.role;
   return ['admin', 'internal_boss', 'internal_service','clerk'].includes(role || '');
 }); // 只有管理员、内部老板和内部客服可以看见一键移除按钮
+const canFilterByEntityType = computed(() => {
+  const role = userStore.role;
+  return ['admin', 'clerk'].includes(role || ''); // 只有管理员和文员可以看到内部/外部筛选
+});
 
 // 按权限高低排序用户列表
 const sortedUsers = computed(() => {
@@ -989,7 +1058,23 @@ const applyAllFilters = async () => {
     }
   }
 
-  // 2. 按主体筛选
+  // 2. 按内部/外部筛选主体（只有有权限的用户才能使用此筛选）
+  if (canFilterByEntityType.value && selectedEntityType.value && selectedEntityType.value !== '') {
+    // 获取符合条件的主体
+    const matchingEntities = filteredEntities.value;
+    const matchingEntityNames = matchingEntities.map(entity => entity.name);
+
+    filtered = filtered.filter(game => {
+      if (game.entity_names) {
+        const entityNames = game.entity_names.split('、');
+        // 检查游戏是否属于符合条件的主体
+        return entityNames.some(entityName => matchingEntityNames.includes(entityName));
+      }
+      return false;
+    });
+  }
+
+  // 3. 按主体名称筛选
   if (selectedEntityName.value) {
     filtered = filtered.filter(game => {
       if (game.entity_names) {
@@ -1000,7 +1085,7 @@ const applyAllFilters = async () => {
     });
   }
 
-  // 3. 按状态筛选
+  // 4. 按状态筛选
   if (gameStatusFilter.value) {
     filtered = filtered.filter(game => game.status === gameStatusFilter.value);
   }
@@ -1045,6 +1130,7 @@ const getRoleDisplayName = (role) => {
   };
   return roleMap[role] || role;
 };
+
 
 const getUserGameCount = (userId) => {
   // 这里可以从缓存或API获取用户的游戏数量
@@ -2221,6 +2307,71 @@ watch(
         font-size: 16px;
       }
     }
+
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      min-height: 44px; /* 与select元素高度保持一致 */
+      padding: 12px 0; /* 保持垂直对齐 */
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #1d2129;
+      font-weight: 500;
+      transition: all 0.3s ease;
+
+      &:hover {
+        color: #667eea;
+      }
+
+      input[type="radio"] {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #e5e6eb;
+        border-radius: 50%;
+        background: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+
+        &:checked {
+          border-color: #667eea;
+          background: #667eea;
+
+          &::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+          }
+        }
+
+        &:hover:not(:checked) {
+          border-color: #667eea;
+        }
+
+        &:focus {
+          outline: none;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+      }
+
+      span {
+        user-select: none;
+      }
+    }
   }
 }
 
@@ -2333,6 +2484,7 @@ watch(
         font-size: 14px;
       }
     }
+
   }
 
   .no-games {
@@ -3115,3 +3267,4 @@ watch(
   }
 }
 </style>
+
