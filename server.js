@@ -1808,7 +1808,8 @@ app.post('/api/entity/create', authenticateJWT, async (req, res) => {
       account_name: account_name ? account_name.trim() : '',
       game_name: game_name ? game_name.trim() : '',
       development_status: '游戏创建',
-      assigned_user_id: assigned_user_id || null
+      assigned_user_id: assigned_user_id || null,
+      is_limited_status: req.body.is_limited_status || false
     });
 
     logger.info(`用户 ${currentUser.username} 创建了新主体: ${name}, 账号名: ${account_name || '未设置'}, 游戏名称: ${game_name || '未设置'}, 分配给用户ID: ${assigned_user_id || '未分配'}`);
@@ -1901,6 +1902,7 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
       updateData.development_status_updated_at = new Date();
     }
     if (assigned_user_id !== undefined) updateData.assigned_user_id = assigned_user_id || null;
+    if (req.body.is_limited_status !== undefined) updateData.is_limited_status = req.body.is_limited_status;
 
     await entity.update(updateData);
 
@@ -2166,9 +2168,11 @@ app.post('/api/entity/assign-game', authenticateJWT, async (req, res) => {
     const resultEntity = await Entity.create({
       name: entity.name,
       programmer: programmer || '',
+      account_name: entity.account_name || '', // 从原主体复制账号名
       game_name: game_name,
       development_status: development_status || '',
-      assigned_user_id: entity.assigned_user_id
+      assigned_user_id: entity.assigned_user_id,
+      is_limited_status: entity.is_limited_status || false // 从原主体复制限制状态
     });
 
     // 如果开发状态是"上线运营"，自动创建游戏记录

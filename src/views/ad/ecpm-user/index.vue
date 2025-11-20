@@ -3,7 +3,7 @@
       <div class="page-header">
         <div class="header-content">
           <div>
-             <h1>白游ECPM数据查看</h1>
+             <h1>{{ brandName }}ECPM数据查看</h1>
              <p>查看当前用户的小游戏广告eCPM数据统计</p>
            </div>
         </div>
@@ -362,6 +362,14 @@
 
  // 获取用户Store实例
  const userStore = useUserStore();
+
+ // 品牌名称计算属性
+ const brandName = computed(() => {
+   if (typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc') {
+     return '武霸哥';
+   }
+   return '白游';
+ });
 
  // 获取当前用户可以管理的用户ID列表（基于上级关系和创建关系）
  const getManagedUserIds = async (managerId) => {

@@ -27,6 +27,30 @@
             margin-bottom: 30px; /* 增加下边距，与游戏列表保持适当间隔 */
             padding: 0 10px;
         }
+
+        /* 武霸哥logo样式 */
+        .wubug-logo-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+
+        .wubug-logo {
+            width: 200px;
+            height: 80px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+        }
         .controls-container {
             display: flex;
             justify-content: space-between;
@@ -281,13 +305,23 @@
     </div> -->
 
     <div class="games-container">
+        <!-- 武霸哥logo区域 -->
+        <div class="wubug-logo-container">
+            <!-- 返回按钮 -->
+            <a href="http://www.wubug.cc/" class="back-button" target="_blank">
+                返回武霸哥后台
+            </a>
+            <div class="wubug-logo">武霸哥游戏</div>
+        </div>
+
         <!-- 顶部图片区域 -->
         <div class="top-image-container">
             <!-- 返回按钮 -->
             <a href="https://ecpm.game985.vip/" class="back-button" target="_blank">
                 返回管理后台
             </a>
-            <img src="images/top-image.jpg" alt="顶部图片" class="top-image" onerror="this.style.display='none'">
+            <img src="images/top/top-image.jpg" alt="顶部横幅" class="top-image"
+                 onerror="this.style.display='none'">
             <div class="controls-container">
                 <div class="search-bar">
                     <input type="text" id="searchInput" placeholder="搜索游戏...">
@@ -310,6 +344,38 @@
         let allGames = [];
         let categories = [];
         let selectedCategory = '全部';
+        let isFromWubug = false;
+
+        // 检查是否从武霸哥进入
+        function checkWubugAccess() {
+            const referrer = document.referrer;
+            const urlParams = new URLSearchParams(window.location.search);
+            const from = urlParams.get('from');
+
+            // 检查referrer或URL参数
+            if (referrer.includes('wubug') || from === 'wubug' || window.location.hostname.includes('wubug')) {
+                isFromWubug = true;
+            }
+
+            // 根据来源显示不同内容
+            updateDisplay();
+        }
+
+        // 更新显示内容
+        function updateDisplay() {
+            const wubugLogo = document.querySelector('.wubug-logo-container');
+            const topImage = document.querySelector('.top-image-container');
+
+            if (isFromWubug) {
+                // 从武霸哥进入：显示logo，隐藏顶部图片
+                wubugLogo.style.display = 'flex';
+                topImage.style.display = 'none';
+            } else {
+                // 正常访问：显示顶部图片，隐藏logo
+                wubugLogo.style.display = 'none';
+                topImage.style.display = 'flex';
+            }
+        }
 
         // 渲染分类选择器
         function renderCategories() {
@@ -331,7 +397,13 @@
             try {
                 const response = await fetch('games.json');
                 const data = await response.json();
-                allGames = data.games.filter(game => game.enabled !== false);
+                allGames = data.games.filter(game => game.enabled !== false).map(game => ({
+                    ...game,
+                    // 游戏预览图片：优先使用games目录下的图片
+                    preview: `images/games/game-${game.id || game.name.toLowerCase().replace(/\s+/g, '-')}.jpg`,
+                    // 保持原有逻辑作为fallback
+                    originalPreview: game.preview
+                }));
                 categories = data.categories || ['全部'];
                 games = [...allGames];
                 renderCategories();
@@ -340,9 +412,9 @@
                 console.error('加载游戏数据失败:', error);
                 // 如果加载失败，使用默认数据
                 games = [
-                    { name: '游戏1', preview: 'https://via.placeholder.com/300x150?text=游戏1', url: 'games/game1/index.html' },
-                    { name: '游戏2', preview: 'https://via.placeholder.com/300x150?text=游戏2', url: 'games/game2/index.html' },
-                    { name: '游戏3', preview: 'https://via.placeholder.com/300x150?text=游戏3', url: 'games/game3/index.html' },
+                    { name: '游戏1', preview: 'images/games/game-1.jpg', originalPreview: 'https://via.placeholder.com/300x150?text=游戏1', url: 'games/game1/index.html' },
+                    { name: '游戏2', preview: 'images/games/game-2.jpg', originalPreview: 'https://via.placeholder.com/300x150?text=游戏2', url: 'games/game2/index.html' },
+                    { name: '游戏3', preview: 'images/games/game-3.jpg', originalPreview: 'https://via.placeholder.com/300x150?text=游戏3', url: 'games/game3/index.html' },
                 ];
                 categories = ['全部'];
                 renderCategories();
@@ -365,17 +437,37 @@
                 gameItem.className = 'game-item';
                 gameItem.onclick = () => { if (game.url) window.open(game.url, '_blank'); };
                 let previewElement = '';
-                if (game.preview && /\.(mp4|webm|ogg|avi|mov|m4v)$/i.test(game.preview)) {
-                    previewElement = `<video class="game-preview video" src="${game.preview}" muted loop autoplay playsinline></video>`;
+
+                if (game.originalPreview && /\.(mp4|webm|ogg|avi|mov|m4v)$/i.test(game.originalPreview)) {
+                    // 如果原始预览是视频，使用视频
+                    previewElement = `<video class="game-preview video" src="${game.originalPreview}" muted loop autoplay playsinline></video>`;
                 } else {
-                    previewElement = `<div class="game-preview" style="background-image: url('${game.preview}');"></div>`;
+                    // 使用图片，优先游戏专用图片，失败时回退到原始预览
+                    previewElement = `
+                        <div class="game-preview" style="background-image: url('${game.preview}');"
+                             data-fallback="${game.originalPreview || 'https://via.placeholder.com/300x150?text=' + encodeURIComponent(game.name)}">
+                        </div>
+                    `;
                 }
+
                 gameItem.innerHTML = `
                     ${previewElement}
                     <div class="game-category">${game.category}</div>
                     <div class="game-name">${game.name}</div>
                     ${game.description ? `<div class="game-description">${game.description}</div>` : ''}
                 `;
+
+                // 为图片元素添加错误处理
+                const previewDiv = gameItem.querySelector('.game-preview');
+                if (previewDiv && !previewDiv.classList.contains('video')) {
+                    previewDiv.addEventListener('error', function() {
+                        const fallbackSrc = this.getAttribute('data-fallback');
+                        if (fallbackSrc && fallbackSrc !== this.style.backgroundImage.match(/url\(['"]?(.*?)['"]?\)/)?.[1]) {
+                            this.style.backgroundImage = `url('${fallbackSrc}')`;
+                        }
+                    });
+                }
+
                 gamesGrid.appendChild(gameItem);
             });
         }
@@ -409,7 +501,10 @@
         });
 
         // 页面加载完成后加载游戏数据
-        document.addEventListener('DOMContentLoaded', loadGamesData);
+        document.addEventListener('DOMContentLoaded', function() {
+            checkWubugAccess();
+            loadGamesData();
+        });
     </script>
 </body>
 </html>

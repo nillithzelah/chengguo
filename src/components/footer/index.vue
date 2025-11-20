@@ -1,8 +1,17 @@
 <template>
-  <a-layout-footer class="footer">橙果宜牛</a-layout-footer>
+  <a-layout-footer class="footer">{{ brandName }}</a-layout-footer>
 </template>
 
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+  import { computed } from 'vue';
+
+  const brandName = computed(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc') {
+      return '武霸哥';
+    }
+    return '橙果宜牛';
+  });
+</script>
 
 <style lang="less" scoped>
   .footer {

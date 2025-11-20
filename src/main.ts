@@ -24,4 +24,20 @@ app.use(i18n);
 app.use(globalComponents);
 app.use(directive);
 
+// 动态设置页面标题
+const setPageTitle = () => {
+  const title = typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc'
+    ? '武霸哥 (WuBaGe)'
+    : '橙果宜牛 (ChengGuoYiNiu)';
+  document.title = title;
+};
+
+// 初始设置标题
+setPageTitle();
+
+// 监听路由变化时更新标题
+router.afterEach(() => {
+  setPageTitle();
+});
+
 app.mount('#app');

@@ -10,7 +10,7 @@
           :style="{ margin: 0, fontSize: '18px' }"
           :heading="5"
         >
-          橙果宜牛
+          {{ brandName }}
         </a-typography-title>
         <icon-menu-fold
           v-if="!topMenu && appStore.device === 'mobile'"
@@ -108,6 +108,12 @@
     return appStore.theme;
   });
   const topMenu = computed(() => appStore.topMenu && appStore.menu);
+  const brandName = computed(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc') {
+      return '武霸哥';
+    }
+    return '橙果宜牛';
+  });
   const isDark = useDark({
     selector: 'body',
     attribute: 'arco-theme',

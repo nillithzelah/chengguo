@@ -13,7 +13,13 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/login',
+      redirect: () => {
+        // 检查域名，如果是www.wubug.cc，重定向到武霸哥页面
+        if (typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc') {
+          return '/wubage';
+        }
+        return '/login';
+      },
     },
     {
       path: '/login',
