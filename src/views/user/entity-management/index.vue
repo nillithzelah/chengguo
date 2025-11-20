@@ -237,7 +237,7 @@
           </div>
           <span v-else class="no-game-status">{{ getStatusText(record.development_status) }}</span>
           <a-button
-            v-if="canUpgradeStatus(record.development_status || '游戏创建') && checkCanEditEntity(record) && record.game_name"
+            v-if="canUpgradeStatus(record.development_status || '游戏创建', record.is_limited_status) && checkCanEditEntity(record) && record.game_name"
             type="text"
             size="small"
             @click="upgradeEntityStatus(record)"
@@ -395,6 +395,18 @@
               <small style="color: #666; margin-top: 4px;">选择负责该主体的老板用户</small>
             </div>
 
+            <div class="form-item">
+              <label class="checkbox-label">
+                <input
+                  v-model="createForm.is_limited_status"
+                  type="checkbox"
+                  class="checkbox-input"
+                />
+                <span class="checkbox-text"> 限制开发状态</span>
+              </label>
+              <small style="color: #666; margin-top: 4px;">勾选后，开发状态最多只能到"游戏备案进行中"，且不会因超期变红</small>
+            </div>
+
             <!-- 可选的游戏分配字段 -->
             <div class="form-section">
               <h4>游戏信息（可选）</h4>
@@ -550,6 +562,18 @@
                 </div>
                 <small style="color: #666; margin-top: 4px;">可在主体列表中直接升级开发状态</small>
               </div>
+
+              <div class="form-item">
+                <label class="checkbox-label">
+                  <input
+                    v-model="editForm.is_limited_status"
+                    type="checkbox"
+                    class="checkbox-input"
+                  />
+                  <span class="checkbox-text"> 限制开发状态</span>
+                </label>
+                <small style="color: #666; margin-top: 4px;">勾选后，开发状态最多只能到"游戏备案进行中"，且不会因超期变红</small>
+              </div>
             </div>
           </div>
         </div>
@@ -675,6 +699,7 @@
                 </div>
                 <small style="color: #666; margin-top: 4px;">分配时默认为"游戏创建"状态，可在编辑时升级</small>
               </div>
+
             </div>
           </div>
         </div>
@@ -783,6 +808,18 @@
                 </option>
               </select>
               <small style="color: #666; margin-top: 4px;">选择负责该主体的用户</small>
+            </div>
+
+            <div class="form-item">
+              <label class="checkbox-label">
+                <input
+                  v-model="editEntityForm.is_limited_status"
+                  type="checkbox"
+                  class="checkbox-input"
+                />
+                <span class="checkbox-text"> 限制开发状态</span>
+              </label>
+              <small style="color: #666; margin-top: 4px;">勾选后，开发状态最多只能到"游戏备案进行中"，且不会因超期变红</small>
             </div>
           </div>
         </div>
@@ -911,14 +948,16 @@ const createForm = reactive({
   account_name: '',
   game_name: '',
   development_status: '',
-  assigned_user_id: ''
+  assigned_user_id: '',
+  is_limited_status: false
 });
 
 const editForm = reactive({
   game_name: '',
   programmer: '',
   name: '',
-  development_status: ''
+  development_status: '',
+  is_limited_status: false
 });
 
 const editEntityForm = reactive({
@@ -926,7 +965,8 @@ const editEntityForm = reactive({
   new_name: '',
   programmer: '',
   account_name: '',
-  assigned_user_id: ''
+  assigned_user_id: '',
+  is_limited_status: false
 });
 
 // 开发状态选项
@@ -1106,6 +1146,15 @@ const getRowClassName = (record: any) => {
   // 如果状态不在标准列表中，跳过判断
   if (statusIndex === -1) return '';
 
+  // 对于限制状态的记录，只有超过游戏备案进行中状态时才变红
+  if (record.is_limited_status) {
+    const limitedMaxIndex = developmentStatuses.findIndex(s => s.value === '游戏备案进行中');
+    // 如果状态超过了游戏备案进行中，才检查变红条件
+    if (statusIndex <= limitedMaxIndex) {
+      return '';
+    }
+  }
+
   // 条件1: 创建时间超过5天，还没有到创建流量主状态
   const createdAt = new Date(record.created_at);
   const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
@@ -1119,7 +1168,8 @@ const getRowClassName = (record: any) => {
   }
 
   // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
-  if (record.development_status_updated_at) {
+  // 限制状态的记录不检测这个条件
+  if (!record.is_limited_status && record.development_status_updated_at) {
     const updatedAt = new Date(record.development_status_updated_at);
     const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
     if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
@@ -1157,6 +1207,9 @@ const getDateClass = (record: any) => {
   // 如果状态不在标准列表中，跳过判断
   if (statusIndex === -1) return '';
 
+  // 对于限制状态的记录，不检测第三个条件（18天超时）
+  // 但仍然检测前两个条件（5天和10天超时）
+
   // 条件1: 创建时间超过5天，还没有到创建流量主状态
   const createdAt = new Date(record.created_at);
   const createDaysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
@@ -1170,7 +1223,8 @@ const getDateClass = (record: any) => {
   }
 
   // 条件3: 修改时间超过18天，还没有到ICP备案进行中状态
-  if (record.development_status_updated_at) {
+  // 限制状态的记录不检测这个条件
+  if (!record.is_limited_status && record.development_status_updated_at) {
     const updatedAt = new Date(record.development_status_updated_at);
     const updateDaysDiff = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60 * 24);
     if (updateDaysDiff > 18 && statusIndex < 8) { // ICP备案进行中是索引8
@@ -1236,8 +1290,8 @@ const formatDateShort = (dateStr: string) => {
 };
 
 // 检查是否可以升级状态（是否可以显示升级按钮）
-const canUpgradeStatus = (currentStatus: string) => {
-  // 兼容旧状态名称的映射
+const canUpgradeStatus = (currentStatus: string, isLimitedStatus: boolean = false) => {
+  // 统一的状态映射
   const statusMapping: { [key: string]: string } = {
     '基础/资质': '基础/资质进行中',
     '开发/提审': '开发/提审进行中',
@@ -1252,8 +1306,17 @@ const canUpgradeStatus = (currentStatus: string) => {
 
   const mappedStatus = statusMapping[currentStatus] || currentStatus;
   const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
-  // 如果还没到最后一个状态，就可以升级
-  return currentIndex < developmentStatuses.length - 1;
+
+  if (currentIndex === -1) return false;
+
+  if (isLimitedStatus) {
+    // 限制状态下，最大只能到"游戏备案进行中"
+    const maxAllowedIndex = developmentStatuses.findIndex(s => s.value === '游戏备案进行中');
+    return currentIndex < maxAllowedIndex;
+  } else {
+    // 非限制状态，可以升级到最后一个状态
+    return currentIndex < developmentStatuses.length - 1;
+  }
 };
 
 // 检查是否可以降级状态（是否可以显示降级按钮）
@@ -1657,6 +1720,11 @@ const applyFilters = (resetPage = true) => {
 
     // 判断是否变红的逻辑
     const getIsRed = (record: any) => {
+      // 如果是限制状态，不变红
+      if (record.is_limited_status) {
+        return false;
+      }
+
       const mappedStatus = statusMapping[record.development_status] || record.development_status;
       const statusIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
 
@@ -1734,6 +1802,7 @@ const editEntity = (entity: any) => {
   editForm.programmer = entity.programmer || '';
   editForm.name = entity.name || '';
   editForm.development_status = entity.development_status || '游戏创建';
+  editForm.is_limited_status = entity.is_limited_status || false;
 
   showEditModal.value = true;
 };
@@ -1824,6 +1893,7 @@ const openCreateModal = () => {
   createForm.game_name = '';
   createForm.development_status = '';
   createForm.assigned_user_id = '';
+  createForm.is_limited_status = false;
 
   showCreateModal.value = true;
 };
@@ -1846,6 +1916,7 @@ const resetCreateForm = () => {
   createForm.game_name = '';
   createForm.development_status = '';
   createForm.assigned_user_id = '';
+  createForm.is_limited_status = false;
   showCreateModal.value = false;
 };
 
@@ -1855,6 +1926,7 @@ const resetEditForm = () => {
   editForm.programmer = '';
   editForm.name = '';
   editForm.development_status = '';
+  editForm.is_limited_status = false;
   showEditModal.value = false;
   editEntityInfo.value = null;
 };
@@ -1866,6 +1938,7 @@ const resetEditEntityForm = () => {
   editEntityForm.programmer = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
+  editEntityForm.is_limited_status = false;
   showEditEntityModal.value = false;
 };
 
@@ -1876,6 +1949,7 @@ const openEditEntityModal = () => {
   editEntityForm.programmer = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
+  editEntityForm.is_limited_status = false;
   showEditEntityModal.value = true;
 };
 
@@ -1891,11 +1965,14 @@ const onEntityChange = () => {
     editEntityForm.account_name = selectedEntity.account_name || '';
     // 设置分配用户为当前分配用户
     editEntityForm.assigned_user_id = selectedEntity.assigned_user_id;
+    // 设置限制状态为当前限制状态
+    editEntityForm.is_limited_status = selectedEntity.is_limited_status || false;
   } else {
     editEntityForm.new_name = '';
     editEntityForm.programmer = '';
     editEntityForm.account_name = '';
     editEntityForm.assigned_user_id = '';
+    editEntityForm.is_limited_status = false;
   }
 };
 
@@ -1966,7 +2043,8 @@ const handleEditEntity = async () => {
       name: editForm.name,
       programmer: editForm.programmer.trim(),
       game_name: editForm.game_name,
-      development_status: editForm.development_status
+      development_status: editForm.development_status,
+      is_limited_status: editForm.is_limited_status
     };
 
     // 调用更新API
@@ -2055,7 +2133,8 @@ const handleUpdateEntity = async () => {
       name: newName,
       programmer: programmer,
       account_name: editEntityForm.account_name ? editEntityForm.account_name.trim() : '',
-      assigned_user_id: assignedUserId
+      assigned_user_id: assignedUserId,
+      is_limited_status: editEntityForm.is_limited_status
     };
 
     let successCount = 0;
@@ -2141,7 +2220,8 @@ const handleCreateEntity = async () => {
     const entityData: any = {
       name: createForm.name.trim(),
       development_status: createForm.development_status || '游戏创建',
-      assigned_user_id: createForm.assigned_user_id
+      assigned_user_id: createForm.assigned_user_id,
+      is_limited_status: createForm.is_limited_status
     };
 
     // 包含游戏信息（游戏名字可以单独填写）
@@ -2238,7 +2318,8 @@ const handleAssignEntity = async () => {
       const assignData = {
         entity_id: selectedEntity.id,
         game_name: assignForm.game_name.trim(),
-        development_status: assignForm.development_status
+        development_status: assignForm.development_status,
+        is_limited_status: selectedEntity.is_limited_status // 继承主体的限制状态
       };
 
       const response = await fetch('/api/entity/assign-game', {
@@ -2320,7 +2401,9 @@ const upgradeEntityStatus = async (entity: any) => {
 
     const mappedStatus = statusMapping[entity.development_status] || entity.development_status;
     const currentIndex = developmentStatuses.findIndex(s => s.value === mappedStatus);
-    if (currentIndex < developmentStatuses.length - 1) {
+
+    // 检查是否可以升级（考虑限制状态）
+    if (canUpgradeStatus(entity.development_status, entity.is_limited_status)) {
       const newStatus = developmentStatuses[currentIndex + 1].value;
 
       const response = await fetch(`/api/entity/update/${entity.id}`, {
@@ -2346,6 +2429,8 @@ const upgradeEntityStatus = async (entity: any) => {
       } else {
         Message.error(result.message || '升级开发状态失败');
       }
+    } else {
+      Message.warning('该主体已达到最大允许的开发状态');
     }
   } catch (error) {
     console.error('升级开发状态失败:', error);
@@ -2777,6 +2862,26 @@ onMounted(async () => {
   background-repeat: no-repeat;
   background-size: 1.5em 1.5em;
   padding-right: 2.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: normal !important;
+}
+
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.checkbox-text {
+  font-size: 14px;
+  color: #1d2129;
 }
 
 .stats-section {

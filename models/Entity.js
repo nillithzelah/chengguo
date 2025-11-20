@@ -36,7 +36,7 @@ function defineEntityModel(sequelize) {
       comment: '游戏名称'
     },
     development_status: {
-      type: DataTypes.ENUM('游戏创建', '基础/资质', '开发/提审', '游戏备案', 'ICP备案', '上线运营'),
+      type: DataTypes.ENUM('游戏创建', '基础/资质进行中', '基础/资质已提交', '创建流量主', '开发/提审进行中', '开发/提审已提交', '游戏备案进行中', '游戏备案已提交', 'ICP备案进行中', 'ICP备案已提交', '上线运营'),
       allowNull: true,
       comment: '开发状态'
     },
@@ -49,6 +49,12 @@ function defineEntityModel(sequelize) {
       type: DataTypes.DATE,
       allowNull: true,
       comment: '开发状态更新时间'
+    },
+    is_limited_status: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: '是否限制开发状态（只到游戏备案进行中）'
     },
     created_at: {
       type: DataTypes.DATE,
@@ -109,6 +115,7 @@ function defineEntityModel(sequelize) {
       game_name: this.game_name,
       development_status: this.development_status,
       assigned_user_id: this.assigned_user_id,
+      is_limited_status: this.is_limited_status,
       development_status_updated_at: this.development_status_updated_at ? this.development_status_updated_at.toISOString() : null,
       created_at: this.created_at ? this.created_at.toISOString() : null,
       updated_at: this.updated_at ? this.updated_at.toISOString() : null,
