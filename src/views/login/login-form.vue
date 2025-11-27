@@ -6,7 +6,7 @@
           alt="logo"
           src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/dfdba5317c0c20ce20e64fac803d52bc.svg~tplv-49unhts6dw-image.image"
         />
-        <div class="logo-text">橙果宜牛</div>
+        <div class="logo-text">{{ logoText }}</div>
       </div>
       <LoginForm />
     </div>
@@ -17,8 +17,17 @@
 </template>
 
 <script lang="ts" setup>
+  import { computed } from 'vue';
   import Footer from '@/components/footer/index.vue';
   import LoginForm from './components/login-form.vue';
+
+  // 根据域名动态设置logo文字
+  const logoText = computed(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.hostname === 'www.wubug.cc' ? '武霸哥' : '橙果宜牛';
+    }
+    return '橙果宜牛';
+  });
 </script>
 
 <style lang="less" scoped>

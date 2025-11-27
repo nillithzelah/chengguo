@@ -1,0 +1,55 @@
+{
+  "sites": {
+    "default": {
+      "title": "小游戏展示",
+      "logo": {
+        "type": "image",
+        "src": "images/top/top-image.jpg",
+        "alt": "顶部横幅"
+      },
+      "backButton": {
+        "text": "返回管理后台",
+        "url": "https://ecpm.game985.vip/"
+      },
+      "showWubugLogo": false
+    },
+    "wubug": {
+      "title": "武霸哥游戏",
+      "logo": {
+        "type": "image",
+        "src": "images/top/wubug.png",
+        "alt": "武霸哥Logo"
+      },
+      "backButton": {
+        "text": "返回武霸哥后台",
+        "url": "http://www.wubug.cc/"
+      },
+      "showWubugLogo": true
+    },
+    "site2": {
+      "title": "第二个网站标题",
+      "logo": {
+        "type": "image",
+        "src": "images/top/site2-logo.jpg",
+        "alt": "第二个网站Logo"
+      },
+      "backButton": {
+        "text": "返回第二个网站后台",
+        "url": "https://site2.example.com/"
+      },
+      "showWubugLogo": false
+    }
+  },
+  "siteDetection": {
+    "rules": [
+      {
+        "condition": "referrer.includes('wubug') || urlParams.get('from') === 'wubug' || hostname.includes('wubug')",
+        "site": "wubug"
+      },
+      {
+        "condition": "hostname.includes('site2') || urlParams.get('site') === 'site2'",
+        "site": "site2"
+      }
+    ]
+  }
+}

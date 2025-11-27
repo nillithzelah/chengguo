@@ -8,7 +8,7 @@
         />
         <div class="logo-text">武霸哥</div>
       </div>
-      <WubageLoginForm />
+      <WubugLoginForm />
     </div>
     <div class="footer">
       <Footer />
@@ -18,7 +18,7 @@
 
 <script lang="ts" setup>
   import Footer from '@/components/footer/index.vue';
-  import WubageLoginForm from './components/login-form.vue';
+  import WubugLoginForm from './components/login-form.vue';
 </script>
 
 <style lang="less" scoped>

@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import NProgress from 'nprogress'; // progress bar
 import 'nprogress/nprogress.css';
 
-import { appRoutes } from './routes';
+import { appRoutes, appExternalRoutes } from './routes';
 import { REDIRECT_MAIN, NOT_FOUND_ROUTE } from './routes/base';
 import createRouteGuard from './guard';
 
@@ -16,7 +16,7 @@ const router = createRouter({
       redirect: () => {
         // 检查域名，如果是www.wubug.cc，重定向到武霸哥页面
         if (typeof window !== 'undefined' && window.location.hostname === 'www.wubug.cc') {
-          return '/wubage';
+          return '/wubug';
         }
         return '/login';
       },
@@ -40,6 +40,7 @@ const router = createRouter({
       },
     },
     ...appRoutes,
+    ...appExternalRoutes,
     REDIRECT_MAIN,
     NOT_FOUND_ROUTE,
   ],

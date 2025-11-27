@@ -2254,10 +2254,10 @@ watch(
       align-items: center;
       gap: 8px;
 
-      &::before {
-        content: "👤";
-        font-size: 18px;
-      }
+      // &::before {
+      //   content: "👤";
+      //   font-size: 18px;
+      // }
     }
 
     .user-select {

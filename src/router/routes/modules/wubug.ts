@@ -1,10 +1,10 @@
 import { AppRouteRecordRaw } from '../types';
 
-const WUBAGE: AppRouteRecordRaw[] = [
+const WUBUG: AppRouteRecordRaw[] = [
   {
     path: '/wubug',
     name: 'wubug',
-    component: () => import('@/views/wubage/index.vue'),
+    component: () => import('@/views/wubug/index.vue'),
     meta: {
       requiresAuth: false,
       title: '武霸哥登录',
@@ -13,7 +13,7 @@ const WUBAGE: AppRouteRecordRaw[] = [
   {
     path: '/wubug/login-form',
     name: 'wubugLoginForm',
-    component: () => import('@/views/wubage/login-form.vue'),
+    component: () => import('@/views/wubug/login-form.vue'),
     meta: {
       requiresAuth: false,
       title: '武霸哥登录表单',
@@ -21,4 +21,4 @@ const WUBAGE: AppRouteRecordRaw[] = [
   },
 ];
 
-export default WUBAGE;
+export default WUBUG;

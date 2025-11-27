@@ -76,7 +76,7 @@
   const { loading, setLoading } = useLoading();
   const userStore = useUserStore();
 
-  const loginConfig = useStorage('wubage-login-config', {
+  const loginConfig = useStorage('wubug-login-config', {
     rememberPassword: true,
     username: '', // 默认留空
     password: '', // 默认留空

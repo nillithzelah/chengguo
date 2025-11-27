@@ -241,7 +241,7 @@
            :current-page="queryParams.page_no"
            :page-size="queryParams.page_size"
            :total="selectedAppId === 'all_games' ? allGamesTotalRecords : (stats?.totalRecords || 0)"
-           :show-pagination="true"
+           :show-pagination="showPaginationComputed"
            @bind-user="bindUser"
            @unbind-user="unbindUser"
            @page-change="handlePageChange"
@@ -500,6 +500,12 @@
    const currentUser = userStore.userInfo;
    const allowedRoles = ['admin', 'internal_boss', 'internal_service'];
    return allowedRoles.includes(currentUser?.role);
+ });
+
+ // 计算属性：是否显示分页
+ const showPaginationComputed = computed(() => {
+   const username = (userStore.userInfo as any)?.username;
+   return username !== 'yuan' && username !== 'Ayla6026';
  });
 
  // 获取应用样式的计算属性
@@ -1071,7 +1077,19 @@
                appParams.append('page_no', pageNo.toString());
                appParams.append('page_size', '100'); // 使用较大的页大小来减少请求次数
 
-               const response = await fetch(`/api/douyin/ecpm?${appParams.toString()}`, {
+               // 从JWT token中获取用户名
+               const token = localStorage.getItem('token');
+               let username = '';
+               if (token) {
+                 try {
+                   const payload = JSON.parse(atob(token.split('.')[1]));
+                   username = payload.username || '';
+                 } catch (e) {
+                   console.warn('无法解析JWT token:', e);
+                 }
+               }
+
+               const response = await fetch(`/api/douyin/ecpm?${appParams.toString()}&username=${username}`, {
                  method: 'GET',
                  headers: {
                    'Content-Type': 'application/json'
@@ -1220,7 +1238,19 @@
          params.append('page_no', queryParams.page_no?.toString() || '1');
          params.append('page_size', queryParams.page_size?.toString() || '10');
 
-         const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+         // 从JWT token中获取用户名
+         const token = localStorage.getItem('token');
+         let username = '';
+         if (token) {
+           try {
+             const payload = JSON.parse(atob(token.split('.')[1]));
+             username = payload.username || '';
+           } catch (e) {
+             console.warn('无法解析JWT token:', e);
+           }
+         }
+
+         const response = await fetch(`/api/douyin/ecpm?${params.toString()}&username=${username}`, {
            method: 'GET',
            headers: {
              'Content-Type': 'application/json'
@@ -1280,7 +1310,19 @@
              params.append('page_no', pageNo.toString());
              params.append('page_size', '100'); // 使用较小的页大小确保能获取所有数据
 
-             const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+             // 从JWT token中获取用户名
+             const token = localStorage.getItem('token');
+             let username = '';
+             if (token) {
+               try {
+                 const payload = JSON.parse(atob(token.split('.')[1]));
+                 username = payload.username || '';
+               } catch (e) {
+                 console.warn('无法解析JWT token:', e);
+               }
+             }
+   
+             const response = await fetch(`/api/douyin/ecpm?${params.toString()}&username=${username}`, {
                method: 'GET',
                headers: {
                  'Content-Type': 'application/json'

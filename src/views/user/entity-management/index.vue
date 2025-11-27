@@ -62,6 +62,18 @@
         </template>
         抖音开放平台
       </a-button>
+      <a-button
+        v-if="canCreateEntity"
+        type="primary"
+        @click="batchSetLimitedStatus"
+        :loading="batchLimitedLoading"
+        style="margin-left: auto;"
+      >
+        <template #icon>
+          <icon-check-circle />
+        </template>
+        一键完成
+      </a-button>
     </div>
 
     <!-- 数据统计 -->
@@ -851,7 +863,8 @@ import {
   IconSearch,
   IconLink,
   IconArrowUp,
-  IconArrowDown
+  IconArrowDown,
+  IconCheckCircle
 } from '@arco-design/web-vue/es/icon';
 import useUserStore from '@/store/modules/user';
 import Breadcrumb from '@/components/breadcrumb/index.vue';
@@ -862,6 +875,7 @@ const createLoading = ref(false);
 const deleteLoading = ref(false);
 const editLoading = ref(false);
 const editEntityLoading = ref(false);
+const batchLimitedLoading = ref(false);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showEditEntityModal = ref(false);
@@ -2484,6 +2498,72 @@ const downgradeEntityStatus = async (entity: any) => {
   }
 };
 
+// 批量设置限制开发状态
+const batchSetLimitedStatus = async () => {
+  try {
+    // 获取当前显示的所有有游戏的主体
+    const gamesToUpdate = entityList.value.filter(entity => entity.game_name);
+
+    if (gamesToUpdate.length === 0) {
+      Message.warning('当前没有游戏主体需要设置限制状态');
+      return;
+    }
+
+    batchLimitedLoading.value = true;
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // 逐个更新每个游戏主体
+    for (const entity of gamesToUpdate) {
+      try {
+        const response = await fetch(`/api/entity/update/${entity.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            name: entity.name,
+            programmer: entity.programmer,
+            game_name: entity.game_name,
+            is_limited_status: true
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.code === 20000) {
+          successCount++;
+        } else {
+          errorCount++;
+          console.error(`设置主体 ${entity.id} 限制状态失败:`, result.message);
+        }
+      } catch (error) {
+        errorCount++;
+        console.error(`设置主体 ${entity.id} 限制状态异常:`, error);
+      }
+    }
+
+    // 显示结果
+    if (successCount > 0) {
+      const message = errorCount > 0
+        ? `成功设置 ${successCount} 个游戏主体为限制状态，${errorCount} 个失败`
+        : `成功设置 ${successCount} 个游戏主体为限制状态`;
+      Message.success(message);
+      // 重新加载主体列表
+      loadEntityList();
+    } else {
+      Message.error('设置限制状态失败');
+    }
+  } catch (error) {
+    console.error('批量设置限制状态失败:', error);
+    Message.error('批量设置限制状态失败，请稍后重试');
+  } finally {
+    batchLimitedLoading.value = false;
+  }
+};
+
 // 打开抖音开放平台
 const openDouyinPlatform = () => {
   window.open('https://developer.open-douyin.com/login?', '_blank');
@@ -2555,6 +2635,7 @@ onMounted(async () => {
   gap: 16px;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   animation: slideInFromLeft 0.8s ease-out 0.2s both;
 
   :deep(.arco-btn) {

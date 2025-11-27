@@ -69,12 +69,12 @@
   };
 
   const goToLogin = () => {
-    router.push('/wubage/login-form');
+    router.push('/wubug/login-form');
   };
 
   const goToGameLogin = () => {
     const currentDomain = window.location.hostname;
-    const gameUrl = currentDomain.includes('wubug') ? 'http://www.wubug.cc/games/?from=wubug' : 'https://m.game985.vip/';
+    const gameUrl = currentDomain.includes('wubug') ? '/games/?from=wubug' : 'https://m.game985.vip/';
     window.open(gameUrl, '_blank');
   };
 

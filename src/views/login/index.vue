@@ -11,8 +11,8 @@
     </div>
     <div class="home-content">
       <div class="welcome-section">
-        <h1 class="welcome-title">欢迎使用橙果宜牛</h1>
-        <p class="welcome-subtitle">您的智能数据管理平台</p>
+        <h1 class="welcome-title">{{ welcomeTitle }}</h1>
+        <p class="welcome-subtitle">{{ welcomeSubtitle }}</p>
         <div class="current-time">
           <div class="time-display">{{ currentTime }}</div>
           <div class="date-display">{{ currentDate }}</div>
@@ -44,13 +44,29 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { ref, onMounted, onUnmounted, computed } from 'vue';
   import { useRouter } from 'vue-router';
 
   const router = useRouter();
   const currentTime = ref('');
   const currentDate = ref('');
   let timer: NodeJS.Timeout | null = null;
+
+  // 根据域名动态设置品牌信息
+  const isWubugDomain = computed(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.hostname === 'www.wubug.cc';
+    }
+    return false;
+  });
+
+  const welcomeTitle = computed(() => {
+    return isWubugDomain.value ? '欢迎使用武霸哥' : '欢迎使用橙果宜牛';
+  });
+
+  const welcomeSubtitle = computed(() => {
+    return isWubugDomain.value ? '您的游戏数据管理平台' : '您的智能数据管理平台';
+  });
 
   const updateTime = () => {
     const now = new Date();
@@ -73,7 +89,9 @@
   };
 
   const goToGameLogin = () => {
-    window.open('https://m.game985.vip/', '_blank');
+    const currentDomain = window.location.hostname;
+    const gameUrl = currentDomain.includes('wubug') ? '/games/?from=wubug' : 'https://m.game985.vip/';
+    window.open(gameUrl, '_blank');
   };
 
   onMounted(() => {

@@ -2,7 +2,7 @@
   <div class="table-section">
     <div class="table-header">
       <h3>ECPM数据明细</h3>
-      <div class="table-info">
+      <div v-if="showPagination" class="table-info">
         <div>共 {{ total }} 条记录</div>
       </div>
     </div>

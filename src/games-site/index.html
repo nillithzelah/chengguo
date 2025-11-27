@@ -344,36 +344,102 @@
         let allGames = [];
         let categories = [];
         let selectedCategory = '全部';
-        let isFromWubug = false;
+        let siteConfig = null;
+        let currentSite = 'default';
 
-        // 检查是否从武霸哥进入
-        function checkWubugAccess() {
+        // 加载网站配置
+        async function loadSiteConfig() {
+            try {
+                const response = await fetch('config.json');
+                const config = await response.json();
+                siteConfig = config;
+                detectCurrentSite();
+                applySiteConfig();
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                // 使用默认配置
+                currentSite = 'default';
+                applySiteConfig();
+            }
+        }
+
+        // 检测当前网站
+        function detectCurrentSite() {
+            if (!siteConfig || !siteConfig.siteDetection) return;
+
             const referrer = document.referrer;
             const urlParams = new URLSearchParams(window.location.search);
-            const from = urlParams.get('from');
+            const hostname = window.location.hostname;
 
-            // 检查referrer或URL参数
-            if (referrer.includes('wubug') || from === 'wubug' || window.location.hostname.includes('wubug')) {
-                isFromWubug = true;
+            // 简化检测逻辑
+            if (referrer.includes('wubug') || urlParams.get('from') === 'wubug' || hostname.includes('wubug')) {
+                currentSite = 'wubug';
+                return;
             }
 
-            // 根据来源显示不同内容
-            updateDisplay();
+            if (hostname.includes('site2') || urlParams.get('site') === 'site2') {
+                currentSite = 'site2';
+                return;
+            }
+        }
+
+        // 应用网站配置
+        function applySiteConfig() {
+            const config = siteConfig?.sites?.[currentSite] || siteConfig?.sites?.default || {};
+
+            // 更新标题
+            if (config.title) {
+                document.title = config.title;
+            }
+
+            // 更新返回按钮
+            const backButton = document.querySelector('.back-button');
+            if (backButton && config.backButton) {
+                backButton.textContent = config.backButton.text;
+                backButton.href = config.backButton.url;
+            }
+
+            // 更新显示内容
+            updateDisplay(config);
         }
 
         // 更新显示内容
-        function updateDisplay() {
+        function updateDisplay(config) {
             const wubugLogo = document.querySelector('.wubug-logo-container');
             const topImage = document.querySelector('.top-image-container');
 
-            if (isFromWubug) {
-                // 从武霸哥进入：显示logo，隐藏顶部图片
+            if (config.showWubugLogo) {
+                // 显示武霸哥logo，隐藏顶部图片
                 wubugLogo.style.display = 'flex';
                 topImage.style.display = 'none';
+
+                // 更新logo内容
+                if (config.logo?.type === 'text') {
+                    const logoDiv = wubugLogo.querySelector('.wubug-logo');
+                    if (logoDiv) {
+                        logoDiv.textContent = config.logo.text;
+                        logoDiv.style.backgroundImage = 'none';
+                    }
+                } else if (config.logo?.type === 'image') {
+                    const logoDiv = wubugLogo.querySelector('.wubug-logo');
+                    if (logoDiv) {
+                        logoDiv.innerHTML = `<img src="${config.logo.src}" alt="${config.logo.alt || 'Logo'}" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
+                        logoDiv.style.backgroundImage = 'none';
+                    }
+                }
             } else {
-                // 正常访问：显示顶部图片，隐藏logo
+                // 显示顶部图片，隐藏logo
                 wubugLogo.style.display = 'none';
                 topImage.style.display = 'flex';
+
+                // 更新顶部图片
+                if (config.logo?.type === 'image') {
+                    const topImg = topImage.querySelector('.top-image');
+                    if (topImg) {
+                        topImg.src = config.logo.src;
+                        topImg.alt = config.logo.alt;
+                    }
+                }
             }
         }
 
@@ -500,9 +566,9 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         });
 
-        // 页面加载完成后加载游戏数据
+        // 页面加载完成后加载配置和游戏数据
         document.addEventListener('DOMContentLoaded', function() {
-            checkWubugAccess();
+            loadSiteConfig();
             loadGamesData();
         });
     </script>
