@@ -190,6 +190,9 @@ const TOKEN_LOG_FILE = path.join(__dirname, 'token-refresh-history.log');
 // 流量主金额存储文件
 const TRAFFIC_MASTER_FILE = path.join(__dirname, 'traffic-master-amounts.json');
 
+// 虚假ECPM数据缓存文件
+const FAKE_ECPM_CACHE_FILE = path.join(__dirname, 'fake-ecpm-cache.json');
+
 // 记录token刷新历史
 function logTokenRefresh(accessToken, refreshToken, expiresIn, refreshTime) {
   const logEntry = {
@@ -232,6 +235,75 @@ function saveTrafficMasterAmounts(data) {
     console.error('❌ 保存流量主金额失败:', error);
     return false;
   }
+}
+
+// 读取虚假ECPM数据缓存
+function loadFakeEcpmCache() {
+  try {
+    if (fs.existsSync(FAKE_ECPM_CACHE_FILE)) {
+      const data = fs.readFileSync(FAKE_ECPM_CACHE_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('❌ 读取虚假ECPM数据缓存失败:', error);
+  }
+  return {};
+}
+
+// 保存虚假ECPM数据缓存
+function saveFakeEcpmCache(data) {
+  try {
+    fs.writeFileSync(FAKE_ECPM_CACHE_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error('❌ 保存虚假ECPM数据缓存失败:', error);
+    return false;
+  }
+}
+
+// 获取缓存的虚假ECPM数据
+function getCachedFakeEcpmData(appId, queryDate = null) {
+  const cache = loadFakeEcpmCache();
+  const cacheKey = queryDate ? `${appId}_${queryDate}` : `${appId}_all`;
+
+  const cachedData = cache[cacheKey];
+  if (cachedData) {
+    // 检查缓存是否过期（24小时）
+    const cacheTime = new Date(cachedData.timestamp);
+    const now = new Date();
+    const hoursDiff = (now - cacheTime) / (1000 * 60 * 60);
+
+    if (hoursDiff < 24) {
+      console.log(`✅ 使用缓存的虚假ECPM数据: ${cacheKey}, 缓存时间: ${cacheTime.toLocaleString()}`);
+      return cachedData.data;
+    } else {
+      console.log(`⏰ 缓存过期，删除旧缓存: ${cacheKey}`);
+      delete cache[cacheKey];
+      saveFakeEcpmCache(cache);
+    }
+  }
+
+  return null;
+}
+
+// 保存虚假ECPM数据到缓存
+function setCachedFakeEcpmData(appId, queryDate = null, data) {
+  const cache = loadFakeEcpmCache();
+  const cacheKey = queryDate ? `${appId}_${queryDate}` : `${appId}_all`;
+
+  cache[cacheKey] = {
+    data: data,
+    timestamp: new Date().toISOString(),
+    appId: appId,
+    queryDate: queryDate
+  };
+
+  const success = saveFakeEcpmCache(cache);
+  if (success) {
+    console.log(`💾 虚假ECPM数据已缓存: ${cacheKey}, 记录数: ${data.length}`);
+  }
+
+  return success;
 }
 
 // 获取指定应用和日期的流量主金额
@@ -348,20 +420,35 @@ app.use((req, res, next) => {
 
 // 认证中间件
 const authenticateJWT = (req, res, next) => {
+  console.log(`🔐 [AUTH] ${req.method} ${req.url} - 检查认证头`);
+  console.log(`🔐 [AUTH] Authorization 头:`, req.headers.authorization ? '存在' : '不存在');
+
   const authHeader = req.headers.authorization;
   if (authHeader) {
     const token = authHeader.split(' ')[1];
+    console.log(`🔐 [AUTH] Token 前缀:`, authHeader.split(' ')[0]);
+    console.log(`🔐 [AUTH] Token 长度:`, token ? token.length : 0);
+
     jwt.verify(token, JWT_SECRET, (err, user) => {
       if (err) {
-        logger.warn('JWT验证失败:', err.message);
-        return res.sendStatus(403);
+        console.error('❌ [AUTH] JWT验证失败:', err.message);
+        console.error('❌ [AUTH] Token 内容:', token.substring(0, 50) + '...');
+        return res.status(403).json({
+          code: 403,
+          message: 'Token验证失败',
+          error: err.message
+        });
       }
+      console.log(`✅ [AUTH] JWT验证成功，用户:`, user.username);
       req.user = user;
       next();
     });
   } else {
-    logger.warn('缺少认证头');
-    res.sendStatus(401);
+    console.warn('❌ [AUTH] 缺少认证头');
+    return res.status(401).json({
+      code: 401,
+      message: '缺少认证头，请提供有效的JWT token'
+    });
   }
 };
 
@@ -1891,6 +1978,43 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
       }
     }
 
+    // 检查开发状态限制
+    if (req.body.development_status !== undefined) {
+      // 定义开发状态顺序
+      const developmentStatuses = [
+        '游戏创建',
+        '基础/资质进行中',
+        '基础/资质已提交',
+        '创建流量主',
+        '开发/提审进行中',
+        '开发/提审已提交',
+        '游戏备案进行中',
+        '游戏备案已提交',
+        'ICP备案进行中',
+        'ICP备案已提交',
+        '上线运营'
+      ];
+
+      const currentIndex = developmentStatuses.indexOf(entity.development_status);
+      const newIndex = developmentStatuses.indexOf(req.body.development_status);
+
+      // 如果主体有限制状态，且新状态超过"游戏备案进行中"，则拒绝更新
+      if (entity.is_limited_status && newIndex > developmentStatuses.indexOf('游戏备案进行中')) {
+        return res.status(400).json({
+          code: 400,
+          message: '该主体已开启开发状态限制，最多只能升级到"游戏备案进行中"'
+        });
+      }
+
+      // 检查状态顺序是否合理（只能升级或降级，不能跳跃）
+      if (currentIndex !== -1 && newIndex !== -1 && Math.abs(newIndex - currentIndex) > 1) {
+        return res.status(400).json({
+          code: 400,
+          message: '开发状态只能逐级升级或降级'
+        });
+      }
+    }
+
     // 更新主体信息
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
@@ -3124,8 +3248,69 @@ app.post('/api/douyin/test-connection', async (req, res) => {
   }
 });
 
+// 获取所有ECPM数据的辅助函数
+async function getAllEcpmData(mpId, dateHour, accessToken, additionalParams = {}) {
+  const allRecords = [];
+  let pageNo = 1;
+  const pageSize = 100; // 使用较大的页面大小来减少请求次数
+  let hasMoreData = true;
+
+  while (hasMoreData) {
+    const ecpmParams = {
+      open_id: '',
+      mp_id: mpId,
+      date_hour: dateHour,
+      access_token: accessToken,
+      page_no: pageNo,
+      page_size: pageSize,
+      ...additionalParams
+    };
+
+    logger.debug(`获取ECPM数据 - 页 ${pageNo}, 参数:`, JSON.stringify(ecpmParams, null, 2));
+
+    const ecpmResponse = await axios.get('https://minigame.zijieapi.com/mgplatform/api/apps/data/get_ecpm', {
+      params: ecpmParams,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'DouyinGameAds-ECPM/1.0'
+      },
+      timeout: 20000
+    });
+
+    if (ecpmResponse.data.err_no !== 0) {
+      throw new Error(`获取ECPM数据失败: ${ecpmResponse.data.err_tips}`);
+    }
+
+    const pageData = ecpmResponse.data.data;
+    const records = pageData.records || pageData.data || [];
+
+    allRecords.push(...records);
+    logger.debug(`页 ${pageNo} 获取到 ${records.length} 条记录，累计 ${allRecords.length} 条`);
+
+    // 检查是否还有更多数据
+    if (records.length < pageSize) {
+      hasMoreData = false;
+    } else {
+      pageNo++;
+      // 防止无限循环，最多获取100页
+      if (pageNo > 100) {
+        logger.warn('已达到最大页数限制，停止获取更多数据');
+        hasMoreData = false;
+      }
+    }
+
+    // 添加小延迟避免请求过快
+    if (hasMoreData) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  logger.info(`获取所有ECPM数据完成，共 ${allRecords.length} 条记录`);
+  return allRecords;
+}
+
 // 小游戏eCPM数据获取API - 根据游戏App ID获取对应的access_token
-app.get('/api/douyin/ecpm', async (req, res) => {
+app.get('/api/douyin/ecpm', authenticateJWT, async (req, res) => {
   logger.info('开始eCPM数据获取流程');
 
   try {
@@ -3176,48 +3361,79 @@ app.get('/api/douyin/ecpm', async (req, res) => {
     const minigameAccessToken = tokenResponse.data.data.access_token;
     logger.info('小游戏Token获取成功');
 
-    // 步骤2: 获取eCPM数据
-    logger.debug('获取eCPM数据');
+    // 获取查询参数
+    const queryDate = req.query.date_hour || new Date().toISOString().split('T')[0];
+    const pageNo = parseInt(req.query.page_no) || 1;
+    const pageSize = parseInt(req.query.page_size) || 10;
 
-    // 构建eCPM查询参数，支持前端传递的筛选条件
-    const ecpmParams = {
-      open_id: '',
-      mp_id: req.query.mp_id || 'tt8c62fadf136c334702',  // 使用前端传递的参数
-      date_hour: req.query.date_hour || new Date().toISOString().split('T')[0],  // 使用前端传递的参数
-      access_token: minigameAccessToken,  // 使用刚获取的小游戏token
-      page_no: parseInt(req.query.page_no) || 1,  // 使用前端传递的参数
-      page_size: parseInt(req.query.page_size) || 10  // 使用前端传递的参数
-    };
-
-    // 添加可选的筛选参数
+    // 构建额外的筛选参数
+    const additionalParams = {};
     if (req.query.aid) {
-      ecpmParams.aid = req.query.aid;  // 广告ID筛选
+      additionalParams.aid = req.query.aid;
     }
     if (req.query.event_name) {
-      ecpmParams.event_name = req.query.event_name;  // 事件类型筛选
+      additionalParams.event_name = req.query.event_name;
     }
     if (req.query.min_revenue) {
-      ecpmParams.min_revenue = parseFloat(req.query.min_revenue);  // 最小收益筛选
+      additionalParams.min_revenue = parseFloat(req.query.min_revenue);
     }
 
-    logger.debug('eCPM请求参数:', JSON.stringify(ecpmParams, null, 2));
+    // 步骤2: 获取所有真实ECPM数据
+    logger.debug('获取所有ECPM数据');
+    const allRealRecords = await getAllEcpmData(mpId, queryDate, minigameAccessToken, additionalParams);
 
-    const ecpmResponse = await axios.get('https://minigame.zijieapi.com/mgplatform/api/apps/data/get_ecpm', {
-      params: ecpmParams,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'DouyinGameAds-ECPM/1.0'
+    // 步骤3: 处理虚假数据
+    let allRecords = [...allRealRecords];
+    console.log(`🔍 [ECPM调试] 检查用户: ${req.user ? req.user.username : '未登录'}, 查询游戏: ${mpId}`);
+
+    if (req.user && (req.user.username === 'yuan' || req.user.username === 'Ayla6026')) {
+      console.log(`✅ [ECPM调试] 用户 ${req.user.username} 符合条件，开始为游戏 ${mpId} 生成虚假数据`);
+
+      // 生成预定义的虚假数据（根据查询日期过滤）
+      const fakeData = await generateFakeEcpmDataForTargetUsers(mpId, queryDate);
+      console.log(`📊 [ECPM调试] 生成虚假数据 ${fakeData.length} 条，查询日期: ${queryDate}`);
+
+      // 将虚假数据添加到所有记录中
+      allRecords.push(...fakeData);
+      console.log(`✅ [ECPM调试] 合并完成，总记录数: ${allRecords.length} (真实: ${allRealRecords.length}, 虚假: ${fakeData.length})`);
+    } else {
+      console.log(`❌ [ECPM调试] 用户不符合条件，跳过虚假数据生成`);
+    }
+
+    // 步骤4: 手动应用分页
+    const totalRecords = allRecords.length;
+    const startIndex = (pageNo - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageRecords = allRecords.slice(startIndex, endIndex);
+
+    // 计算总收益（基于所有记录，不是当前页）
+    const totalRevenue = allRecords.reduce((sum, item) => sum + parseFloat(item.revenue || 0), 0);
+
+    // 构建分页响应数据
+    const finalData = {
+      data: {
+        records: pageRecords,
+        total: totalRecords,
+        total_revenue: totalRevenue.toFixed(2) // 添加总收益信息
       },
-      timeout: 20000
-    });
+      err_no: 0,
+      err_msg: ""
+    };
 
-    logger.debug('eCPM响应:', JSON.stringify(ecpmResponse.data, null, 2));
-    logger.info('eCPM数据获取成功');
+    logger.info(`分页完成 - 页 ${pageNo}, 每页 ${pageSize} 条, 返回 ${pageRecords.length} 条记录, 总共 ${totalRecords} 条, 总收益 ${totalRevenue.toFixed(2)} 元`);
 
     res.json({
       code: 0,
       message: 'success',
-      data: ecpmResponse.data,
+      data: finalData,
+      pagination: {
+        page_no: pageNo,
+        page_size: pageSize,
+        total_records: totalRecords,
+        total_pages: Math.ceil(totalRecords / pageSize),
+        has_next: endIndex < totalRecords,
+        has_prev: pageNo > 1
+      },
       token_info: {
         minigame_access_token: minigameAccessToken,
         expires_in: tokenResponse.data.data.expires_in
@@ -3228,10 +3444,17 @@ app.get('/api/douyin/ecpm', async (req, res) => {
           params: tokenRequestData,
           response: tokenResponse.data
         },
-        ecpm_request: {
-          url: 'https://minigame.zijieapi.com/mgplatform/api/apps/data/get_ecpm',
-          params: ecpmParams,
-          response: ecpmResponse.data
+        ecpm_data_summary: {
+          real_records_count: allRealRecords.length,
+          fake_records_count: req.user && (req.user.username === 'yuan' || req.user.username === 'Ayla6026') ?
+            (allRecords.length - allRealRecords.length) : 0,
+          total_records: allRecords.length,
+          total_revenue: totalRevenue.toFixed(2),
+          pagination_applied: {
+            page_no: pageNo,
+            page_size: pageSize,
+            returned_records: pageRecords.length
+          }
         }
       }
     });
@@ -4417,6 +4640,107 @@ app.get('/api/traffic-master/amounts', authenticateJWT, (req, res) => {
   }
 });
 
+// 清除虚假ECPM数据缓存（仅管理员）
+app.delete('/api/fake-ecpm/clear-cache', authenticateJWT, (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以清除缓存
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以清除缓存'
+      });
+    }
+
+    const { app_id, query_date } = req.query;
+
+    if (app_id && query_date) {
+      // 清除特定应用的特定日期缓存
+      const cache = loadFakeEcpmCache();
+      const cacheKey = `${app_id}_${query_date}`;
+
+      if (cache[cacheKey]) {
+        delete cache[cacheKey];
+        saveFakeEcpmCache(cache);
+        console.log(`🗑️ 已清除缓存: ${cacheKey}`);
+        res.json({
+          code: 20000,
+          message: `已清除应用 ${app_id} 在 ${query_date} 的缓存`
+        });
+      } else {
+        res.json({
+          code: 20000,
+          message: `缓存不存在: ${cacheKey}`
+        });
+      }
+    } else {
+      // 清除所有缓存
+      const success = saveFakeEcpmCache({});
+      if (success) {
+        console.log('🗑️ 已清除所有虚假ECPM数据缓存');
+        res.json({
+          code: 20000,
+          message: '已清除所有虚假ECPM数据缓存'
+        });
+      } else {
+        res.status(500).json({
+          code: 500,
+          message: '清除缓存失败'
+        });
+      }
+    }
+  } catch (error) {
+    console.error('清除缓存失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取虚假ECPM缓存状态（仅管理员）
+app.get('/api/fake-ecpm/cache-status', authenticateJWT, (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：只有管理员可以查看缓存状态
+    const mappedRole = getMappedRole(currentUser.role);
+    if (mappedRole !== 'admin') {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员可以查看缓存状态'
+      });
+    }
+
+    const cache = loadFakeEcpmCache();
+    const cacheEntries = Object.entries(cache).map(([key, value]) => ({
+      cache_key: key,
+      record_count: value.data ? value.data.length : 0,
+      timestamp: value.timestamp,
+      app_id: value.appId,
+      query_date: value.queryDate
+    }));
+
+    res.json({
+      code: 20000,
+      data: {
+        cache_file: FAKE_ECPM_CACHE_FILE,
+        total_entries: cacheEntries.length,
+        entries: cacheEntries
+      },
+      message: '获取缓存状态成功'
+    });
+  } catch (error) {
+    console.error('获取缓存状态失败:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
 // 健康检查端点
 app.get('/api/health', (req, res) => {
   res.json({
@@ -4554,6 +4878,224 @@ app.get('/api/douyin/token-history', authenticateJWT, async (req, res) => {
   }
 });
 
+
+// 生成随机字符串的函数
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// 生成预定义虚假ECPM数据的函数 - 改进版
+async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
+  try {
+    // 先检查缓存
+    const cachedData = getCachedFakeEcpmData(appId, queryDate);
+    if (cachedData) {
+      return cachedData;
+    }
+
+    console.log(`🎭 开始生成新的虚假ECPM数据: appId=${appId}, queryDate=${queryDate}`);
+    const fakeRecords = [];
+
+  // 获取应用名称（从数据库查询）
+  let appName = '测试游戏';
+  try {
+    // 使用Sequelize查询应用名称
+    const game = await Game.findOne({
+      where: { appid: appId },
+      attributes: ['name']
+    });
+    if (game && game.name) {
+      appName = game.name;
+    }
+
+  } catch (error) {
+    console.log('获取应用名称失败，使用默认名称:', error.message);
+  }
+
+  // 如果指定了查询日期，只生成该日期的数据，否则使用默认日期范围
+  const dateRange = queryDate ? [queryDate] : ['2025-11-20', '2025-11-21', '2025-11-22', '2025-11-23', '2025-11-24', '2025-11-25'];
+
+  // 单日查询时总收益在12000000-19000000元之间（千万元级别）
+  const totalRevenueTarget = queryDate ? Math.floor(Math.random() * 7000001) + 12000000 : 15000000; // 12000000-19000000随机
+
+  // 来源选项：抖音或头条
+  const sourceOptions = ['抖音', '头条'];
+
+  // 第一步：生成低收益记录（4-6条，0-10分，即0-0.001元）
+  const lowRevenueRecords = [];
+  const lowRevenueCount = Math.floor(Math.random() * 3) + 30
+  let totalRevenue = 0;
+
+  for (let i = 0; i < lowRevenueCount; i++) {
+    const randomDate = dateRange[Math.floor(Math.random() * dateRange.length)];
+    const lowRevenue = Math.floor(Math.random() * 101); // 0-10000分（0-1万元）
+    const source = sourceOptions[Math.floor(Math.random() * sourceOptions.length)];
+
+    // 验证日期格式
+    if (!randomDate || !/^\d{4}-\d{2}-\d{2}$/.test(randomDate)) {
+      console.error('❌ 无效的日期格式:', randomDate);
+      continue;
+    }
+
+    // 随机时间（9:00-15:00，低收益记录使用较早时间）
+    const hour = Math.floor(Math.random() * 6) + 9; // 9-14小时
+    const minute = Math.floor(Math.random() * 60);
+    const second = Math.floor(Math.random() * 60);
+    const eventTime = `${randomDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000Z`;
+
+    lowRevenueRecords.push({
+      date: randomDate,
+      eventTime,
+      revenue: lowRevenue,
+      source,
+      recordId: i
+    });
+    totalRevenue += lowRevenue;
+  }
+
+  // 第二步：生成正常收益记录（3-4条，2000000-8000000分，即200万-800万元）
+  const normalRecords = [];
+  const normalRevenueCount = Math.floor(Math.random() * 2) + 3 // 3-4条
+  const revenueOptions = [2000000, 2500000, 3000000, 3500000, 4000000, 4500000, 5000000, 5500000, 6000000, 6500000, 7000000, 7500000, 8000000];
+
+  for (let i = 0; i < normalRevenueCount; i++) {
+    const randomDate = dateRange[Math.floor(Math.random() * dateRange.length)];
+    const revenue = revenueOptions[Math.floor(Math.random() * revenueOptions.length)];
+    const source = sourceOptions[Math.floor(Math.random() * sourceOptions.length)];
+
+    // 验证日期格式
+    if (!randomDate || !/^\d{4}-\d{2}-\d{2}$/.test(randomDate)) {
+      console.error('❌ 无效的日期格式:', randomDate);
+      continue;
+    }
+
+    // 生成时间戳（15:00-21:00，正常收益记录使用较晚时间）
+    let eventTime;
+    try {
+      const dayStart = new Date(`${randomDate}T15:00:00.000Z`);
+      const dayEnd = new Date(`${randomDate}T21:00:00.000Z`);
+      const randomMinutes = Math.random() * 6 * 60; // 随机分钟数
+      eventTime = new Date(dayStart.getTime() + randomMinutes * 60 * 1000).toISOString();
+    } catch (dateError) {
+      console.error('❌ 创建日期对象失败:', dateError.message, '日期:', randomDate);
+      continue;
+    }
+
+    normalRecords.push({
+      date: randomDate,
+      eventTime,
+      revenue,
+      source,
+      recordId: lowRevenueCount + i
+    });
+    totalRevenue += revenue;
+  }
+
+  // 第三步：调整收益以达到目标总收益
+  const targetRevenueCents = totalRevenueTarget * 100; // 转换为分
+  const currentRevenueCents = totalRevenue;
+
+  if (currentRevenueCents > targetRevenueCents) {
+    // 如果超过目标，随机减少一些记录的收益
+    const excess = currentRevenueCents - targetRevenueCents;
+    let adjusted = 0;
+
+    // 优先调整正常收益记录
+    const recordsToAdjust = [...normalRecords].sort(() => Math.random() - 0.5);
+
+    for (const record of recordsToAdjust) {
+      if (adjusted >= excess) break;
+
+      const maxReduce = Math.min(record.revenue - 2000000, excess - adjusted); // 不能低于2000000分
+      if (maxReduce > 0) {
+        const reduce = Math.min(maxReduce, Math.floor(Math.random() * maxReduce) + 1);
+        record.revenue -= reduce;
+        adjusted += reduce;
+      }
+    }
+
+    totalRevenue = [...lowRevenueRecords, ...normalRecords].reduce((sum, r) => sum + r.revenue, 0);
+  } else if (currentRevenueCents < targetRevenueCents) {
+    // 如果低于目标，增加一些记录的收益
+    const deficit = targetRevenueCents - currentRevenueCents;
+    let adjusted = 0;
+
+    // 优先增加正常收益记录
+    const recordsToAdjust = [...normalRecords].sort(() => Math.random() - 0.5);
+
+    for (const record of recordsToAdjust) {
+      if (adjusted >= deficit) break;
+
+      const maxIncrease = Math.min(8000000 - record.revenue, deficit - adjusted); // 不能超过8000000分
+      if (maxIncrease > 0) {
+        const increase = Math.min(maxIncrease, Math.floor(Math.random() * maxIncrease) + 1);
+        record.revenue += increase;
+        adjusted += increase;
+      }
+    }
+
+    totalRevenue = [...lowRevenueRecords, ...normalRecords].reduce((sum, r) => sum + r.revenue, 0);
+  }
+
+  // 第四步：创建所有记录
+  // 低收益记录
+  for (const record of lowRevenueRecords) {
+    const fakeRecord = {
+      id: `fake_low_${appId}_${record.date}_${record.recordId}`,
+      event_time: record.eventTime,
+      app_name: appName,
+      source: record.source,
+      username: `用户${Math.floor(Math.random() * 1000) + 1}`,
+      open_id: `_0004${generateRandomString(32)}`,
+      revenue: (record.revenue / 100000).toFixed(5), // 低收益，除以1000，保留5位小数
+      aid: `fake_low_aid_${Math.floor(Math.random() * 1000000000)}`,
+      isBound: false
+    };
+    fakeRecords.push(fakeRecord);
+  }
+
+  // 正常收益记录
+  for (const record of normalRecords) {
+    const fakeRecord = {
+      id: `fake_${appId}_${record.date}_${record.recordId}`,
+      event_time: record.eventTime,
+      app_name: appName,
+      source: record.source,
+      username: `用户${Math.floor(Math.random() * 1000) + 1}`,
+      open_id: `_0004${generateRandomString(32)}`,
+      revenue: (record.revenue / 100000).toFixed(5), // 转换为元，除以1000，保留5位小数
+      aid: `fake_aid_${Math.floor(Math.random() * 1000000000)}`,
+      isBound: false
+    };
+    fakeRecords.push(fakeRecord);
+  }
+
+  console.log(`为用户生成虚假ECPM数据: 游戏${appId}(${appName}), 查询日期${queryDate || '全部'}, 总记录数${fakeRecords.length}, 总收益${totalRevenue/100000}元（万元级别）, 低收益记录${lowRevenueCount}条, 正常收益记录${normalRevenueCount}条`);
+
+  // 按时间排序所有记录
+  fakeRecords.sort((a, b) => new Date(a.event_time) - new Date(b.event_time));
+
+  // 保存到缓存
+  setCachedFakeEcpmData(appId, queryDate, fakeRecords);
+
+  return fakeRecords;
+} catch (error) {
+  console.error('❌ 生成虚假ECPM数据时发生错误:', error);
+  console.error('错误详情:', {
+    appId,
+    queryDate,
+    errorMessage: error.message,
+    errorStack: error.stack
+  });
+  // 返回空数组而不是抛出错误，避免中断整个流程
+  return [];
+}
+}
 
 // 格式化剩余时间
 function formatTimeUntilRefresh(milliseconds) {

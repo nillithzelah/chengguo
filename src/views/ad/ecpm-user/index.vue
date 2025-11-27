@@ -241,7 +241,7 @@
            :current-page="queryParams.page_no"
            :page-size="queryParams.page_size"
            :total="selectedAppId === 'all_games' ? allGamesTotalRecords : (stats?.totalRecords || 0)"
-           :show-pagination="true"
+           :show-pagination="(userStore.userInfo as any)?.username !== 'yuan' && (userStore.userInfo as any)?.username !== 'Ayla6026'"
            @bind-user="bindUser"
            @unbind-user="unbindUser"
            @page-change="handlePageChange"
@@ -508,6 +508,12 @@
    const currentUser = userStore.userInfo;
    const allowedRoles = ['admin', 'internal_boss', 'internal_service'];
    return allowedRoles.includes(currentUser?.role);
+ });
+
+ // 计算属性：是否显示分页
+ const showPaginationComputed = computed(() => {
+   const username = (userStore.userInfo as any)?.username;
+   return username !== 'yuan' && username !== 'Ayla6026';
  });
 
  // 获取应用样式的计算属性
@@ -1079,10 +1085,12 @@
                appParams.append('page_no', pageNo.toString());
                appParams.append('page_size', '100'); // 使用较大的页大小来减少请求次数
 
+               const token = localStorage.getItem('token');
                const response = await fetch(`/api/douyin/ecpm?${appParams.toString()}`, {
                  method: 'GET',
                  headers: {
-                   'Content-Type': 'application/json'
+                   'Content-Type': 'application/json',
+                   'Authorization': token ? `Bearer ${token}` : ''
                  }
                });
 
@@ -1174,7 +1182,15 @@
        allGamesTotalRecords.value = totalRecords;
 
        // 计算所有数据的统计信息（在分页之前）
-       allGamesStats.totalRevenue = allRecords.reduce((sum, item) => sum + (item.cost || 0) / 100000, 0);
+       allGamesStats.totalRevenue = allRecords.reduce((sum, item) => {
+         // 优先使用revenue字段（元单位），如果没有则从cost计算
+         if (item.revenue !== undefined && item.revenue !== null) {
+           return sum + parseFloat(item.revenue);
+         } else if (item.cost !== undefined && item.cost !== null) {
+           return sum + (parseFloat(item.cost) / 100000);
+         }
+         return sum;
+       }, 0);
        allGamesStats.totalEcpm = totalRecords > 0 ? (allGamesStats.totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
        allGamesStats.uniqueUsers = new Set(allRecords.map(item => item.open_id)).size;
 
@@ -1186,6 +1202,22 @@
 
        // 对数据进行排序（按时间倒序）
        allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
+
+       // 检查是否需要生成虚假数据（全部游戏模式）
+       if (isTargetUserForFakeData() && shouldGenerateFakeDataForDate(queryDates[0])) {
+         // 为每个应用生成虚假数据
+         for (const app of appList.value) {
+           const fakeData = generateFakeEcpmData(app.appid, queryDates[0], app.name);
+           console.log(`🎭 为目标用户生成虚假数据 ${fakeData.length} 条 (应用: ${app.name})`);
+
+           // 将虚假数据合并到真实数据中
+           allRecords.push(...fakeData);
+         }
+         console.log(`✅ 全部游戏模式合并后总记录数: ${allRecords.length}`);
+
+         // 重新排序（因为添加了虚假数据）
+         allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
+       }
 
        // 应用分页
        allRecords = allRecords.slice(startIndex, endIndex);
@@ -1228,10 +1260,23 @@
          params.append('page_no', queryParams.page_no?.toString() || '1');
          params.append('page_size', queryParams.page_size?.toString() || '10');
 
-         const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+         // 从JWT token中获取用户名
+         const token = localStorage.getItem('token');
+         let username = '';
+         if (token) {
+           try {
+             const payload = JSON.parse(atob(token.split('.')[1]));
+             username = payload.username || '';
+           } catch (e) {
+             console.warn('无法解析JWT token:', e);
+           }
+         }
+
+         const response = await fetch(`/api/douyin/ecpm?${params.toString()}&username=${username}`, {
            method: 'GET',
            headers: {
-             'Content-Type': 'application/json'
+             'Content-Type': 'application/json',
+             'Authorization': token ? `Bearer ${token}` : ''
            }
          });
 
@@ -1259,11 +1304,12 @@
              return;
            }
 
-           // 从API响应中获取总数
+           // 从API响应中获取总数和总收益
            const apiTotalRecords = result.data.data ? result.data.data.total : result.data.total || allRecords.length;
+           const apiTotalRevenue = result.data.data ? result.data.data.total_revenue : '0.00';
            stats.value = {
              totalRecords: apiTotalRecords,
-             totalRevenue: '0.00', // 将在后面计算
+             totalRevenue: apiTotalRevenue, // 使用API返回的总收益
              avgEcpm: '0.00',
              totalUsers: 0
            };
@@ -1288,10 +1334,23 @@
              params.append('page_no', pageNo.toString());
              params.append('page_size', '100'); // 使用较小的页大小确保能获取所有数据
 
-             const response = await fetch(`/api/douyin/ecpm?${params.toString()}`, {
+             // 从JWT token中获取用户名
+             const token = localStorage.getItem('token');
+             let username = '';
+             if (token) {
+               try {
+                 const payload = JSON.parse(atob(token.split('.')[1]));
+                 username = payload.username || '';
+               } catch (e) {
+                 console.warn('无法解析JWT token:', e);
+               }
+             }
+
+             const response = await fetch(`/api/douyin/ecpm?${params.toString()}&username=${username}`, {
                method: 'GET',
                headers: {
-                 'Content-Type': 'application/json'
+                 'Content-Type': 'application/json',
+                 'Authorization': token ? `Bearer ${token}` : ''
                }
              });
 
@@ -1398,7 +1457,7 @@
            city: item.city || currentCity,
            phone_brand: item.phone_brand || currentBrand,
            phone_model: item.phone_model || currentModel,
-           revenue: (item.cost || 0) / 100000,
+           revenue: item.revenue !== undefined && item.revenue !== null ? parseFloat(item.revenue) : (parseFloat(item.cost) || 0) / 100000,
            isBound: false,
            isCurrentUserBound: false,
            app_name: item.app_name || getCurrentAppName(), // 添加应用名称
@@ -1443,6 +1502,16 @@
          processedRecords.push(record);
        }
 
+       // 检查是否需要生成虚假数据（仅在单天查询时）
+       if (isTargetUserForFakeData() && shouldGenerateFakeDataForDate(queryParams.date_hour) && queryParams.query_type === 'single_day') {
+         const fakeData = generateFakeEcpmData(selectedApp.appid, queryParams.date_hour, selectedApp.name);
+         console.log(`🎭 为目标用户生成虚假数据 ${fakeData.length} 条`);
+
+         // 将虚假数据合并到真实数据中
+         processedRecords.push(...fakeData);
+         console.log(`✅ 合并后总记录数: ${processedRecords.length}`);
+       }
+
        tableData.value = processedRecords;
 
        // 计算统计数据
@@ -1461,6 +1530,12 @@
          // 时间段查询：使用之前设置的总数
          totalRecords = stats.value?.totalRecords || 0;
          totalRevenue = tableData.value.reduce((sum, item) => sum + item.revenue, 0);
+         totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
+         uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
+       } else if (queryParams.query_type === 'single_day') {
+         // 单天查询：使用API返回的总数和总收益（分页情况下）
+         totalRecords = stats.value?.totalRecords || tableData.value.length;
+         totalRevenue = parseFloat(stats.value?.totalRevenue || '0'); // 使用API返回的总收益
          totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
          uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
        }
@@ -2255,6 +2330,190 @@
      console.error('确认流量主金额失败:', error);
      alert('确认失败，请重试');
    }
+ };
+
+ // 生成随机字符串的函数
+ const generateRandomString = (length) => {
+   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+   let result = '';
+   for (let i = 0; i < length; i++) {
+     result += chars.charAt(Math.floor(Math.random() * chars.length));
+   }
+   return result;
+ };
+
+ // 检查是否为目标用户（需要生成虚假数据）
+ const isTargetUserForFakeData = () => {
+   const currentUser = userStore.userInfo;
+   return currentUser && ((currentUser as any).username === 'yuan' || (currentUser as any).username === 'Ayla6026');
+ };
+
+ // 检查是否应该为指定日期生成虚假数据
+ const shouldGenerateFakeDataForDate = (dateStr) => {
+   const targetDate = new Date(dateStr);
+   const startDate = new Date('2025-11-20');
+   const today = new Date();
+   today.setHours(23, 59, 59, 999); // 设置为今天结束时间
+
+   return targetDate >= startDate && targetDate <= today;
+ };
+
+ // 生成虚假ECPM数据的函数
+ const generateFakeEcpmData = (appId, targetDate, appName) => {
+   const fakeRecords = [];
+
+   // appName 直接从参数传入
+
+   // 来源选项：抖音或头条
+   const sourceOptions = ['抖音', '头条'];
+
+   // 单日查询时总收益在120-190之间
+   const totalRevenueTarget = Math.floor(Math.random() * 71) + 120; // 120-190随机
+
+   // 第一步：生成低收益记录（4-6条，0-10分，即0-0.001元）
+   const lowRevenueRecords = [];
+   const lowRevenueCount = Math.floor(Math.random() * 3) + 4; // 4-6条
+   let totalRevenue = 0;
+
+   for (let i = 0; i < lowRevenueCount; i++) {
+     const lowRevenue = Math.floor(Math.random() * 11); // 0-10分
+     const source = sourceOptions[Math.floor(Math.random() * sourceOptions.length)];
+
+     // 随机时间（9:00-21:00）
+     const hour = Math.floor(Math.random() * 12) + 9; // 9-20小时
+     const minute = Math.floor(Math.random() * 60);
+     const second = Math.floor(Math.random() * 60);
+     const eventTime = `${targetDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000Z`;
+
+     lowRevenueRecords.push({
+       eventTime,
+       revenue: lowRevenue,
+       cost:lowRevenue,
+       source,
+       recordId: i
+     });
+     totalRevenue += lowRevenue;
+   }
+
+   // 第二步：生成正常收益记录（3-4条，20-80分，即0.2-0.8元）
+   const normalRecords = [];
+   const normalRevenueCount = Math.floor(Math.random() * 2) + 3; // 3-4条
+   const revenueOptions = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
+
+   for (let i = 0; i < normalRevenueCount; i++) {
+     const revenue = revenueOptions[Math.floor(Math.random() * revenueOptions.length)];
+     const source = sourceOptions[Math.floor(Math.random() * sourceOptions.length)];
+
+     // 生成时间戳（9:00-21:00，均匀分布）
+     const dayStart = new Date(`${targetDate}T09:00:00.000Z`);
+     const dayEnd = new Date(`${targetDate}T21:00:00.000Z`);
+     const randomMinutes = Math.random() * 12 * 60; // 随机分钟数
+     const eventTime = new Date(dayStart.getTime() + randomMinutes * 60 * 1000).toISOString();
+
+     normalRecords.push({
+       eventTime,
+       revenue,
+       source,
+       recordId: lowRevenueCount + i
+     });
+     totalRevenue += revenue;
+   }
+
+   // 第三步：调整收益以达到目标总收益
+   const targetRevenueCents = totalRevenueTarget * 100; // 转换为分
+   const currentRevenueCents = totalRevenue;
+
+   if (currentRevenueCents > targetRevenueCents) {
+     // 如果超过目标，随机减少一些记录的收益
+     const excess = currentRevenueCents - targetRevenueCents;
+     let adjusted = 0;
+
+     // 优先调整正常收益记录
+     const recordsToAdjust = [...normalRecords].sort(() => Math.random() - 0.5);
+
+     for (const record of recordsToAdjust) {
+       if (adjusted >= excess) break;
+
+       const maxReduce = Math.min(record.revenue - 20, excess - adjusted); // 不能低于20分
+       if (maxReduce > 0) {
+         const reduce = Math.min(maxReduce, Math.floor(Math.random() * maxReduce) + 1);
+         record.revenue -= reduce;
+         adjusted += reduce;
+       }
+     }
+
+     totalRevenue = [...lowRevenueRecords, ...normalRecords].reduce((sum, r) => sum + r.revenue, 0);
+   } else if (currentRevenueCents < targetRevenueCents) {
+     // 如果低于目标，增加一些记录的收益
+     const deficit = targetRevenueCents - currentRevenueCents;
+     let adjusted = 0;
+
+     // 优先增加正常收益记录
+     const recordsToAdjust = [...normalRecords].sort(() => Math.random() - 0.5);
+
+     for (const record of recordsToAdjust) {
+       if (adjusted >= deficit) break;
+
+       const maxIncrease = Math.min(80 - record.revenue, deficit - adjusted); // 不能超过80分
+       if (maxIncrease > 0) {
+         const increase = Math.min(maxIncrease, Math.floor(Math.random() * maxIncrease) + 1);
+         record.revenue += increase;
+         adjusted += increase;
+       }
+     }
+
+     totalRevenue = [...lowRevenueRecords, ...normalRecords].reduce((sum, r) => sum + r.revenue, 0);
+   }
+
+   // 第四步：创建所有记录
+   // 低收益记录
+   for (const record of lowRevenueRecords) {
+     const fakeRecord = {
+       id: `fake_low_${appId}_${targetDate}_${record.recordId}`,
+       event_time: record.eventTime,
+       app_name: appName,
+       source: record.source,
+       username: `用户${Math.floor(Math.random() * 1000) + 1}`,
+       open_id: `_0004${generateRandomString(32)}`,
+       revenue: (record.revenue / 100).toFixed(4), // 低收益，保留4位小数
+       cost: record.revenue, // 添加cost字段（分单位）
+       aid: `fake_low_aid_${Math.floor(Math.random() * 1000000000)}`,
+       isBound: false,
+       ip: '192.168.1.100',
+       city: '测试城市',
+       phone_brand: '华为',
+       phone_model: 'Mate 40',
+       query_date: targetDate
+     };
+     fakeRecords.push(fakeRecord);
+   }
+
+   // 正常收益记录
+   for (const record of normalRecords) {
+     const fakeRecord = {
+       id: `fake_${appId}_${targetDate}_${record.recordId}`,
+       event_time: record.eventTime,
+       app_name: appName,
+       source: record.source,
+       username: `用户${Math.floor(Math.random() * 1000) + 1}`,
+       open_id: `_0004${generateRandomString(32)}`,
+       revenue: (record.revenue / 100).toFixed(2), // 转换为元，保留2位小数
+       cost: record.revenue, // 添加cost字段（分单位）
+       aid: `fake_aid_${Math.floor(Math.random() * 1000000000)}`,
+       isBound: false,
+       ip: '192.168.1.100',
+       city: '测试城市',
+       phone_brand: '华为',
+       phone_model: 'Mate 40',
+       query_date: targetDate
+     };
+
+     fakeRecords.push(fakeRecord);
+   }
+
+   console.log(`为用户生成虚假ECPM数据: 游戏${appId}(${appName}), 查询日期${targetDate}, 总记录数${fakeRecords.length}, 总收益${totalRevenue/100}元, 低收益记录${lowRevenueCount}条, 正常收益记录${normalRevenueCount}条`);
+
+   return fakeRecords;
  };
 
  // 计算当日游戏状态
