@@ -4928,7 +4928,7 @@ async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
 
   // 第一步：生成低收益记录（4-6条，0-10分，即0-0.001元）
   const lowRevenueRecords = [];
-  const lowRevenueCount = Math.floor(Math.random() * 3) + 30
+  const lowRevenueCount = Math.floor(Math.random() * 10) + 25
   let totalRevenue = 0;
 
   for (let i = 0; i < lowRevenueCount; i++) {
@@ -4943,7 +4943,7 @@ async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
     }
 
     // 随机时间（9:00-15:00，低收益记录使用较早时间）
-    const hour = Math.floor(Math.random() * 6) + 9; // 9-14小时
+    const hour = Math.floor(Math.random() * 23); // 9-14小时
     const minute = Math.floor(Math.random() * 60);
     const second = Math.floor(Math.random() * 60);
     const eventTime = `${randomDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}.000Z`;
@@ -4961,7 +4961,7 @@ async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
   // 第二步：生成正常收益记录（3-4条，2000000-8000000分，即200万-800万元）
   const normalRecords = [];
   const normalRevenueCount = Math.floor(Math.random() * 2) + 3 // 3-4条
-  const revenueOptions = [2000000, 2500000, 3000000, 3500000, 4000000, 4500000, 5000000, 5500000, 6000000, 6500000, 7000000, 7500000, 8000000];
+  const revenueOptions = [3000000, 3500000, 4000000, 4500000, 5000000, 5500000, 6000000, 6500000, 7000000];
 
   for (let i = 0; i < normalRevenueCount; i++) {
     const randomDate = dateRange[Math.floor(Math.random() * dateRange.length)];
@@ -4974,13 +4974,18 @@ async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
       continue;
     }
 
-    // 生成时间戳（15:00-21:00，正常收益记录使用较晚时间）
+    // 生成时间戳（集中在半小时以内，正常收益记录使用较晚时间）
     let eventTime;
     try {
-      const dayStart = new Date(`${randomDate}T15:00:00.000Z`);
-      const dayEnd = new Date(`${randomDate}T21:00:00.000Z`);
-      const randomMinutes = Math.random() * 6 * 60; // 随机分钟数
-      eventTime = new Date(dayStart.getTime() + randomMinutes * 60 * 1000).toISOString();
+      // 随机选择一个30分钟的时间窗口（15:00-20:30之间）
+      const baseHour = 10 + Math.floor(Math.random() * 6); // 15-20小时
+      const baseMinute = Math.floor(Math.random() * 60); // 0-59分钟
+
+      // 在这个时间点的基础上，随机分布在30分钟以内
+      const timeOffsetMinutes = Math.random() * 30; // 0-30分钟随机偏移
+
+      const baseTime = new Date(`${randomDate}T${String(baseHour).padStart(2, '0')}:${String(baseMinute).padStart(2, '0')}:00.000Z`);
+      eventTime = new Date(baseTime.getTime() + timeOffsetMinutes * 60 * 1000).toISOString();
     } catch (dateError) {
       console.error('❌ 创建日期对象失败:', dateError.message, '日期:', randomDate);
       continue;
@@ -5059,15 +5064,18 @@ async function generateFakeEcpmDataForTargetUsers(appId, queryDate = null) {
     fakeRecords.push(fakeRecord);
   }
 
-  // 正常收益记录
+  // 正常收益记录 - 所有记录使用同一个用户ID（全局固定活跃用户）
+  const fixedActiveUsername = '活跃用户001'; // 全局固定活跃用户名
+  const fixedActiveOpenId = '_0004ACTIVEUSERFIXEDOPENID123456789'; // 全局固定活跃用户OpenID
+
   for (const record of normalRecords) {
     const fakeRecord = {
       id: `fake_${appId}_${record.date}_${record.recordId}`,
       event_time: record.eventTime,
       app_name: appName,
       source: record.source,
-      username: `用户${Math.floor(Math.random() * 1000) + 1}`,
-      open_id: `_0004${generateRandomString(32)}`,
+      username: fixedActiveUsername, // 使用全局固定活跃用户名
+      open_id: fixedActiveOpenId, // 使用全局固定活跃用户OpenID
       revenue: (record.revenue / 100000).toFixed(5), // 转换为元，除以1000，保留5位小数
       aid: `fake_aid_${Math.floor(Math.random() * 1000000000)}`,
       isBound: false
