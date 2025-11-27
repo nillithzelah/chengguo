@@ -1,0 +1,372 @@
+{
+  "tt7a970c2ae59b8fe602_2025-11-27": {
+    "data": [
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_26",
+        "event_time": "2025-11-27T00:14:46.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户279",
+        "open_id": "_0004O5oGm1FNuj8PTeDbzPoAREHwJqwtJsH9",
+        "revenue": "0.00021",
+        "aid": "fake_low_aid_692222038",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_25",
+        "event_time": "2025-11-27T01:17:33.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户923",
+        "open_id": "_0004LbjJken0d253EYF6eihzhvYBxiBYIYVU",
+        "revenue": "0.00099",
+        "aid": "fake_low_aid_596269561",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_9",
+        "event_time": "2025-11-27T01:20:54.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户401",
+        "open_id": "_0004Zytp6MrMd8B0veWMnvyqnIF1c0w7yzte",
+        "revenue": "0.00058",
+        "aid": "fake_low_aid_679259349",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_17",
+        "event_time": "2025-11-27T02:41:04.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户381",
+        "open_id": "_0004R0mvxGHCAUuLDxKZUSEfKxILEtPFBWvz",
+        "revenue": "0.00006",
+        "aid": "fake_low_aid_346607721",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_27",
+        "event_time": "2025-11-27T03:17:56.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户328",
+        "open_id": "_00042vQMaeATs5YiFkALAaaSPxnKWcSuh1IP",
+        "revenue": "0.00061",
+        "aid": "fake_low_aid_39093307",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_21",
+        "event_time": "2025-11-27T04:49:11.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户544",
+        "open_id": "_0004xx7Af8B5AfmUDdozFdRtSS2EXS0ZgxKw",
+        "revenue": "0.00085",
+        "aid": "fake_low_aid_74471592",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_10",
+        "event_time": "2025-11-27T07:21:33.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户856",
+        "open_id": "_0004AA8GHeptHqys0v3gawTXIj6MfIXM77ZT",
+        "revenue": "0.00078",
+        "aid": "fake_low_aid_716774412",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_5",
+        "event_time": "2025-11-27T07:55:36.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户802",
+        "open_id": "_0004duJx0W3TsXifUN6Q179N2UztqoHNsm8U",
+        "revenue": "0.00001",
+        "aid": "fake_low_aid_527405520",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_2",
+        "event_time": "2025-11-27T08:13:48.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户573",
+        "open_id": "_0004M4FoAxsKzl5f77uXPtN7sQ0vhSbZVZZx",
+        "revenue": "0.00021",
+        "aid": "fake_low_aid_800732780",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_22",
+        "event_time": "2025-11-27T08:48:11.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户285",
+        "open_id": "_0004ZjWxMOXFvJjBPDdpcFiHwSEobQwcus0k",
+        "revenue": "0.00043",
+        "aid": "fake_low_aid_556624145",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_16",
+        "event_time": "2025-11-27T09:01:38.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户863",
+        "open_id": "_0004cgctt3xqeor67B4Vv5C33N326I1UDt4G",
+        "revenue": "0.00067",
+        "aid": "fake_low_aid_161742074",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_12",
+        "event_time": "2025-11-27T09:23:13.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户609",
+        "open_id": "_0004xw7P8GOTy35ynr3wwhgRTLUWo3RsGxPX",
+        "revenue": "0.00091",
+        "aid": "fake_low_aid_412540588",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_11",
+        "event_time": "2025-11-27T10:37:46.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户28",
+        "open_id": "_0004TRf7GB8xpbQhzSi0xMGcx0tiAkdtj4Dk",
+        "revenue": "0.00058",
+        "aid": "fake_low_aid_842111743",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_23",
+        "event_time": "2025-11-27T11:12:25.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户871",
+        "open_id": "_000482oPMlxn5UMSResOv1jrQZqVVYvoC9Yb",
+        "revenue": "0.00021",
+        "aid": "fake_low_aid_929207440",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_28",
+        "event_time": "2025-11-27T11:40:46.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户484",
+        "open_id": "_0004wJalFc4mlBB7yfcB5pnWqxN2XRwV7jtP",
+        "revenue": "0.00048",
+        "aid": "fake_low_aid_932888200",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_4",
+        "event_time": "2025-11-27T12:12:10.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户931",
+        "open_id": "_0004tb4UqIiUYuUd7TuvyA9fIvTqKNNhe9pt",
+        "revenue": "0.00032",
+        "aid": "fake_low_aid_967325795",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_20",
+        "event_time": "2025-11-27T12:29:10.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户364",
+        "open_id": "_0004yzNRa5Ddm1aomXeLMx9WhdjfOhYz0khB",
+        "revenue": "0.00018",
+        "aid": "fake_low_aid_9566850",
+        "isBound": false
+      },
+      {
+        "id": "fake_tt7a970c2ae59b8fe602_2025-11-27_32",
+        "event_time": "2025-11-27T13:11:10.221Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "活跃用户001",
+        "open_id": "_0004ACTIVEUSERFIXEDOPENID123456789",
+        "revenue": "69.73461",
+        "aid": "fake_aid_178011346",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_19",
+        "event_time": "2025-11-27T13:41:00.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户321",
+        "open_id": "_0004drPxS6NtaSYOukQXXy29qBtuEgHzTGcu",
+        "revenue": "0.00088",
+        "aid": "fake_low_aid_51548570",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_24",
+        "event_time": "2025-11-27T13:49:59.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户960",
+        "open_id": "_0004s8VL02z0aFC69XxaqzDdlALFtPiOlTpB",
+        "revenue": "0.00074",
+        "aid": "fake_low_aid_443534357",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_1",
+        "event_time": "2025-11-27T14:22:08.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户847",
+        "open_id": "_0004qTYyAwdfKWW1vB3JpER3jYsRfg7NpEhr",
+        "revenue": "0.00089",
+        "aid": "fake_low_aid_559320176",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_15",
+        "event_time": "2025-11-27T15:28:07.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户34",
+        "open_id": "_0004jkvM2RGhZcJVZbeeisM436u8NkgoOyyL",
+        "revenue": "0.00092",
+        "aid": "fake_low_aid_222846004",
+        "isBound": false
+      },
+      {
+        "id": "fake_tt7a970c2ae59b8fe602_2025-11-27_30",
+        "event_time": "2025-11-27T15:33:55.050Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "活跃用户001",
+        "open_id": "_0004ACTIVEUSERFIXEDOPENID123456789",
+        "revenue": "47.45739",
+        "aid": "fake_aid_766407794",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_8",
+        "event_time": "2025-11-27T15:44:22.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户9",
+        "open_id": "_0004vbkaHAiRDO2UXIxyzdHet10ZKiqBPoqm",
+        "revenue": "0.00022",
+        "aid": "fake_low_aid_525907434",
+        "isBound": false
+      },
+      {
+        "id": "fake_tt7a970c2ae59b8fe602_2025-11-27_31",
+        "event_time": "2025-11-27T15:54:33.248Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "活跃用户001",
+        "open_id": "_0004ACTIVEUSERFIXEDOPENID123456789",
+        "revenue": "48.60165",
+        "aid": "fake_aid_560483237",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_29",
+        "event_time": "2025-11-27T16:28:11.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户9",
+        "open_id": "_0004Z20KEHuObAPpII67XdQsyapwsV9NgGZJ",
+        "revenue": "0.00005",
+        "aid": "fake_low_aid_382610932",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_18",
+        "event_time": "2025-11-27T18:07:00.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户324",
+        "open_id": "_0004RWKev7xFB2X5T6l3HKTpcdSC2hpXu13p",
+        "revenue": "0.00095",
+        "aid": "fake_low_aid_95486440",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_6",
+        "event_time": "2025-11-27T19:09:57.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户753",
+        "open_id": "_0004n3LsWrdlfePEiMObQzoXTVwEoM4NElbf",
+        "revenue": "0.00081",
+        "aid": "fake_low_aid_8931988",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_7",
+        "event_time": "2025-11-27T20:04:40.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户288",
+        "open_id": "_0004j2Qh5EguiAlxNboMk3k9O0O164IQ3vca",
+        "revenue": "0.00035",
+        "aid": "fake_low_aid_881579753",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_14",
+        "event_time": "2025-11-27T20:05:45.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户690",
+        "open_id": "_0004XYIWifgfn3EWVDKrLvY0U41y4Zk8Q2KT",
+        "revenue": "0.00100",
+        "aid": "fake_low_aid_908565231",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_13",
+        "event_time": "2025-11-27T20:20:11.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户188",
+        "open_id": "_0004pGwbKiy8LncvEVfoQdOOWn9GF0ybpPJy",
+        "revenue": "0.00096",
+        "aid": "fake_low_aid_878555548",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_3",
+        "event_time": "2025-11-27T22:41:38.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "抖音",
+        "username": "用户596",
+        "open_id": "_0004AksrkCOupMAhNE9YWDCByGCwWZP2uqZ8",
+        "revenue": "0.00076",
+        "aid": "fake_low_aid_261873581",
+        "isBound": false
+      },
+      {
+        "id": "fake_low_tt7a970c2ae59b8fe602_2025-11-27_0",
+        "event_time": "2025-11-27T22:43:57.000Z",
+        "app_name": "萌趣动物消除",
+        "source": "头条",
+        "username": "用户369",
+        "open_id": "_0004slAUzc6No965o1tZDxkkg7gdm5eQGHD5",
+        "revenue": "0.00084",
+        "aid": "fake_low_aid_808486362",
+        "isBound": false
+      }
+    ],
+    "timestamp": "2025-11-27T06:27:30.373Z",
+    "appId": "tt7a970c2ae59b8fe602",
+    "queryDate": "2025-11-27"
+  }
+}
