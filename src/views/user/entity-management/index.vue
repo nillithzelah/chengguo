@@ -2,180 +2,175 @@
   <div class="container">
     <Breadcrumb :items="['menu.user', 'menu.user.entity']" />
 
-    <!-- 页面标题 -->
+    <!-- 页面标题和控制面板 -->
     <div class="page-header">
-      <h2>主体管理</h2>
-      <p>管理系统中的主体信息</p>
-    </div>
-
-    <!-- 数据统计 -->
-    <div class="stats-section">
-      <div class="stats-info">
-        <div class="total-count">系统中共有 {{ uniqueEntityCount }} 个主体</div>
+      <div class="header-main">
+        <h2>主体管理</h2>
+        <p>管理系统中的主体信息</p>
       </div>
-    </div>
 
-    <!-- 操作栏 -->
-    <div class="action-bar">
-      <!-- 隐藏新增主体按钮，只有管理员可见 -->
-      <a-button
-        v-if="canCreateEntity"
-        type="primary"
-        @click="openCreateModal"
-      >
-        <template #icon>
-          <icon-plus />
-        </template>
-        新增主体
-      </a-button>
-      <a-button
-        v-if="canCreateEntity"
-        @click="handleEditEntityName"
-      >
-      <icon-edit />
-      <template #icon>
-        </template>
-        修改主体名
-      </a-button>
-      <!-- 分配游戏主体按钮 -->
-      <a-button
-        v-if="canCreateEntity"
-        @click="openAssignModal"
-      >
-        <template #icon>
-          <icon-link />
-        </template>
-        分配游戏主体
-      </a-button>
-      <a-button @click="refreshEntityList">
-        <template #icon>
-          <icon-refresh />
-        </template>
-        刷新
-      </a-button>
-      <a-button
-        type="outline"
-        @click="openDouyinPlatform"
-      >
-        <template #icon>
-          <icon-link />
-        </template>
-        抖音开放平台
-      </a-button>
-      <a-button
-        v-if="canCreateEntity"
-        type="primary"
-        @click="batchSetLimitedStatus"
-        :loading="batchLimitedLoading"
-        style="margin-left: auto;"
-      >
-        <template #icon>
-          <icon-check-circle />
-        </template>
-        一键完成
-      </a-button>
-    </div>
-
-    <!-- 数据统计 -->
-    <div class="stats-section">
-      <div class="stats-info">
-        <div class="total-count">共有 {{ entityList.length }} 条主体记录</div>
+      <!-- 数据统计 -->
+      <div class="header-stats">
+        <div class="stats-info">
+          <div class="total-count">系统中共有 {{ uniqueEntityCount }} 个主体，共有 {{ entityList.length }} 条主体记录</div>
+        </div>
       </div>
-    </div>
 
-    <!-- 筛选区域 -->
-    <div class="filter-section">
-      <div class="filter-row">
-        <div class="filter-item">
-          <label>搜索主体：</label>
-          <a-input
-            v-model="searchKeyword"
-            @input="handleSearchChange"
-            placeholder="输入主体名、程序员、账号名或游戏名"
-            class="search-input"
-            allow-clear
-          >
-            <template #prefix>
-              <icon-search />
-            </template>
-          </a-input>
-        </div>
-        <div class="filter-item">
-          <label>状态筛选：</label>
-          <select
-            v-model="statusFilter"
-            @change="handleStatusFilterChange"
-            class="filter-select"
-          >
-            <option value="">全部状态</option>
-            <option value="游戏创建">游戏创建</option>
-            <option value="基础/资质进行中">基础/资质进行中</option>
-            <option value="基础/资质已提交">基础/资质已提交</option>
-            <option value="创建流量主">创建流量主</option>
-            <option value="开发/提审进行中">开发/提审进行中</option>
-            <option value="开发/提审已提交">开发/提审已提交</option>
-            <option value="游戏备案进行中">游戏备案进行中</option>
-            <option value="游戏备案已提交">游戏备案已提交</option>
-            <option value="ICP备案进行中">ICP备案进行中</option>
-            <option value="ICP备案已提交">ICP备案已提交</option>
-            <option value="上线运营">上线运营</option>
-          </select>
-        </div>
-        <div class="filter-item filter-item-narrow">
-          <label>分配用户：</label>
-          <select
-            v-model="assignedUserFilter"
-            @change="handleAssignedUserFilterChange"
-            class="filter-select"
-          >
-            <option value="">全部用户</option>
-            <option
-              v-for="user in assignedUsers"
-              :key="user.id"
-              :value="user.id"
+      <!-- 操作栏 -->
+      <div class="header-actions">
+        <!-- 隐藏新增主体按钮，只有管理员可见 -->
+        <a-button
+          v-if="canCreateEntity"
+          type="primary"
+          @click="openCreateModal"
+        >
+          <template #icon>
+            <icon-plus />
+          </template>
+          新增主体
+        </a-button>
+        <a-button
+          v-if="canCreateEntity"
+          @click="handleEditEntityName"
+        >
+        <icon-edit />
+        <template #icon>
+          </template>
+          修改主体名
+        </a-button>
+        <!-- 分配游戏主体按钮 -->
+        <a-button
+          v-if="canCreateEntity"
+          @click="openAssignModal"
+        >
+          <template #icon>
+            <icon-link />
+          </template>
+          分配游戏主体
+        </a-button>
+        <a-button @click="refreshEntityList">
+          <template #icon>
+            <icon-refresh />
+          </template>
+          刷新
+        </a-button>
+        <a-button
+          type="outline"
+          @click="openDouyinPlatform"
+        >
+          <template #icon>
+            <icon-link />
+          </template>
+          抖音开放平台
+        </a-button>
+        <a-button
+          v-if="canCreateEntity"
+          type="primary"
+          @click="batchSetOnlineStatus"
+          :loading="batchOnlineLoading"
+          style="margin-left: auto;"
+        >
+          <template #icon>
+            <icon-check-circle />
+          </template>
+          一键上线
+        </a-button>
+      </div>
+
+      <!-- 筛选区域 -->
+      <div class="header-filters">
+        <div class="filter-row">
+          <div class="filter-item">
+            <label>搜索主体：</label>
+            <a-input
+              v-model="searchKeyword"
+              @input="handleSearchChange"
+              placeholder="输入主体名、程序员、账号名或游戏名"
+              class="search-input"
+              allow-clear
             >
-              {{ user.name || user.username }}
-            </option>
-          </select>
-        </div>
-        <div class="filter-item filter-item-narrow">
-          <label>用户类型：</label>
-          <select
-            v-model="userTypeFilter"
-            @change="handleUserTypeFilterChange"
-            class="filter-select"
-          >
-            <option value="">全部类型</option>
-            <option value="internal">内部用户</option>
-            <option value="external">外部用户</option>
-          </select>
-        </div>
-        <div class="filter-item filter-item-narrow">
-          <label>开始日期</label>
-          <input
-            v-model="startDate"
-            type="date"
-            class="form-input"
-            @change="handleDateRangeChange"
-          />
-        </div>
+              <template #prefix>
+                <icon-search />
+              </template>
+            </a-input>
+          </div>
+          <div class="filter-item">
+            <label>状态筛选：</label>
+            <select
+              v-model="statusFilter"
+              @change="handleStatusFilterChange"
+              class="filter-select"
+            >
+              <option value="">全部状态</option>
+              <option value="游戏创建">游戏创建</option>
+              <option value="基础/资质进行中">基础/资质进行中</option>
+              <option value="基础/资质已提交">基础/资质已提交</option>
+              <option value="创建流量主">创建流量主</option>
+              <option value="开发/提审进行中">开发/提审进行中</option>
+              <option value="开发/提审已提交">开发/提审已提交</option>
+              <option value="游戏备案进行中">游戏备案进行中</option>
+              <option value="游戏备案已提交">游戏备案已提交</option>
+              <option value="ICP备案进行中">ICP备案进行中</option>
+              <option value="ICP备案已提交">ICP备案已提交</option>
+              <option value="上线运营">上线运营</option>
+            </select>
+          </div>
+          <div class="filter-item filter-item-narrow">
+            <label>分配用户：</label>
+            <select
+              v-model="assignedUserFilter"
+              @change="handleAssignedUserFilterChange"
+              class="filter-select"
+            >
+              <option value="">全部用户</option>
+              <option
+                v-for="user in assignedUsers"
+                :key="user.id"
+                :value="user.id"
+              >
+                {{ user.name || user.username }}
+              </option>
+            </select>
+          </div>
+          <div class="filter-item filter-item-narrow">
+            <label>用户类型：</label>
+            <select
+              v-model="userTypeFilter"
+              @change="handleUserTypeFilterChange"
+              class="filter-select"
+            >
+              <option value="">全部类型</option>
+              <option value="internal">内部用户</option>
+              <option value="external">外部用户</option>
+            </select>
+          </div>
+          <div class="filter-item filter-item-narrow">
+            <label>开始日期</label>
+            <input
+              v-model="startDate"
+              type="date"
+              class="form-input"
+              @change="handleDateRangeChange"
+            />
+          </div>
 
-        <div class="filter-item filter-item-narrow">
-          <label>结束日期</label>
-          <input
-            v-model="endDate"
-            type="date"
-            class="form-input"
-            @change="handleDateRangeChange"
-          />
-        </div>
-        <div class="filter-item">
-          <a-button @click="clearAllFilters" type="secondary" class="clear-filters-btn">
-            <template #icon>
-              <icon-refresh />
-            </template>
-            清除筛选
-          </a-button>
+          <div class="filter-item filter-item-narrow">
+            <label>结束日期</label>
+            <input
+              v-model="endDate"
+              type="date"
+              class="form-input"
+              @change="handleDateRangeChange"
+            />
+          </div>
+          <div class="filter-item">
+            <a-button @click="clearAllFilters" type="secondary" class="clear-filters-btn">
+              <template #icon>
+                <icon-refresh />
+              </template>
+              清除筛选
+            </a-button>
+          </div>
         </div>
       </div>
     </div>
@@ -288,6 +283,12 @@
         </span>
       </template>
 
+      <template #manager="{ record }">
+        <span :class="getDateClass(record)">
+          {{ record.manager }}
+        </span>
+      </template>
+
       <template #account_name="{ record }">
         <span :class="getDateClass(record)">
           {{ record.account_name }}
@@ -390,6 +391,19 @@
             </div>
 
             <div class="form-item">
+              <label>管家</label>
+              <select
+                v-model="createForm.manager"
+                class="form-input"
+              >
+                <option value="">请选择管家</option>
+                <option value="符">符</option>
+                <option value="黄">黄</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">负责该主体的管家</small>
+            </div>
+
+            <div class="form-item">
               <label>分配用户</label>
               <select
                 v-model="createForm.assigned_user_id"
@@ -432,6 +446,19 @@
                   class="form-input"
                 />
                 <small style="color: #666; margin-top: 4px;">游戏的名称（可选）</small>
+              </div>
+
+              <div class="form-item">
+                <label>程序员</label>
+                <select
+                  v-model="createForm.programmer"
+                  class="form-input"
+                >
+                  <option value="">请选择程序员</option>
+                  <option value="冯">冯</option>
+                  <option value="张">张</option>
+                </select>
+                <small style="color: #666; margin-top: 4px;">负责该主体的程序员（可选）</small>
               </div>
 
 
@@ -521,6 +548,19 @@
                 <option value="张">张</option>
               </select>
               <small style="color: #666; margin-top: 4px;">负责该主体的程序员</small>
+            </div>
+
+            <div class="form-item">
+              <label>管家</label>
+              <select
+                v-model="editForm.manager"
+                class="form-input"
+              >
+                <option value="">请选择管家</option>
+                <option value="符">符</option>
+                <option value="黄">黄</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">负责该主体的管家</small>
             </div>
 
             <div class="form-item">
@@ -794,6 +834,19 @@
             </div>
 
             <div class="form-item">
+              <label>管家</label>
+              <select
+                v-model="editEntityForm.manager"
+                class="form-input"
+              >
+                <option value="">请选择管家</option>
+                <option value="符">符</option>
+                <option value="黄">黄</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">选择负责该主体的管家</small>
+            </div>
+
+            <div class="form-item">
               <label>账号名</label>
               <input
                 v-model="editEntityForm.account_name"
@@ -876,6 +929,7 @@ const deleteLoading = ref(false);
 const editLoading = ref(false);
 const editEntityLoading = ref(false);
 const batchLimitedLoading = ref(false);
+const batchOnlineLoading = ref(false);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showEditEntityModal = ref(false);
@@ -959,6 +1013,7 @@ const editEntityFormValidation = computed(() => ({
 const createForm = reactive({
   name: '',
   programmer: '',
+  manager: '',
   account_name: '',
   game_name: '',
   development_status: '',
@@ -969,6 +1024,7 @@ const createForm = reactive({
 const editForm = reactive({
   game_name: '',
   programmer: '',
+  manager: '',
   name: '',
   development_status: '',
   is_limited_status: false
@@ -978,6 +1034,7 @@ const editEntityForm = reactive({
   entity_id: '',
   new_name: '',
   programmer: '',
+  manager: '',
   account_name: '',
   assigned_user_id: '',
   is_limited_status: false
@@ -1021,8 +1078,16 @@ const columns = [
     title: '程序员',
     dataIndex: 'programmer',
     slotName: 'programmer',
-    width: 50,
-    minWidth: 50,
+    width: 60,
+    minWidth: 60,
+    ellipsis: true
+  },
+  {
+    title: '管家',
+    dataIndex: 'manager',
+    slotName: 'manager',
+    width: 60,
+    minWidth: 60,
     ellipsis: true
   },
   {
@@ -1045,8 +1110,8 @@ const columns = [
     title: '开发状态',
     dataIndex: 'development_status',
     slotName: 'development_status',
-    width: 198,
-    minWidth: 180
+    width: 180,
+    minWidth: 160
   },
   {
     title: '创建时间',
@@ -1068,14 +1133,14 @@ const columns = [
     title: '分配用户',
     dataIndex: 'assigned_user_name',
     slotName: 'assigned_user_name',
-    width: 108,
-    minWidth: 100,
+    width: 90,
+    minWidth: 85,
     ellipsis: true
   },
   {
     title: '操作',
     slotName: 'action',
-    width: 135,
+    width: 140,
     minWidth: 130,
     fixed: 'right'
   }
@@ -1587,6 +1652,8 @@ const loadEntityList = async () => {
         }
         return acc;
       }, []);
+      // 按主体名排序
+      uniqueEntities.sort((a, b) => a.name.localeCompare(b.name));
       existingEntities.value = uniqueEntities;
 
       // 重新应用筛选（编辑后不重置页码）
@@ -1814,6 +1881,7 @@ const editEntity = (entity: any) => {
   // 填充编辑表单
   editForm.game_name = entity.game_name || '';
   editForm.programmer = entity.programmer || '';
+  editForm.manager = entity.manager || '';
   editForm.name = entity.name || '';
   editForm.development_status = entity.development_status || '游戏创建';
   editForm.is_limited_status = entity.is_limited_status || false;
@@ -1926,6 +1994,8 @@ const handleEditEntityName = () => {
 // 重置创建表单
 const resetCreateForm = () => {
   createForm.name = '';
+  createForm.programmer = '';
+  createForm.manager = '';
   createForm.account_name = '';
   createForm.game_name = '';
   createForm.development_status = '';
@@ -1938,6 +2008,7 @@ const resetCreateForm = () => {
 const resetEditForm = () => {
   editForm.game_name = '';
   editForm.programmer = '';
+  editForm.manager = '';
   editForm.name = '';
   editForm.development_status = '';
   editForm.is_limited_status = false;
@@ -1950,6 +2021,7 @@ const resetEditEntityForm = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
   editEntityForm.programmer = '';
+  editEntityForm.manager = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   editEntityForm.is_limited_status = false;
@@ -1961,6 +2033,7 @@ const openEditEntityModal = () => {
   editEntityForm.entity_id = '';
   editEntityForm.new_name = '';
   editEntityForm.programmer = '';
+  editEntityForm.manager = '';
   editEntityForm.account_name = '';
   editEntityForm.assigned_user_id = '';
   editEntityForm.is_limited_status = false;
@@ -1975,6 +2048,8 @@ const onEntityChange = () => {
     editEntityForm.new_name = selectedEntity.name;
     // 设置程序员为当前程序员
     editEntityForm.programmer = selectedEntity.programmer || '';
+    // 设置管家为当前管家
+    editEntityForm.manager = selectedEntity.manager || '';
     // 设置账号名为当前账号名
     editEntityForm.account_name = selectedEntity.account_name || '';
     // 设置分配用户为当前分配用户
@@ -1984,6 +2059,7 @@ const onEntityChange = () => {
   } else {
     editEntityForm.new_name = '';
     editEntityForm.programmer = '';
+    editEntityForm.manager = '';
     editEntityForm.account_name = '';
     editEntityForm.assigned_user_id = '';
     editEntityForm.is_limited_status = false;
@@ -2056,6 +2132,7 @@ const handleEditEntity = async () => {
     const updateData: any = {
       name: editForm.name,
       programmer: editForm.programmer.trim(),
+      manager: editForm.manager.trim(),
       game_name: editForm.game_name,
       development_status: editForm.development_status,
       is_limited_status: editForm.is_limited_status
@@ -2146,6 +2223,7 @@ const handleUpdateEntity = async () => {
     const updateData = {
       name: newName,
       programmer: programmer,
+      manager: editEntityForm.manager ? editEntityForm.manager.trim() : '',
       account_name: editEntityForm.account_name ? editEntityForm.account_name.trim() : '',
       assigned_user_id: assignedUserId,
       is_limited_status: editEntityForm.is_limited_status
@@ -2233,6 +2311,8 @@ const handleCreateEntity = async () => {
 
     const entityData: any = {
       name: createForm.name.trim(),
+      programmer: createForm.programmer.trim(),
+      manager: createForm.manager.trim(),
       development_status: createForm.development_status || '游戏创建',
       assigned_user_id: createForm.assigned_user_id,
       is_limited_status: createForm.is_limited_status
@@ -2498,25 +2578,42 @@ const downgradeEntityStatus = async (entity: any) => {
   }
 };
 
-// 批量设置限制开发状态
-const batchSetLimitedStatus = async () => {
+// 批量设置上线状态
+const batchSetOnlineStatus = async () => {
   try {
     // 获取当前显示的所有有游戏的主体
     const gamesToUpdate = entityList.value.filter(entity => entity.game_name);
 
     if (gamesToUpdate.length === 0) {
-      Message.warning('当前没有游戏主体需要设置限制状态');
+      Message.warning('当前没有游戏主体需要设置上线状态');
       return;
     }
 
-    batchLimitedLoading.value = true;
+    batchOnlineLoading.value = true;
 
     let successCount = 0;
     let errorCount = 0;
 
-    // 逐个更新每个游戏主体
+    // 逐个更新每个游戏主体，直接设置为上线运营状态
     for (const entity of gamesToUpdate) {
       try {
+        // 获取当前状态的索引
+        const currentStatusIndex = developmentStatuses.findIndex(s => s.value === entity.development_status);
+        const targetStatusIndex = developmentStatuses.findIndex(s => s.value === '上线运营');
+
+        if (currentStatusIndex === -1 || targetStatusIndex === -1) {
+          console.error(`主体 ${entity.id} 状态无效，跳过`);
+          errorCount++;
+          continue;
+        }
+
+        // 如果已经是上线运营状态，跳过
+        if (entity.development_status === '上线运营') {
+          successCount++;
+          continue;
+        }
+
+        // 直接设置为上线运营状态（跳过逐级限制）
         const response = await fetch(`/api/entity/update/${entity.id}`, {
           method: 'PUT',
           headers: {
@@ -2527,7 +2624,8 @@ const batchSetLimitedStatus = async () => {
             name: entity.name,
             programmer: entity.programmer,
             game_name: entity.game_name,
-            is_limited_status: true
+            development_status: '上线运营',
+            skip_status_validation: true // 添加跳过验证的标志
           })
         });
 
@@ -2537,30 +2635,30 @@ const batchSetLimitedStatus = async () => {
           successCount++;
         } else {
           errorCount++;
-          console.error(`设置主体 ${entity.id} 限制状态失败:`, result.message);
+          console.error(`设置主体 ${entity.id} 上线状态失败:`, result.message);
         }
       } catch (error) {
         errorCount++;
-        console.error(`设置主体 ${entity.id} 限制状态异常:`, error);
+        console.error(`设置主体 ${entity.id} 上线状态异常:`, error);
       }
     }
 
     // 显示结果
     if (successCount > 0) {
       const message = errorCount > 0
-        ? `成功设置 ${successCount} 个游戏主体为限制状态，${errorCount} 个失败`
-        : `成功设置 ${successCount} 个游戏主体为限制状态`;
+        ? `成功设置 ${successCount} 个游戏主体为上线运营状态，${errorCount} 个失败`
+        : `成功设置 ${successCount} 个游戏主体为上线运营状态`;
       Message.success(message);
       // 重新加载主体列表
       loadEntityList();
     } else {
-      Message.error('设置限制状态失败');
+      Message.error('设置上线状态失败');
     }
   } catch (error) {
-    console.error('批量设置限制状态失败:', error);
-    Message.error('批量设置限制状态失败，请稍后重试');
+    console.error('批量设置上线状态失败:', error);
+    Message.error('批量设置上线状态失败，请稍后重试');
   } finally {
-    batchLimitedLoading.value = false;
+    batchOnlineLoading.value = false;
   }
 };
 
@@ -2602,52 +2700,163 @@ onMounted(async () => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(102, 126, 234, 0.1);
   animation: slideInFromTop 0.8s ease-out;
-
-  h2 {
-    margin: 0 0 12px 0;
-    font-size: 32px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    &::before {
-      content: "🏢";
-      font-size: 36px;
-    }
-  }
-
-  p {
-    margin: 0;
-    color: #86909c;
-    font-size: 16px;
-    font-weight: 400;
-  }
-}
-
-.action-bar {
-  margin-bottom: 24px;
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  animation: slideInFromLeft 0.8s ease-out 0.2s both;
+  flex-direction: column;
+  gap: 24px;
 
-  :deep(.arco-btn) {
-    border-radius: 12px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  .header-main {
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: flex;
+      align-items: center;
+      gap: 12px;
 
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      &::before {
+        content: "🏢";
+        font-size: 36px;
+      }
     }
+
+    p {
+      margin: 0;
+      color: #86909c;
+      font-size: 16px;
+      font-weight: 400;
+    }
+  }
+
+  .header-stats {
+    .stats-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .total-count {
+      font-size: 16px;
+      color: #1d2129;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      &::before {
+        content: "📊";
+        font-size: 18px;
+      }
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+
+    :deep(.arco-btn) {
+      border-radius: 12px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      }
+    }
+  }
+
+  .header-filters {
+    .filter-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .filter-item {
+      display: flex;
+      flex-direction: column;
+      min-width: 200px;
+
+      &.filter-item-narrow {
+        min-width: 150px;
+        max-width: 180px;
+      }
+
+      label {
+        font-weight: 600;
+        color: #1d2129;
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+    }
+
+    .search-input {
+      width: 100%;
+      height: 40px;
+    }
+
+    .filter-select {
+      width: 100%;
+      height: 40px;
+      padding: 8px 16px;
+      border: 2px solid #e5e6eb;
+      border-radius: 12px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      background: white;
+      cursor: pointer;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        transform: translateY(-1px);
+      }
+    }
+
+    .form-input {
+      width: 100%;
+      height: 40px;
+      padding: 8px 16px;
+      border: 2px solid #e5e6eb;
+      border-radius: 12px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      background: white;
+      box-sizing: border-box;
+
+      &:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        transform: translateY(-1px);
+      }
+
+      &.error {
+        border-color: #ff4d4f;
+
+        &:focus {
+          border-color: #ff4d4f;
+          box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.1);
+        }
+      }
+
+      &::placeholder {
+        color: #c9cdd4;
+      }
+    }
+
+    /* clear-filters-btn样式已在page-header中定义 */
   }
 }
 
@@ -2965,34 +3174,7 @@ onMounted(async () => {
   color: #1d2129;
 }
 
-.stats-section {
-  margin-bottom: 24px;
-  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
-  border-radius: 12px;
-  padding: 16px 24px;
-  border: 1px solid rgba(102, 126, 234, 0.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.stats-info {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.total-count {
-  font-size: 16px;
-  color: #1d2129;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.total-count::before {
-  content: "🏢";
-  font-size: 18px;
-}
+/* 统计信息样式已在page-header中定义 */
 
 /* 按钮样式 */
 .btn {
@@ -3047,59 +3229,7 @@ onMounted(async () => {
   box-shadow: 0 8px 25px rgba(255, 77, 79, 0.3);
 }
 
-.filter-section {
-  margin-bottom: 24px;
-}
-
-.filter-row {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: end;
-}
-
-.filter-item {
-  display: flex;
-  flex-direction: column;
-  min-width: 200px;
-}
-
-.filter-item-narrow {
-  min-width: 150px;
-  max-width: 180px;
-}
-
-.filter-item label {
-  font-weight: 600;
-  color: #1d2129;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.filter-select {
-  width: 100%;
-  height: 40px;
-  padding: 8px 16px;
-  border: 2px solid #e5e6eb;
-  border-radius: 12px;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  background: white;
-  cursor: pointer;
-  box-sizing: border-box;
-
-  &:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    transform: translateY(-1px);
-  }
-}
-
-.search-input {
-  width: 100%;
-  height: 40px;
-}
+/* 筛选相关样式已在page-header中定义 */
 
 /* 空状态样式 */
 .empty-state {
@@ -3140,11 +3270,11 @@ onMounted(async () => {
 /* 表格响应式样式 */
 :deep(.arco-table) {
   .arco-table-td {
-    padding: 12px 8px;
+    padding: 8px 4px;
   }
 
   .arco-table-th {
-    padding: 12px 8px;
+    padding: 8px 4px;
     font-weight: 600;
     background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
   }
@@ -3243,19 +3373,33 @@ onMounted(async () => {
 
 /* 小屏幕优化 */
 @media (max-width: 768px) {
-  .filter-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
+  .page-header {
+    padding: 20px;
+    gap: 20px;
 
-  .filter-item {
-    min-width: auto;
-    margin-bottom: 12px;
-  }
+    .header-main h2 {
+      font-size: 24px;
 
-  .action-bar {
-    flex-direction: column;
-    align-items: stretch;
+      &::before {
+        font-size: 28px;
+      }
+    }
+
+    .header-actions {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+
+    .header-filters .filter-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .header-filters .filter-item {
+      min-width: auto;
+      margin-bottom: 12px;
+    }
   }
 }
 

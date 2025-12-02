@@ -43,7 +43,7 @@ function defineUserModel(sequelize) {
     }
   },
   role: {
-    type: DataTypes.ENUM('admin', 'internal_boss', 'internal_service', 'internal_user', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3', 'programmer', 'clerk'),
+    type: DataTypes.ENUM('admin', 'internal_boss', 'internal_service', 'internal_user', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3', 'programmer', 'steward'),
     defaultValue: 'external_user_1',
     allowNull: false
   },

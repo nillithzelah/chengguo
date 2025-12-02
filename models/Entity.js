@@ -25,6 +25,14 @@ function defineEntityModel(sequelize) {
       },
       comment: '程序员姓名'
     },
+    manager: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      validate: {
+        len: [0, 100]
+      },
+      comment: '管家姓名'
+    },
     account_name: {
       type: DataTypes.STRING(255),
       allowNull: true,
@@ -76,6 +84,9 @@ function defineEntityModel(sequelize) {
         fields: ['programmer']
       },
       {
+        fields: ['manager']
+      },
+      {
         fields: ['created_at']
       },
       {
@@ -98,6 +109,13 @@ function defineEntityModel(sequelize) {
     });
   };
 
+  // 类方法：通过管家查找主体
+  Entity.findByManager = async function(manager) {
+    return await this.findAll({
+      where: { manager }
+    });
+  };
+
   // 类方法：通过状态查找主体
   Entity.findByStatus = async function(status) {
     return await this.findAll({
@@ -111,6 +129,7 @@ function defineEntityModel(sequelize) {
       id: this.id,
       name: this.name,
       programmer: this.programmer,
+      manager: this.manager,
       account_name: this.account_name,
       game_name: this.game_name,
       development_status: this.development_status,

@@ -63,7 +63,7 @@ function getRoleText(role) {
     'external_user_2': '外部2级用户',
     'external_user_3': '外部3级用户',
     'programmer': '程序员',
-    'clerk': '文员'
+    'steward': '管家'
   };
   return roleTexts[role] || role;
 }
@@ -236,11 +236,11 @@ const requireAdmin = requireRoles(['admin']);
 // 管理员和老板权限检查中间件
 const requireAdminOrBoss = requireRoles(['admin', 'internal_boss', 'external_boss']);
 
-// 管理员、老板、客服和文员权限检查中间件
-const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'clerk']);
+// 管理员、老板、客服和管家权限检查中间件
+const requireManagementRoles = requireRoles(['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'steward']);
 
 // 程序员权限检查中间件（只能访问主体管理）
-const requireProgrammer = requireRoles(['admin', 'programmer', 'clerk']);
+const requireProgrammer = requireRoles(['admin', 'programmer', 'steward']);
 
 // 用户登录
 app.post('/api/user/login', async (req, res) => {

@@ -1184,12 +1184,13 @@
        // 计算所有数据的统计信息（在分页之前）
        allGamesStats.totalRevenue = allRecords.reduce((sum, item) => {
          // 优先使用revenue字段（元单位），如果没有则从cost计算
-         if (item.revenue !== undefined && item.revenue !== null) {
-           return sum + parseFloat(item.revenue);
-         } else if (item.cost !== undefined && item.cost !== null) {
-           return sum + (parseFloat(item.cost) / 100000);
+         let revenue = 0;
+         if (item.revenue !== undefined && item.revenue !== null && !isNaN(parseFloat(item.revenue))) {
+           revenue = parseFloat(item.revenue);
+         } else if (item.cost !== undefined && item.cost !== null && !isNaN(parseFloat(item.cost))) {
+           revenue = parseFloat(item.cost) / 100000;
          }
-         return sum;
+         return sum + revenue;
        }, 0);
        allGamesStats.totalEcpm = totalRecords > 0 ? (allGamesStats.totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
        allGamesStats.uniqueUsers = new Set(allRecords.map(item => item.open_id)).size;
@@ -1257,8 +1258,8 @@
          params.append('mp_id', queryParams.mp_id);
          params.append('app_secret', selectedApp.appSecret);
          params.append('date_hour', queryParams.date_hour || new Date().toISOString().split('T')[0]);
-         params.append('page_no', queryParams.page_no?.toString() || '1');
-         params.append('page_size', queryParams.page_size?.toString() || '10');
+         params.append('page_no', '1'); // 总是获取第一页
+         params.append('page_size', '10000'); // 设置大页大小获取所有数据用于汇总计算
 
          // 从JWT token中获取用户名
          const token = localStorage.getItem('token');
@@ -1457,7 +1458,14 @@
            city: item.city || currentCity,
            phone_brand: item.phone_brand || currentBrand,
            phone_model: item.phone_model || currentModel,
-           revenue: item.revenue !== undefined && item.revenue !== null ? parseFloat(item.revenue) : (parseFloat(item.cost) || 0) / 100000,
+           revenue: (() => {
+             if (item.revenue !== undefined && item.revenue !== null && !isNaN(parseFloat(item.revenue))) {
+               return parseFloat(item.revenue);
+             } else if (item.cost !== undefined && item.cost !== null && !isNaN(parseFloat(item.cost))) {
+               return parseFloat(item.cost) / 100000;
+             }
+             return 0;
+           })(),
            isBound: false,
            isCurrentUserBound: false,
            app_name: item.app_name || getCurrentAppName(), // 添加应用名称
@@ -1533,11 +1541,11 @@
          totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
          uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
        } else if (queryParams.query_type === 'single_day') {
-         // 单天查询：使用API返回的总数和总收益（分页情况下）
-         totalRecords = stats.value?.totalRecords || tableData.value.length;
-         totalRevenue = parseFloat(stats.value?.totalRevenue || '0'); // 使用API返回的总收益
+         // 单天查询：从处理后的完整数据计算汇总统计
+         totalRecords = processedRecords.length; // 使用实际获取的数据数量
+         totalRevenue = processedRecords.reduce((sum, item) => sum + item.revenue, 0); // 从完整数据计算总收益
          totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
-         uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
+         uniqueUsers = new Set(processedRecords.map(item => item.open_id)).size; // 从完整数据计算唯一用户数
        }
 
        stats.value = {
