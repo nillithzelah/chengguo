@@ -15,6 +15,7 @@ const defineConversionEventModel = require('./models/ConversionEvent');
 const defineTokenModel = require('./models/Token');
 const defineUserOpenIdModel = require('./models/UserOpenId');
 const defineEntityModel = require('./models/Entity');
+const defineCustomerModel = require('./models/Customer');
 
 // 初始化模型
 const User = defineUserModel(sequelize);
@@ -24,6 +25,7 @@ const ConversionEvent = defineConversionEventModel(sequelize);
 const Token = defineTokenModel(sequelize);
 const UserOpenId = defineUserOpenIdModel(sequelize);
 const Entity = defineEntityModel(sequelize);
+const Customer = defineCustomerModel(sequelize);
 
 
 // 转化事件回调服务
@@ -103,7 +105,8 @@ function getRoleText(role) {
     'external_user_2': '外部2级用户',
     'external_user_3': '外部3级用户',
     'programmer': '程序员',
-    'steward': '管家'
+    'steward': '管家',
+    'sales': '销售'
   };
   return roleTexts[role] || role;
 }
@@ -170,6 +173,13 @@ UserOpenId.belongsTo(User, {
   foreignKey: 'user_id',
   as: 'user',
   onDelete: 'CASCADE'
+});
+
+// 客户关联：销售
+Customer.belongsTo(User, {
+  foreignKey: 'sales_id',
+  as: 'salesUser',
+  targetKey: 'id'
 });
 
 // JWT secret key - 强制要求环境变量，必须设置强密钥
@@ -944,6 +954,386 @@ app.get('/api/user/list', authenticateJWT, requireManagementRoles, async (req, r
 
   } catch (error) {
     console.error('获取用户列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取客户列表 (管理员、销售、文员可查看)
+app.get('/api/customer/list', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：管理员、销售、文员可以查看客户列表
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'sales', 'steward'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员、销售和文员可以查看客户列表'
+      });
+    }
+
+    // 构建查询条件
+    const whereCondition = {};
+
+    // 所有有权限的用户都可以查看全部客户数据（移除销售角色筛选限制）
+
+    // 获取客户列表
+    const customers = await Customer.findAll({
+      where: whereCondition,
+      include: [{
+        model: User,
+        as: 'salesUser',
+        attributes: ['id', 'username', 'name'],
+        required: false
+      }],
+      order: [['created_at', 'DESC']]
+    });
+
+    // 格式化数据
+    const formattedCustomers = customers.map(customer => customer.toFrontendFormat());
+
+    res.json({
+      code: 20000,
+      data: {
+        customers: formattedCustomers,
+        total: formattedCustomers.length
+      },
+      message: '获取客户列表成功'
+    });
+
+  } catch (error) {
+    console.error('获取客户列表错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 创建客户 (管理员、销售可创建)
+app.post('/api/customer/create', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { name, contact_person, phone, email, address, industry, company_size, budget_range, sales_id, game_count, game_type, payment_entity, amount, notes, signer_name } = req.body;
+
+    console.log('DEBUG: Received customer create request');
+    console.log('DEBUG: req.body.signer_name:', req.body.signer_name, 'type:', typeof req.body.signer_name);
+    console.log('DEBUG: extracted signer_name:', signer_name, 'type:', typeof signer_name);
+    console.log('DEBUG: full req.body:', req.body);
+
+    // 检查权限：管理员和销售可以创建客户
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'sales'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和销售可以创建客户'
+      });
+    }
+
+    // 验证必填字段
+    if (!name) {
+      return res.status(400).json({
+        code: 400,
+        message: '客户名称不能为空'
+      });
+    }
+
+    // 检查客户名称是否已存在
+    const existingCustomer = await Customer.findOne({
+      where: { name: name.trim() }
+    });
+    if (existingCustomer) {
+      return res.status(400).json({
+        code: 400,
+        message: '该客户名称已存在，请使用不同的名称'
+      });
+    }
+
+    // 验证销售ID（如果提供的话）
+    if (sales_id) {
+      const salesUser = await User.findByPk(sales_id);
+      if (!salesUser) {
+        return res.status(400).json({
+          code: 400,
+          message: '指定的销售不存在'
+        });
+      }
+
+      const salesUserRole = getMappedRole(salesUser.role);
+      if (salesUserRole !== 'sales') {
+        return res.status(400).json({
+          code: 400,
+          message: '指定的销售必须是销售角色'
+        });
+      }
+    }
+
+    // 创建客户
+    const newCustomer = await Customer.create({
+      name: name.trim(),
+      contact_person: contact_person ? contact_person.trim() : '',
+      phone: phone ? phone.trim() : '',
+      email: email ? email.trim() : '',
+      address: address ? address.trim() : '',
+      industry: industry ? industry.trim() : '',
+      company_size: company_size ? company_size.trim() : '',
+      budget_range: budget_range ? budget_range.trim() : '',
+      sales_id: sales_id || null,
+      game_count: game_count ? parseInt(game_count) : null,
+      game_type: game_type ? game_type.trim() : '',
+      payment_entity: payment_entity ? payment_entity.trim() : '',
+      amount: amount ? parseFloat(amount) : null,
+      notes: notes ? notes.trim() : '',
+      signer_name: signer_name ? signer_name.trim() : null
+    });
+
+    logger.info(`用户 ${currentUser.username} 创建了新客户: ${name}`);
+
+    // 重新查询客户以获取关联数据
+    const createdCustomer = await Customer.findByPk(newCustomer.id, {
+      include: [{
+        model: User,
+        as: 'salesUser',
+        attributes: ['id', 'username', 'name'],
+        required: false
+      }]
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        customer: createdCustomer.toFrontendFormat(),
+        id: createdCustomer.id
+      },
+      message: '客户创建成功'
+    });
+
+  } catch (error) {
+    console.error('创建客户错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 更新客户 (管理员、销售可更新)
+app.put('/api/customer/update/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+    const { name, contact_person, phone, email, address, industry, company_size, budget_range, sales_id, game_count, game_type, payment_entity, amount, notes, signer_name } = req.body;
+
+    // 检查权限：管理员和销售可以更新客户
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'sales'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和销售可以更新客户'
+      });
+    }
+
+    // 查找客户
+    const customer = await Customer.findByPk(id);
+    if (!customer) {
+      return res.status(404).json({
+        code: 404,
+        message: '客户不存在'
+      });
+    }
+
+    // 如果是销售角色，检查是否是自己的客户
+    if (mappedRole === 'sales' && customer.sales_id && customer.sales_id !== currentUser.userId) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只能更新自己的客户'
+      });
+    }
+
+    // 如果名称改变，检查同名客户数量是否超过限制
+    if (name && name !== customer.name) {
+      const existingCustomers = await Customer.findByName(name);
+      if (existingCustomers && existingCustomers.length >= 5) {
+        return res.status(400).json({
+          code: 400,
+          message: '该客户名称已达到最大数量限制（最多5个）'
+        });
+      }
+    }
+
+    // 验证销售ID（如果提供的话）
+    if (sales_id !== undefined) {
+      if (sales_id === null || sales_id === '') {
+        // 允许清空销售
+      } else {
+        const salesUser = await User.findByPk(sales_id);
+        if (!salesUser) {
+          return res.status(400).json({
+            code: 400,
+            message: '指定的销售不存在'
+          });
+        }
+
+        const salesUserRole = getMappedRole(salesUser.role);
+        if (salesUserRole !== 'sales') {
+          return res.status(400).json({
+            code: 400,
+            message: '指定的销售必须是销售角色'
+          });
+        }
+      }
+    }
+
+    // 更新客户信息
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (contact_person !== undefined) updateData.contact_person = contact_person ? contact_person.trim() : '';
+    if (phone !== undefined) updateData.phone = phone ? phone.trim() : '';
+    if (email !== undefined) updateData.email = email ? email.trim() : '';
+    if (address !== undefined) updateData.address = address ? address.trim() : '';
+    if (industry !== undefined) updateData.industry = industry ? industry.trim() : '';
+    if (company_size !== undefined) updateData.company_size = company_size ? company_size.trim() : '';
+    if (budget_range !== undefined) updateData.budget_range = budget_range ? budget_range.trim() : '';
+    if (sales_id !== undefined) updateData.sales_id = sales_id || null;
+    if (game_count !== undefined) updateData.game_count = game_count ? parseInt(game_count) : null;
+    if (game_type !== undefined) updateData.game_type = game_type ? game_type.trim() : '';
+    if (payment_entity !== undefined) updateData.payment_entity = payment_entity ? payment_entity.trim() : '';
+    if (amount !== undefined) updateData.amount = amount ? parseFloat(amount) : null;
+    if (notes !== undefined) updateData.notes = notes ? notes.trim() : '';
+    if (signer_name !== undefined) updateData.signer_name = signer_name ? signer_name.trim() : null;
+
+    await customer.update(updateData);
+
+    logger.info(`用户 ${currentUser.username} 更新了客户: ${customer.name} (ID: ${id})`);
+
+    // 重新查询客户以获取关联数据
+    const updatedCustomer = await Customer.findByPk(id, {
+      include: [{
+        model: User,
+        as: 'salesUser',
+        attributes: ['id', 'username', 'name'],
+        required: false
+      }]
+    });
+
+    res.json({
+      code: 20000,
+      data: {
+        customer: updatedCustomer.toFrontendFormat()
+      },
+      message: '客户更新成功'
+    });
+
+  } catch (error) {
+    console.error('更新客户错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 删除客户 (管理员和销售可删除)
+app.delete('/api/customer/delete/:id', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { id } = req.params;
+
+    // 检查权限：管理员可以删除所有客户，销售只能删除自己负责的客户
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'sales'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只有管理员和销售可以删除客户'
+      });
+    }
+
+    // 查找客户
+    const customer = await Customer.findByPk(id);
+    if (!customer) {
+      return res.status(404).json({
+        code: 404,
+        message: '客户不存在'
+      });
+    }
+
+    // 如果是销售角色，检查是否是自己的客户
+    if (mappedRole === 'sales' && customer.sales_id && customer.sales_id !== currentUser.userId) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足，只能删除自己负责的客户'
+      });
+    }
+
+    // 删除客户
+    await customer.destroy();
+
+    logger.info(`${getRoleText(mappedRole)} ${currentUser.username} 删除了客户 ${customer.name} (ID: ${id})`);
+
+    res.json({
+      code: 20000,
+      message: '客户删除成功'
+    });
+
+  } catch (error) {
+    console.error('删除客户错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+});
+
+// 获取销售选项 (用于客户管理)
+app.get('/api/customer/sales-options', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+
+    // 检查权限：管理员、销售、文员可以查看销售选项
+    const mappedRole = getMappedRole(currentUser.role);
+    const allowedRoles = ['admin', 'sales', 'steward'];
+    if (!allowedRoles.includes(mappedRole)) {
+      return res.status(403).json({
+        code: 403,
+        message: '权限不足'
+      });
+    }
+
+    // 从数据库获取所有销售角色的用户
+    const salesUsers = await User.findAll({
+      where: {
+        role: 'sales',
+        is_active: true
+      },
+      attributes: ['id', 'username', 'name'],
+      order: [['name', 'ASC']]
+    });
+
+    // 格式化销售选项
+    const salesOptions = salesUsers.map(user => ({
+      id: user.id,
+      username: user.username,
+      name: user.name || user.username
+    }));
+
+    res.json({
+      code: 20000,
+      data: {
+        sales: salesOptions,
+        total: salesOptions.length
+      },
+      message: '获取销售选项成功'
+    });
+
+  } catch (error) {
+    console.error('获取销售选项错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { sequelize } = require('../config/database');
+const { sequelize } = require('../../config/database');
 
 async function checkTableStructure() {
   try {
@@ -30,6 +30,17 @@ async function checkTableStructure() {
       });
     } catch (error) {
       console.log('\nEntities table: NOT FOUND');
+    }
+
+    // 检查 customers 表结构
+    try {
+      const [customerColumns] = await sequelize.query("PRAGMA table_info(customers)");
+      console.log('\nCustomers table columns:');
+      customerColumns.forEach(col => {
+        console.log(`  ${col.name}: ${col.type} ${col.notnull ? 'NOT NULL' : ''} ${col.pk ? 'PRIMARY KEY' : ''}`);
+      });
+    } catch (error) {
+      console.log('\nCustomers table: NOT FOUND');
     }
 
   } catch (error) {

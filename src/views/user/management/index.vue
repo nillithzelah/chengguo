@@ -590,7 +590,8 @@ const availableRoles = computed(() => {
       { value: 'internal_boss', label: '内部老板' },
       { value: 'admin', label: '管理员' },
       { value: 'programmer', label: '程序员' },
-      { value: 'clerk', label: '文员' }
+      { value: 'clerk', label: '文员' },
+      { value: 'sales', label: '销售' }
     ];
   } else if (currentRole === 'clerk') {
     // 文员可以创建除管理员外的所有角色
@@ -606,7 +607,8 @@ const availableRoles = computed(() => {
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
       { value: 'programmer', label: '程序员' },
-      { value: 'clerk', label: '文员' }
+      { value: 'clerk', label: '文员' },
+      { value: 'sales', label: '销售' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
     // 内部老板可以创建内部客服和内用户
@@ -668,7 +670,8 @@ const getEditableRoles = () => {
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
       { value: 'programmer', label: '程序员' },
-      { value: 'clerk', label: '文员' }
+      { value: 'clerk', label: '文员' },
+      { value: 'sales', label: '销售' }
     ];
   } else if (currentRole === 'clerk') {
     // 文员可以编辑除管理员外的所有角色
@@ -684,7 +687,8 @@ const getEditableRoles = () => {
       { value: 'internal_service', label: '内部客服' },
       { value: 'internal_boss', label: '内部老板' },
       { value: 'programmer', label: '程序员' },
-      { value: 'clerk', label: '文员' }
+      { value: 'clerk', label: '文员' },
+      { value: 'sales', label: '销售' }
     ];
   } else if (['internal_boss', 'super_viewer'].includes(currentRole || '')) {
     // 内部老板可以编辑内部客服和内部用户
@@ -772,6 +776,7 @@ const allFilterableRoles = computed(() => {
       'external_service': '外部客服',
       'programmer': '程序员',
       'clerk': '文员',
+      'sales': '销售',
       'internal_user_1': '内部普通用户1级',
       'internal_user_2': '内部普通用户2级',
       'internal_user_3': '内部普通用户3级',
@@ -1076,6 +1081,7 @@ const getRoleColor = (role: string) => {
     internal_service: 'orange',
     programmer: 'geekblue',
     clerk: 'gold',
+    sales: 'volcano',
     internal_user_1: 'blue',
     internal_user_2: 'magenta',
     internal_user_3: 'arcoblue',
@@ -1103,6 +1109,7 @@ const getRoleText = (role: string) => {
     internal_service: '内部客服',
     programmer: '程序员',
     clerk: '文员',
+    sales: '销售',
     internal_user_1: '内部普通用户1级',
     internal_user_2: '内部普通用户2级',
     internal_user_3: '内部普通用户3级',

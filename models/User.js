@@ -15,7 +15,7 @@ function defineUserModel(sequelize) {
     unique: true,
     validate: {
       notEmpty: true,
-      len: [3, 50]
+      len: [1, 50]
     }
   },
   password_hash: {

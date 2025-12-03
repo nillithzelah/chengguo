@@ -10,7 +10,7 @@ const AD: AppRouteRecordRaw = {
     requiresAuth: true,
     icon: 'icon-bar-chart',
     order: 2,
-    roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3'], // 程序员不显示广告数据菜单
+    roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3', 'sales'], // 程序员不显示广告数据菜单，销售可以看到菜单但只访问特定页面
   },
   children: [
     // 用户ECPM数据查看 - 所有登录用户都可以访问
@@ -21,7 +21,7 @@ const AD: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.ad.ecpm.user',
         requiresAuth: true,
-        roles: ['*'], // 所有用户都可以访问
+        roles: ['*'], // 所有用户都可以访问，包括销售
       },
     },
     // 灰游ECPM数据查看 - 仅内部角色和管理员可以访问
@@ -32,7 +32,7 @@ const AD: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.ad.ecpm.gray',
         requiresAuth: true,
-        roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3'], // 仅内部角色可以访问
+        roles: ['admin', 'internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3', 'sales'], // 仅内部角色可以访问
       },
     },
     // Token管理页面 - 管理员可以访问
