@@ -635,7 +635,7 @@
           <button
             v-if="canCreateEntity"
             @click="handleEditEntity"
-            :disabled="!editForm.programmer || !editForm.game_name || !editForm.name || editLoading"
+            :disabled="!editForm.game_name || !editForm.name || editLoading"
             class="btn btn-primary"
           >
             {{ editLoading ? '保存中...' : '保存修改' }}
@@ -2193,10 +2193,6 @@ const handleUpdateEntity = async () => {
       return;
     }
 
-    if (!editEntityForm.programmer.trim()) {
-      Message.error('请选择程序员');
-      return;
-    }
 
     editEntityLoading.value = true;
 
