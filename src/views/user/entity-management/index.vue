@@ -718,6 +718,32 @@
               <small style="color: #666; margin-top: 4px;">从现有主体中选择</small>
             </div>
 
+            <div class="form-item">
+              <label>程序员</label>
+              <select
+                v-model="assignForm.programmer"
+                class="form-input"
+              >
+                <option value="">请选择程序员</option>
+                <option value="冯">冯</option>
+                <option value="张">张</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">负责该主体的程序员（可选）</small>
+            </div>
+
+            <div class="form-item">
+              <label>管家</label>
+              <select
+                v-model="assignForm.manager"
+                class="form-input"
+              >
+                <option value="">请选择管家</option>
+                <option value="符">符</option>
+                <option value="黄">黄</option>
+              </select>
+              <small style="color: #666; margin-top: 4px;">负责该主体的管家（可选）</small>
+            </div>
+
             <!-- 开发状态字段 -->
             <div class="form-section">
               <h4>开发状态</h4>
@@ -1061,7 +1087,9 @@ const availableGames = ref<any[]>([]);
 const assignForm = reactive({
   game_name: '',
   name: '',
-  development_status: ''
+  development_status: '',
+  programmer: '',
+  manager: ''
 });
 
 // 表格列配置
@@ -2103,6 +2131,8 @@ const openAssignModal = () => {
   assignForm.game_name = '';
   assignForm.name = '';
   assignForm.development_status = '游戏创建';
+  assignForm.programmer = '';
+  assignForm.manager = '';
   showAssignModal.value = true;
 };
 
@@ -2111,6 +2141,8 @@ const resetAssignForm = () => {
   assignForm.game_name = '';
   assignForm.name = '';
   assignForm.development_status = '';
+  assignForm.programmer = '';
+  assignForm.manager = '';
   showAssignModal.value = false;
 };
 
@@ -2409,7 +2441,9 @@ const handleAssignEntity = async () => {
         entity_id: selectedEntity.id,
         game_name: assignForm.game_name.trim(),
         development_status: assignForm.development_status,
-        is_limited_status: selectedEntity.is_limited_status // 继承主体的限制状态
+        is_limited_status: selectedEntity.is_limited_status, // 继承主体的限制状态
+        programmer: assignForm.programmer.trim(),
+        manager: assignForm.manager.trim()
       };
 
       const response = await fetch('/api/entity/assign-game', {
