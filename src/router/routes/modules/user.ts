@@ -32,7 +32,7 @@ const USER: AppRouteRecordRaw = {
       meta: {
         locale: 'menu.user.entity',
         requiresAuth: true,
-        roles: ['admin', 'internal_boss', 'programmer', 'clerk'], // 管理员、内部老板、程序员、文员可以访问，销售无权限
+        roles: ['admin', 'internal_boss', 'programmer', 'clerk'], // 管理员、老板、程序员、文员可以访问，销售无权限
       },
     },
     {
@@ -55,16 +55,6 @@ const USER: AppRouteRecordRaw = {
         requiresAuth: true,
         roles: ['admin', 'super_viewer', 'internal_boss', 'external_boss', 'internal_service', 'external_service', 'clerk'], // 管理员、超级查看者、老板、客服、文员可以访问，销售无权限
         hideForProgrammer: true, // 程序员不显示此菜单
-      },
-    },
-    {
-      path: 'customer-management',
-      name: 'CustomerManagement',
-      component: () => import('@/views/user/customer-management/index.vue'),
-      meta: {
-        locale: 'menu.user.customer',
-        requiresAuth: true,
-        roles: ['admin', 'clerk', 'sales'], // 只有管理员、文员、销售可以访问客户管理页面
       },
     },
   ],

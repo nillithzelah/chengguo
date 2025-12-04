@@ -10,7 +10,6 @@ export default {
   'menu.user.entity': '主体管理',
   'menu.user.game.user': '用户游戏管理',
   'menu.user.game.admin': '游戏管理',
-  'menu.user.customer': '客户管理',
   'menu.ad': '广告数据',
   'menu.ad.ecpm.simple': '管理员ECPM数据管理',
   'menu.ad.ecpm.user': '用户ECPM数据查看',

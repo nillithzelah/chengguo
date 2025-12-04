@@ -1523,15 +1523,23 @@ const loadAssignedUsers = async () => {
 const loadEntityList = async () => {
   loading.value = true;
   try {
-    // 构建API URL，如果是程序员角色，添加程序员姓名筛选参数
+    // 构建API URL，根据角色添加相应的筛选参数
     let apiUrl = '/api/entity/list';
     const currentUserRole = userStore.userInfo?.role;
     const currentUserName = userStore.userInfo?.name;
+    const currentUserId = userStore.userInfo?.accountId;
 
     if (currentUserRole === 'programmer' && currentUserName) {
       // 程序员只看到自己负责的主体记录
       apiUrl += `?programmer_filter=${encodeURIComponent(currentUserName)}`;
       console.log(`👨‍💻 [程序员查询] 程序员 ${currentUserName} (角色: ${currentUserRole}) 正在查询自己负责的主体列表`);
+    } else if (currentUserRole === 'external_boss' && currentUserId) {
+      // 外部老板只看到分配给自己的主体记录
+      apiUrl += `?assigned_user_filter=${encodeURIComponent(currentUserId)}`;
+      console.log(`👔 [外部老板查询] 外部老板 ${currentUserName} (ID: ${currentUserId}, 角色: ${currentUserRole}) 正在查询分配给自己的主体列表`);
+    } else if (currentUserRole === 'internal_boss') {
+      // 内部老板可以看到所有分配给内部用户的主体记录
+      console.log(`🏢 [内部老板查询] 内部老板 ${currentUserName} (ID: ${currentUserId}, 角色: ${currentUserRole}) 正在查询所有分配给内部用户的主体列表`);
     } else {
       console.log(`🔍 [主体查询] 用户角色: ${currentUserRole || '未登录'}, 用户名: ${currentUserName || '未知'} 正在查询主体列表`);
     }
@@ -1786,11 +1794,11 @@ const applyFilters = (resetPage = true) => {
   if (userTypeFilter.value) {
     filteredEntities = filteredEntities.filter(entity => {
       if (userTypeFilter.value === 'internal') {
-        // 内部用户：internal_boss
-        return entity.assigned_user_role === 'internal_boss';
+        // 内部用户：包括所有内部角色
+        return ['internal_boss', 'internal_service', 'internal_user_1', 'internal_user_2', 'internal_user_3'].includes(entity.assigned_user_role);
       } else if (userTypeFilter.value === 'external') {
-        // 外部用户：external_boss
-        return entity.assigned_user_role === 'external_boss';
+        // 外部用户：包括所有外部角色
+        return ['external_boss', 'external_service', 'external_user_1', 'external_user_2', 'external_user_3'].includes(entity.assigned_user_role);
       }
       return true;
     });

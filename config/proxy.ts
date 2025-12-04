@@ -434,31 +434,4 @@ export const proxyConfig = {
       });
     },
   },
-
-  // 客户管理API代理
-  '/api/customer': {
-    target: 'http://localhost:3000',
-    changeOrigin: true,
-    secure: false,
-    rewrite: (path: string) => {
-      return path;
-    },
-    configure: (proxy: any) => {
-      proxy.on('error', (err: any, req: any, res: any) => {
-        console.error('客户管理API代理错误:', err);
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-        }
-        res.end(JSON.stringify({ code: 500, message: '客户管理服务连接失败' }));
-      });
-
-      proxy.on('proxyReq', (proxyReq: any) => {
-        console.log('🔄 代理客户管理API请求:', proxyReq.method, proxyReq.path);
-      });
-
-      proxy.on('proxyRes', (proxyRes: any, req: any) => {
-        console.log('✅ 代理客户管理API响应:', proxyRes.statusCode, req.url);
-      });
-    },
-  },
 };
