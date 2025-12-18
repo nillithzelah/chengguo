@@ -10,9 +10,9 @@
           <p>查看和管理所有游戏，支持按用户筛选</p>
         </div>
         <div class="header-actions" v-if="canModify">
-          <!-- <a-button @click="showCreateGameModal = true" type="primary">
+          <a-button @click="showCreateGameModal = true" type="primary">
             创建游戏
-          </a-button> -->
+          </a-button>
         </div>
       </div>
     </div>
@@ -196,6 +196,26 @@
             </div>
           </template>
 
+          <template #assigned_users_count="{ record }">
+            <div class="assigned-users-list">
+              <div v-if="record.assigned_users && getFilteredAssignedUsers(record.assigned_users).length > 0" class="users-container">
+                <div
+                  v-for="userGame in getFilteredAssignedUsers(record.assigned_users).slice(0, 3)"
+                  :key="userGame.id"
+                  class="user-tag"
+                >
+                  {{ userGame.user?.name || userGame.user?.username || '未知用户' }}
+                </div>
+                <div v-if="getFilteredAssignedUsers(record.assigned_users).length > 3" class="more-users">
+                  +{{ getFilteredAssignedUsers(record.assigned_users).length - 3 }}个用户
+                </div>
+              </div>
+              <div v-else class="no-users">
+                未分配用户
+              </div>
+            </div>
+          </template>
+
           <template #created_at="{ record }">
             {{ formatDate(record.created_at) }}
           </template>
@@ -211,7 +231,7 @@
 
           <template #actions="{ record }">
             <a-space>
-              <a-button v-if="canModify" @click="editGame(record)" type="text" size="small">
+              <a-button v-if="canEditGame" @click="editGame(record)" type="text" size="small">
                 编辑
               </a-button>
               <a-button v-if="canAssign" @click="openAssignModal(record)" type="primary" size="small">
@@ -317,6 +337,7 @@
                 <button
                   @click="fillExampleData"
                   class="btn btn-small"
+                  title="填入示例数据（App Secret需要手动填写有效的凭据）"
                 >
                   📝 填入示例数据
                 </button>
@@ -406,7 +427,7 @@
             ></textarea>
           </div>
 
-          <div class="form-item">
+          <div v-if="canEditAdFields" class="form-item">
             <label>广告主ID</label>
             <input
               v-model="editGameData.advertiser_id"
@@ -419,7 +440,7 @@
             </div>
           </div>
 
-          <div class="form-item">
+          <div v-if="canEditAdFields" class="form-item">
             <label>广告ID</label>
             <input
               v-model="editGameData.promotion_id"
@@ -630,6 +651,7 @@ import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { IconRefresh } from '@arco-design/web-vue/es/icon';
 import { useUserStore } from '@/store';
+import request from '@/utils/request';
 import Breadcrumb from '@/components/breadcrumb/index.vue';
 
 // 响应式数据
@@ -756,6 +778,11 @@ const filteredEntities = computed(() => {
     return [];
   }
 
+  // 对于外部老板，不应用内部/外部筛选，因为他们只能看到包含自己游戏的主体
+  if (userStore.userInfo?.role === 'external_boss') {
+    return entities.value.filter(entity => entity != null);
+  }
+
   if (!selectedEntityType.value) {
     return entities.value.filter(entity => entity != null);
   }
@@ -814,24 +841,32 @@ const pagination = reactive({
 
 // 用户权限检查
 const userStore = useUserStore();
-const isAdmin = computed(() => userStore.role === 'admin' || userStore.role === 'clerk');
+const isAdmin = computed(() => userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'clerk');
 const canModify = computed(() => isAdmin.value); // 只有admin可以修改（创建、编辑、删除）
+const canEditGame = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'clerk', 'external_boss'].includes(role || '');
+}); // 管理员、文员和外部老板可以编辑游戏
 const canAssign = computed(() => {
-  const role = userStore.role;
+  const role = userStore.userInfo?.role;
   return ['admin', 'internal_boss', 'external_boss', 'internal_service', 'external_service','clerk'].includes(role || '');
 }); // 管理员、老板和客服可以分配游戏
 const canBulkAssign = computed(() => {
-  const role = userStore.role;
+  const role = userStore.userInfo?.role;
   return ['admin', 'internal_boss', 'internal_service','clerk'].includes(role || '');
 }); // 只有管理员、内部老板和内部客服可以看见一键分配按钮
 const canBulkRemove = computed(() => {
-  const role = userStore.role;
+  const role = userStore.userInfo?.role;
   return ['admin', 'internal_boss', 'internal_service','clerk'].includes(role || '');
 }); // 只有管理员、内部老板和内部客服可以看见一键移除按钮
 const canFilterByEntityType = computed(() => {
-  const role = userStore.role;
+  const role = userStore.userInfo?.role;
   return ['admin', 'clerk'].includes(role || ''); // 只有管理员和文员可以看到内部/外部筛选
 });
+const canEditAdFields = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'clerk'].includes(role || '');
+}); // 只有管理员和文员可以编辑广告主ID和广告ID
 
 // 按权限高低排序用户列表
 const sortedUsers = computed(() => {
@@ -870,6 +905,13 @@ const getSelectedUserName = () => {
   return user ? (user.name || user.username) : '';
 };
 
+// 过滤分配用户列表，排除当前用户自己
+const getFilteredAssignedUsers = (assignedUsers) => {
+  if (!assignedUsers) return [];
+  const currentUserId = Number(userStore.userInfo?.accountId);
+  return assignedUsers.filter(userGame => userGame.user_id !== currentUserId);
+};
+
 // 获取测试结果提示框内容
 const getTestResultTooltipContent = () => {
   if (!testResult.value) return '';
@@ -888,12 +930,6 @@ const gameColumns = computed(() => [
     width: 250
   },
   ...(canModify.value ? [{
-    title: '主体名',
-    dataIndex: 'entity_names',
-    slotName: 'entity_names',
-    width: 150
-  }] : []),
-  ...(canModify.value ? [{
     title: '广告信息',
     slotName: 'ad_info',
     width: 200
@@ -905,10 +941,9 @@ const gameColumns = computed(() => [
     width: 120
   }] : []),
   {
-    title: '游戏状态',
-    dataIndex: 'status',
-    slotName: 'status',
-    width: 100
+    title: '分配用户',
+    slotName: 'assigned_users_count',
+    width: 150
   },
   {
     title: '操作',
@@ -943,6 +978,37 @@ const loadGamesWithEntities = async () => {
       if (result.code === 20000) {
         let gameList = result.data.games;
 
+        // 为每个游戏添加已分配用户信息
+        for (let game of gameList) {
+          try {
+            const usersResponse = await fetch(`/api/game/${game.id}/users`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (usersResponse.ok) {
+              const usersResult = await usersResponse.json();
+              if (usersResult.code === 20000) {
+                game.assigned_users = usersResult.data.users || [];
+                game.assigned_users_count = game.assigned_users.length;
+              } else {
+                game.assigned_users = [];
+                game.assigned_users_count = 0;
+              }
+            } else {
+              game.assigned_users = [];
+              game.assigned_users_count = 0;
+            }
+          } catch (error) {
+            console.error(`❌ 获取游戏 ${game.id} 的用户信息失败:`, error);
+            game.assigned_users = [];
+            game.assigned_users_count = 0;
+          }
+        }
+
         // 根据用户权限过滤游戏列表
         if (canModify.value) {
           // 管理员可以看到所有游戏
@@ -961,8 +1027,42 @@ const loadGamesWithEntities = async () => {
             if (userGamesResponse.ok) {
               const userGamesResult = await userGamesResponse.json();
               if (userGamesResult.code === 20000) {
-                const userGameIds = userGamesResult.data.games.map(userGame => userGame.game.id);
-                games.value = gameList.filter(game => userGameIds.includes(game.id));
+                // 使用用户游戏列表，但保留完整的游戏信息并获取完整的分配用户信息
+                const userGames = userGamesResult.data.games;
+                games.value = await Promise.all(userGames.map(async (userGame) => {
+                  const game = userGame.game;
+
+                  // 获取该游戏的完整分配用户信息
+                  try {
+                    const usersResponse = await fetch(`/api/game/${game.id}/users`, {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                      }
+                    });
+
+                    if (usersResponse.ok) {
+                      const usersResult = await usersResponse.json();
+                      if (usersResult.code === 20000) {
+                        game.assigned_users = usersResult.data.users || [];
+                        game.assigned_users_count = game.assigned_users.length;
+                      } else {
+                        game.assigned_users = [];
+                        game.assigned_users_count = 0;
+                      }
+                    } else {
+                      game.assigned_users = [];
+                      game.assigned_users_count = 0;
+                    }
+                  } catch (error) {
+                    console.error(`❌ 获取游戏 ${game.id} 的用户信息失败:`, error);
+                    game.assigned_users = [];
+                    game.assigned_users_count = 0;
+                  }
+
+                  return game;
+                }));
                 console.log('✅ 用户游戏列表加载成功:', games.value.length, '个游戏');
               } else {
                 games.value = [];
@@ -1076,13 +1176,22 @@ const applyAllFilters = async () => {
 
   // 3. 按主体名称筛选
   if (selectedEntityName.value) {
+    console.log('🔍 [主体筛选] 开始筛选，选择的主体:', selectedEntityName.value);
+    console.log('🔍 [主体筛选] 筛选前游戏数量:', filtered.length);
+
     filtered = filtered.filter(game => {
-      if (game.entity_names) {
-        const entityNames = game.entity_names.split('、');
-        return entityNames.includes(selectedEntityName.value);
+      if (game.entity_name) {
+        const entityNames = game.entity_name.split('、');
+        const includes = entityNames.includes(selectedEntityName.value);
+        console.log(`🔍 [主体筛选] 游戏"${game.name}" -> entity_name:"${game.entity_name}" -> 包含主体"${selectedEntityName.value}":${includes}`);
+        return includes;
+      } else {
+        console.log(`🔍 [主体筛选] 游戏"${game.name}" -> 无entity_name字段，过滤掉`);
+        return false;
       }
-      return false;
     });
+
+    console.log('🔍 [主体筛选] 筛选后游戏数量:', filtered.length);
   }
 
   // 4. 按状态筛选
@@ -1244,19 +1353,9 @@ const loadEntities = async () => {
     if (response.ok) {
       const result = await response.json();
       if (result.code === 20000) {
-        // 对主体名进行去重
-        const uniqueEntities = [];
-        const seenNames = new Set();
-
-        result.data.entities.forEach(entity => {
-          if (!seenNames.has(entity.name)) {
-            seenNames.add(entity.name);
-            uniqueEntities.push(entity);
-          }
-        });
-
-        entities.value = uniqueEntities;
-        console.log('✅ 主体列表加载成功，去重后:', entities.value.length, '个主体');
+        // 不对主体名进行去重，因为同名的主体可能有不同的分配用户角色
+        entities.value = result.data.entities || [];
+        console.log('✅ 主体列表加载成功:', entities.value.length, '个主体');
       } else {
         console.log('❌ 主体列表API返回错误:', result.message);
         entities.value = [];
@@ -1276,6 +1375,12 @@ const loadEntities = async () => {
 const testGameConnection = async () => {
   if (!newGame.appid || !newGame.appSecret) {
     alert('请先填写App ID和App Secret');
+    return;
+  }
+
+  // 检查App Secret是否为有效的32位格式
+  if (newGame.appSecret.length !== 32 || !/^[a-f0-9]{32}$/.test(newGame.appSecret)) {
+    alert('App Secret格式不正确，请输入有效的32位App Secret（仅包含小写字母和数字）');
     return;
   }
 
@@ -1306,7 +1411,8 @@ const testGameConnection = async () => {
     } else {
       testResult.value = {
         success: false,
-        message: `❌ 连接失败: ${result.err_tips || result.message || '未知错误'}`
+        message: `❌ 连接失败: ${result.err_tips || result.message || '未知错误'}`,
+        suggestion: '请检查App ID和App Secret是否正确。从抖音开放平台获取有效的凭据。'
       };
     }
   } catch (error) {
@@ -1452,8 +1558,8 @@ const editGame = (game) => {
 
 // 测试编辑游戏连接
 const testEditGameConnection = async () => {
-  if (!editGameData.appid || !editGameData.appSecret) {
-    alert('请先填写App ID和App Secret');
+  if (!editGameData.appid) {
+    alert('请先填写App ID');
     return;
   }
 
@@ -1461,6 +1567,36 @@ const testEditGameConnection = async () => {
   testResult.value = null;
 
   try {
+    let secretToTest = editGameData.appSecret;
+
+    // 如果是编辑现有游戏且表单中的App Secret为空，从数据库获取实际的App Secret
+    if (editGameData.id && !editGameData.appSecret) {
+      try {
+        const gameResponse = await fetch(`/api/game/${editGameData.id}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (gameResponse.ok) {
+          const gameResult = await gameResponse.json();
+          if (gameResult.code === 20000 && gameResult.data.game.app_secret) {
+            secretToTest = gameResult.data.game.app_secret;
+          }
+        }
+      } catch (error) {
+        console.warn('获取游戏App Secret失败:', error);
+      }
+    }
+
+    if (!secretToTest) {
+      alert('无法获取App Secret，请重新填写或联系管理员');
+      testing.value = false;
+      return;
+    }
+
     const response = await fetch('/api/douyin/test-connection', {
       method: 'POST',
       headers: {
@@ -1468,7 +1604,7 @@ const testEditGameConnection = async () => {
       },
       body: JSON.stringify({
         appid: editGameData.appid,
-        secret: editGameData.appSecret
+        secret: secretToTest
       })
     });
 
@@ -1582,20 +1718,26 @@ const updateGame = async () => {
   editing.value = true;
 
   try {
+    const updateData: any = {
+      name: editGameData.name,
+      appid: editGameData.appid,
+      appSecret: editGameData.appSecret,
+      description: editGameData.description
+    };
+
+    // 只有有权限的用户才能更新广告字段
+    if (canEditAdFields.value) {
+      updateData.advertiser_id = editGameData.advertiser_id || undefined;
+      updateData.promotion_id = editGameData.promotion_id || undefined;
+    }
+
     const response = await fetch(`/api/game/update/${editGameData.id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        name: editGameData.name,
-        appid: editGameData.appid,
-        appSecret: editGameData.appSecret,
-        description: editGameData.description,
-        advertiser_id: editGameData.advertiser_id || undefined,
-        promotion_id: editGameData.promotion_id || undefined
-      })
+      body: JSON.stringify(updateData)
     });
 
     const result = await response.json();
@@ -2058,7 +2200,7 @@ const deleteGame = async (game) => {
 // 填入示例数据
 const fillExampleData = () => {
   newGame.appid = 'tt8c62fadf136c334702';
-  newGame.appSecret = '969c80995b1fc13fdbe952d73fb9f8c086706b6b';
+  newGame.appSecret = ''; // 不设置示例App Secret，避免测试时使用无效凭据
   newGame.name = '示例游戏应用';
   newGame.description = '这是一个示例游戏应用配置';
   testResult.value = null;
@@ -2111,6 +2253,7 @@ const closeGameUsersModal = () => {
   gameUsers.value = [];
 };
 
+
 // 页面初始化
 onMounted(async () => {
   console.log('🚀 游戏管理页面初始化');
@@ -2126,6 +2269,15 @@ onMounted(async () => {
   await loadGames();
   await loadUsers();
   await loadEntities();
+  // 对于不能看到内部/外部筛选器的用户，根据角色设置默认筛选
+  if (!canFilterByEntityType.value) {
+    const role = userStore.userInfo?.role;
+    if (role?.startsWith('external')) {
+      selectedEntityType.value = 'external';
+    } else if (role?.startsWith('internal')) {
+      selectedEntityType.value = 'internal';
+    }
+  }
 
   // 设置默认筛选：显示所有游戏
   filterGames();
@@ -2133,6 +2285,30 @@ onMounted(async () => {
   // 重置显示模式
   displayMode.value = 'owned';
 });
+
+// 监听主体选择变化
+watch(selectedEntityName, (newVal, oldVal) => {
+  console.log('🔍 [游戏管理主体选择变化] ===== 开始 =====');
+  console.log('🔍 [游戏管理主体选择变化] selectedEntityName 从', oldVal, '变为', newVal);
+  console.log('🔍 [游戏管理主体选择变化] 当前游戏列表长度:', games.value.length);
+  console.log('🔍 [游戏管理主体选择变化] 当前筛选后游戏列表长度:', filteredGames.value.length);
+  console.log('🔍 [游戏管理主体选择变化] 所有游戏详情:', games.value.slice(0, 5).map(g => ({
+    name: g.name,
+    entity_name: g.entity_name,
+    g:g
+  })));
+    console.log('🔍 [游戏管理主体选择变化] 主体选项:', filteredEntities.value.map(opt => ({ g: opt?.entity_names, name: opt?.entity_names })));
+
+  console.log('🔍 [游戏管理主体选择变化] 主体选项:', filteredEntities.value.map(opt => ({ id: opt?.id, name: opt?.name })));
+  console.log('🔍 [游戏管理主体选择变化] 筛选过程详情:');
+  games.value.slice(0, 10).forEach(game => {
+    const gameEntityNames = game.entity_name ? game.entity_name.split('、') : [];
+    const isEntityMatch = newVal ? gameEntityNames.includes(newVal) : true;
+    const result = isEntityMatch;
+    console.log(`  🎮 游戏"${game.name}" -> 主体列表"${game.entity_name}" | 实体匹配:${isEntityMatch} | 结果:${result}`);
+  });
+  console.log('🔍 [游戏管理主体选择变化] ===== 结束 =====');
+}, { immediate: true });
 
 // 监听路由变化，当路由变化时重新加载数据
 const route = useRoute();
@@ -2482,6 +2658,51 @@ watch(
       &::before {
         content: "⚠️";
         font-size: 14px;
+      }
+    }
+
+    .assigned-users-list {
+      .users-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+      }
+
+      .user-tag {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        color: #667eea;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        border: 1px solid rgba(102, 126, 234, 0.2);
+        white-space: nowrap;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .more-users {
+        color: #86909c;
+        font-size: 11px;
+        font-style: italic;
+        padding: 2px 4px;
+      }
+
+      .no-users {
+        color: #86909c;
+        font-style: italic;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        &::before {
+          content: "👤";
+          font-size: 14px;
+          opacity: 0.5;
+        }
       }
     }
 

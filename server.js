@@ -1001,27 +1001,45 @@ app.get('/api/game/user-games/:userId', authenticateJWT, async (req, res) => {
     });
 
     // 重新格式化为预期的结构
-    const formattedGames = userGames.map(item => ({
-      id: item.id,
-      game: {
-        id: item['game.id'],
-        appid: item['game.appid'],
-        name: item['game.name'],
-        appSecret: item['game.appSecret'],
-        description: item['game.description'],
-        status: item['game.status'],
-        validated: item['game.validated'],
-        advertiser_id: item['game.advertiser_id'],
-        promotion_id: item['game.promotion_id'],
-        created_at: item['game.created_at']
-      },
-      role: item.role,
-      permissions: item.permissions || {},
-      assignedAt: item.assignedAt,
-      assignedBy: item['assignedByUser.username'] ? {
-        username: item['assignedByUser.username'],
-        name: item['assignedByUser.name']
-      } : null
+    const formattedGames = await Promise.all(userGames.map(async (item) => {
+      // 为游戏添加主体信息
+      let entity_name = null;
+      try {
+        const entities = await Entity.findAll({
+          where: { game_name: item['game.name'] },
+          attributes: ['name'],
+          order: [['created_at', 'DESC']]
+        });
+        if (entities && entities.length > 0) {
+          entity_name = entities.map(entity => entity.name).join('、');
+        }
+      } catch (error) {
+        console.error(`获取游戏 ${item['game.name']} 的主体信息失败:`, error);
+      }
+  
+      return {
+        id: item.id,
+        game: {
+          id: item['game.id'],
+          appid: item['game.appid'],
+          name: item['game.name'],
+          appSecret: item['game.appSecret'],
+          description: item['game.description'],
+          status: item['game.status'],
+          validated: item['game.validated'],
+          advertiser_id: item['game.advertiser_id'],
+          promotion_id: item['game.promotion_id'],
+          created_at: item['game.created_at'],
+          entity_name: entity_name
+        },
+        role: item.role,
+        permissions: item.permissions || {},
+        assignedAt: item.assignedAt,
+        assignedBy: item['assignedByUser.username'] ? {
+          username: item['assignedByUser.username'],
+          name: item['assignedByUser.name']
+        } : null
+      };
     }));
 
     logger.info(`管理员 ${currentUser.username} 查看用户 ${targetUser.username} 的游戏列表`);
@@ -1339,8 +1357,32 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     const pageType = req.query.page_type || 'user'; // 默认是用户页面
+    const entity_name = req.query.entity_name; // 主体名称参数
 
     const mappedRole = getMappedRole(currentUser.role);
+
+    // 如果提供了entity_name参数，先验证权限
+    if (entity_name) {
+      const entity = await Entity.findOne({
+        where: { name: entity_name }
+      });
+
+      if (!entity) {
+        return res.status(404).json({
+          code: 404,
+          message: '主体不存在'
+        });
+      }
+
+      // 检查权限：外部老板只能访问分配给自己的主体
+      if (mappedRole === 'external_boss' && entity.assigned_user_id !== currentUser.userId) {
+        return res.status(403).json({
+          code: 403,
+          message: '权限不足，只能查看分配给自己的主体'
+        });
+      }
+    }
+
     if (mappedRole === 'admin' || mappedRole === 'steward') {
       // 只有管理员可以看到所有游戏，但根据页面类型过滤状态
       let whereCondition = {};
@@ -1354,6 +1396,25 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
         whereCondition.status = 'active';
       }
       // 如果是 'user' 或其他值，不设置status过滤，显示所有游戏
+
+      // 如果指定了主体，进一步过滤游戏
+      if (entity_name) {
+        const entityGames = await Entity.findAll({
+          where: { name: entity_name },
+          attributes: ['game_name']
+        });
+
+        const gameNames = entityGames.map(eg => eg.game_name).filter(name => name);
+
+        if (gameNames.length > 0) {
+          whereCondition.name = {
+            [sequelize.Sequelize.Op.in]: gameNames
+          };
+        } else {
+          // 如果主体没有游戏，返回空结果
+          whereCondition.id = null;
+        }
+      }
 
       const games = await Game.findAll({
         where: whereCondition,
@@ -1371,18 +1432,36 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
             order: [['created_at', 'DESC']]
           });
 
-          const gameData = game.toJSON();
-          if (entities && entities.length > 0) {
-            gameData.entity_names = entities.map(entity => entity.name).join('、');
-          } else {
-            gameData.entity_names = null; // 明确设置为null表示无主体
-          }
+          const gameData = {
+            id: game.id,
+            appid: game.appid,
+            name: game.name,
+            description: game.description,
+            status: game.status,
+            validated: game.validated,
+            created_at: game.created_at,
+            app_secret: game.app_secret,
+            advertiser_id: game.advertiser_id,
+            promotion_id: game.promotion_id,
+            entity_name: entities && entities.length > 0 ? entities.map(entity => entity.name).join('、') : null
+          };
 
           return gameData;
         } catch (error) {
           console.error(`获取游戏 ${game.name} 的主体信息失败:`, error);
-          const gameData = game.toJSON();
-          gameData.entity_names = null; // 出错时也设置为null
+          const gameData = {
+            id: game.id,
+            appid: game.appid,
+            name: game.name,
+            description: game.description,
+            status: game.status,
+            validated: game.validated,
+            created_at: game.created_at,
+            app_secret: game.app_secret,
+            advertiser_id: game.advertiser_id,
+            promotion_id: game.promotion_id,
+            entity_name: null
+          };
           return gameData;
         }
       }));
@@ -1409,6 +1488,25 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
       }
       // 如果是 'user' 或其他值，不设置status过滤，显示所有游戏
 
+      // 如果指定了主体，进一步过滤游戏
+      if (entity_name) {
+        const entityGames = await Entity.findAll({
+          where: { name: entity_name },
+          attributes: ['game_name']
+        });
+
+        const gameNames = entityGames.map(eg => eg.game_name).filter(name => name);
+
+        if (gameNames.length > 0) {
+          gameWhereCondition.name = {
+            [sequelize.Sequelize.Op.in]: gameNames
+          };
+        } else {
+          // 如果主体没有游戏，返回空结果
+          gameWhereCondition.id = null;
+        }
+      }
+
       const userGames = await UserGame.findAll({
         where: { user_id: currentUser.userId },
         include: [{
@@ -1432,18 +1530,36 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
             order: [['created_at', 'DESC']]
           });
 
-          const gameData = game.toJSON();
-          if (entities && entities.length > 0) {
-            gameData.entity_names = entities.map(entity => entity.name).join('、');
-          } else {
-            gameData.entity_names = null; // 明确设置为null表示无主体
-          }
+          const gameData = {
+            id: game.id,
+            appid: game.appid,
+            name: game.name,
+            description: game.description,
+            status: game.status,
+            validated: game.validated,
+            created_at: game.created_at,
+            app_secret: game.app_secret,
+            advertiser_id: game.advertiser_id,
+            promotion_id: game.promotion_id,
+            entity_name: entities && entities.length > 0 ? entities.map(entity => entity.name).join('、') : null
+          };
 
           return gameData;
         } catch (error) {
           console.error(`获取游戏 ${game.name} 的主体信息失败:`, error);
-          const gameData = game.toJSON();
-          gameData.entity_names = null; // 出错时也设置为null
+          const gameData = {
+            id: game.id,
+            appid: game.appid,
+            name: game.name,
+            description: game.description,
+            status: game.status,
+            validated: game.validated,
+            created_at: game.created_at,
+            app_secret: game.app_secret,
+            advertiser_id: game.advertiser_id,
+            promotion_id: game.promotion_id,
+            entity_name: null
+          };
           return gameData;
         }
       }));
@@ -1607,15 +1723,15 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     logger.info(`🔄 开始更新游戏 - ID: ${id}, 用户: ${currentUser.username}, 角色: ${currentUser.role}`);
     logger.debug('📝 请求数据:', { name, appid, appSecret: appSecret ? '***' : '', description, advertiser_id, promotion_id });
 
-    // 检查权限：只有管理员可以更新游戏
+    // 检查权限：管理员、管家和外部老板可以更新游戏
     const mappedRole = getMappedRole(currentUser.role);
     logger.debug(`🔐 用户角色映射: ${currentUser.role} -> ${mappedRole}`);
 
-    if (mappedRole !== 'admin' && mappedRole !== 'steward') {
-      logger.warn(`❌ 权限不足 - 用户 ${currentUser.username} 尝试更新游戏但角色不是管理员`);
+    if (mappedRole !== 'admin' && mappedRole !== 'steward' && mappedRole !== 'external_boss') {
+      logger.warn(`❌ 权限不足 - 用户 ${currentUser.username} 尝试更新游戏但角色不是管理员或老板`);
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以更新游戏'
+        message: '权限不足，只有管理员和老板可以更新游戏'
       });
     }
 
@@ -1650,8 +1766,9 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     if (appid !== undefined) updateData.appid = appid;
     if (appSecret !== undefined) updateData.appSecret = appSecret;
     if (description !== undefined) updateData.description = description;
-    if (advertiser_id !== undefined) updateData.advertiser_id = advertiser_id || null;
-    if (promotion_id !== undefined) updateData.promotion_id = promotion_id || null;
+    // 外部老板不能编辑广告主和广告ID
+    if (advertiser_id !== undefined && mappedRole !== 'external_boss') updateData.advertiser_id = advertiser_id || null;
+    if (promotion_id !== undefined && mappedRole !== 'external_boss') updateData.promotion_id = promotion_id || null;
     if (req.body.status !== undefined) updateData.status = req.body.status;
 
     logger.debug('📝 准备更新数据:', updateData);
@@ -2130,7 +2247,7 @@ app.get('/api/entity/list', authenticateJWT, async (req, res) => {
 
     // 检查权限：管理员、老板和程序员可以查看主体列表
     const mappedRole = getMappedRole(currentUser.role);
-    const allowedRoles = ['admin', 'internal_boss', 'programmer', 'steward'];
+    const allowedRoles = ['admin', 'internal_boss', 'external_boss', 'programmer', 'steward'];
     if (!allowedRoles.includes(mappedRole)) {
       return res.status(403).json({
         code: 403,
@@ -2164,10 +2281,27 @@ app.get('/api/entity/list', authenticateJWT, async (req, res) => {
       }
     }
 
-    // 如果是外部老板角色，只看到分配给自己的主体记录
+    // 如果是外部老板角色，只看到包含他游戏的主体（不包括分配给他的主体，以避免权限泄露）
     if (mappedRole === 'external_boss') {
-      whereCondition.assigned_user_id = currentUser.userId;
-      logger.info(`👔 [外部老板筛选] 外部老板 ${currentUser.name || currentUser.username} (ID: ${currentUser.userId}, 角色: ${currentUser.role}) 只查看分配给自己的主体数据`);
+      // 获取外部老板的所有游戏
+      const userGames = await UserGame.findAll({
+        where: { user_id: currentUser.userId },
+        include: [{
+          model: Game,
+          as: 'game',
+          where: { status: 'active' },
+          required: true
+        }],
+        attributes: []
+      });
+
+      // 提取游戏名称
+      const gameNames = userGames.map(ug => ug.game.name).filter(name => name);
+
+      // 只显示包含自己游戏的主体
+      whereCondition.game_name = { [sequelize.Sequelize.Op.in]: gameNames };
+
+      logger.info(`👔 [外部老板筛选] 外部老板 ${currentUser.name || currentUser.username} (ID: ${currentUser.userId}, 角色: ${currentUser.role}) 只查看包含其游戏的主体，共 ${gameNames.length} 个游戏`);
     }
 
     // 如果是内部老板角色，筛选所有分配给内部用户的主体（内部老板只能看内部用户的主体）
@@ -3229,10 +3363,17 @@ app.post('/api/douyin/test-connection', async (req, res) => {
 
     if (tokenResponse.data.err_no !== 0) {
       logger.error('小游戏Token获取失败:', tokenResponse.data.err_tips);
-      return res.status(500).json({
-        error: '小游戏Token获取失败',
+      return res.status(200).json({
+        code: tokenResponse.data.err_no,
         message: tokenResponse.data.err_tips,
-        details: tokenResponse.data
+        data: tokenResponse.data,
+        request_log: {
+          token_request: {
+            url: 'https://minigame.zijieapi.com/mgplatform/api/apps/v2/token',
+            params: tokenRequestData,
+            response: tokenResponse.data
+          }
+        }
       });
     }
 
