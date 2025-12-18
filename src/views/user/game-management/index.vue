@@ -1353,9 +1353,29 @@ const loadEntities = async () => {
     if (response.ok) {
       const result = await response.json();
       if (result.code === 20000) {
-        // 不对主体名进行去重，因为同名的主体可能有不同的分配用户角色
-        entities.value = result.data.entities || [];
-        console.log('✅ 主体列表加载成功:', entities.value.length, '个主体');
+        let entityList = result.data.entities || [];
+
+        // 根据用户角色决定是否去重
+        const currentUserRole = userStore.userInfo?.role;
+        if (currentUserRole === 'external_boss') {
+          // 外部老板不进行去重，因为同名的主体可能有不同的分配用户角色
+          entities.value = entityList;
+          console.log('✅ 主体列表加载成功（外部老板，不去重）:', entities.value.length, '个主体');
+        } else {
+          // 其他用户进行去重，避免下拉列表中出现重复选项
+          const uniqueEntities = [];
+          const seenNames = new Set();
+
+          entityList.forEach(entity => {
+            if (!seenNames.has(entity.name)) {
+              seenNames.add(entity.name);
+              uniqueEntities.push(entity);
+            }
+          });
+
+          entities.value = uniqueEntities;
+          console.log('✅ 主体列表加载成功（已去重）:', entities.value.length, '个主体');
+        }
       } else {
         console.log('❌ 主体列表API返回错误:', result.message);
         entities.value = [];
