@@ -1314,6 +1314,17 @@
              avgEcpm: '0.00',
              totalUsers: 0
            };
+
+           // 对单天查询的结果进行前端分页
+           const pageSize = queryParams.page_size;
+           const pageNo = queryParams.page_no;
+           const startIndex = (pageNo - 1) * pageSize;
+           const endIndex = startIndex + pageSize;
+
+           // 按时间倒序排序
+           allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
+
+           allRecords = allRecords.slice(startIndex, endIndex);
          } else {
            throw new Error(result.message || '获取数据失败');
          }

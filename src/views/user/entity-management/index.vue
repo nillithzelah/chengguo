@@ -2556,6 +2556,77 @@ const upgradeEntityStatus = async (entity: any) => {
 
       if (result.code === 20000) {
         Message.success(`主体"${entity.name}"开发状态已升级到"${getStatusText(newStatus)}"`);
+
+        // 如果升级到"上线运营"状态，自动分配游戏给用户
+        if (newStatus === '上线运营' && entity.game_name && entity.assigned_user_id) {
+          console.log(`🎮 [自动分配] 开始为主体"${entity.name}"分配游戏"${entity.game_name}"给用户ID:${entity.assigned_user_id}`);
+          try {
+            // 获取游戏信息
+            const gameResponse = await fetch('/api/game/list', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            console.log(`🎮 [自动分配] 获取游戏列表响应状态: ${gameResponse.status}`);
+
+            if (gameResponse.ok) {
+              const gameResult = await gameResponse.json();
+              console.log(`🎮 [自动分配] 游戏列表结果:`, gameResult);
+
+              if (gameResult.code === 20000) {
+                const game = gameResult.data.games.find((g: any) => g.name === entity.game_name);
+                console.log(`🎮 [自动分配] 找到的游戏:`, game);
+
+                if (game) {
+                  console.log(`🎮 [自动分配] 开始分配游戏ID:${game.id}给用户ID:${entity.assigned_user_id}`);
+
+                  // 分配游戏给用户
+                  const assignResponse = await fetch('/api/game/assign', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      userId: entity.assigned_user_id,
+                      gameId: game.id,
+                      role: 'viewer'
+                    })
+                  });
+
+                  console.log(`🎮 [自动分配] 分配API响应状态: ${assignResponse.status}`);
+
+                  const assignResult = await assignResponse.json();
+                  console.log(`🎮 [自动分配] 分配结果:`, assignResult);
+
+                  if (assignResponse.ok && assignResult.code === 20000) {
+                    Message.success(`游戏"${entity.game_name}"已自动分配给用户`);
+                    console.log(`✅ [自动分配] 分配成功`);
+                  } else {
+                    console.error('❌ [自动分配] 分配失败:', assignResult.message);
+                    Message.error(`自动分配游戏失败: ${assignResult.message || '未知错误'}`);
+                  }
+                } else {
+                  console.warn(`⚠️ [自动分配] 未找到匹配的游戏，游戏名: ${entity.game_name}`);
+                  Message.warning(`未找到游戏"${entity.game_name}"，无法自动分配`);
+                }
+              } else {
+                console.error('❌ [自动分配] 获取游戏列表失败:', gameResult.message);
+                Message.error(`获取游戏列表失败: ${gameResult.message || '未知错误'}`);
+              }
+            } else {
+              console.error('❌ [自动分配] 获取游戏列表网络错误:', gameResponse.status);
+              Message.error('获取游戏列表失败，请检查网络连接');
+            }
+          } catch (assignError) {
+            console.error('❌ [自动分配] 异常错误:', assignError);
+            Message.error('自动分配游戏时发生错误，请查看控制台日志');
+          }
+        }
+
         // 重新加载主体列表
         loadEntityList();
       } else {
@@ -2670,6 +2741,49 @@ const batchSetOnlineStatus = async () => {
         const result = await response.json();
 
         if (result.code === 20000) {
+          // 自动分配游戏给用户
+          if (entity.game_name && entity.assigned_user_id) {
+            try {
+              // 获取游戏信息
+              const gameResponse = await fetch('/api/game/list', {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+
+              if (gameResponse.ok) {
+                const gameResult = await gameResponse.json();
+                if (gameResult.code === 20000) {
+                  const game = gameResult.data.games.find((g: any) => g.name === entity.game_name);
+                  if (game) {
+                    // 分配游戏给用户
+                    const assignResponse = await fetch('/api/game/assign', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        userId: entity.assigned_user_id,
+                        gameId: game.id,
+                        role: 'viewer'
+                      })
+                    });
+
+                    const assignResult = await assignResponse.json();
+                    if (!assignResponse.ok || assignResult.code !== 20000) {
+                      console.error(`自动分配游戏失败 (${entity.game_name}):`, assignResult.message);
+                    }
+                  }
+                }
+              }
+            } catch (assignError) {
+              console.error(`自动分配游戏时发生错误 (${entity.game_name}):`, assignError);
+            }
+          }
+
           successCount++;
         } else {
           errorCount++;

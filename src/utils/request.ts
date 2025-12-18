@@ -67,13 +67,19 @@ service.interceptors.response.use(
     }
 
     // 处理标准API响应格式
+    if (res.code === 20000) {
+      // 后端成功响应，统一数据格式
+      response.data = res.data;
+      return response;
+    }
+
     // 如果有data字段且没有明确的错误码，认为是成功响应
     if (res.data !== undefined && (res.code === undefined || res.code === 0 || res.code === 200 || res.code === '100')) {
       return res;
     }
 
     // 检查是否有明确的错误码
-    if (res.code !== undefined && res.code !== '100' && res.code !== 200 && res.code !== 0) {
+    if (res.code !== undefined && res.code !== '100' && res.code !== 200 && res.code !== 0 && res.code !== 20000) {
       console.error('API错误:', res.message || 'Error');
 
       // 401: 未登录或token过期

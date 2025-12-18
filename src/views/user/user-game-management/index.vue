@@ -399,7 +399,7 @@ const gameList = ref<any[]>([]);
 const entityList = ref<any[]>([]); // 主体列表
 const advertiserOptions = ref<{id: string, name: string}[]>([]); // 主体选项列表
 const selectedAdvertiserId = ref<string>(''); // 选中的主体ID
-const gameNameToEntityMap = ref<Map<string, string>>(new Map()); // 游戏名称到主体名称的映射
+const gameNameToEntityMap = ref<Map<string, string[]>>(new Map()); // 游戏名称到主体名称列表的映射
 
 
 // 新增游戏相关
@@ -476,21 +476,32 @@ const filteredGameList = computed(() => {
     const gameName = game.game?.name;
     if (!gameName) return false;
 
-    // 获取当前游戏对应的主体名称
-    let gameEntityName = gameNameToEntityMap.value.get(gameName);
+    // 获取当前游戏对应的主体名称列表
+    let gameEntityNames = gameNameToEntityMap.value.get(gameName);
 
-    if (!gameEntityName) {
+    if (!gameEntityNames || gameEntityNames.length === 0) {
       // 尝试模糊匹配
       const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
-      gameEntityName = gameNameToEntityMap.value.get(cleanGameName);
+      gameEntityNames = gameNameToEntityMap.value.get(cleanGameName);
     }
 
-    // 如果还是找不到，使用游戏名称本身
-    if (!gameEntityName) {
-      gameEntityName = gameName;
+    // 如果还是找不到，使用游戏名称本身作为备选
+    if (!gameEntityNames || gameEntityNames.length === 0) {
+      gameEntityNames = [gameName];
     }
 
-    return gameEntityName === selectedAdvertiserId.value;
+    // 检查选中的主体是否在游戏的主体列表中
+    const isEntityMatch = gameEntityNames.includes(selectedAdvertiserId.value);
+
+    console.log('🎮 [筛选调试]', {
+      gameName,
+      gameEntityNames,
+      selectedAdvertiserId: selectedAdvertiserId.value,
+      isEntityMatch,
+      result: isEntityMatch
+    });
+
+    return isEntityMatch;
   });
 });
 
@@ -778,11 +789,17 @@ const updateAdvertiserOptions = async () => {
         const entities = entityResult.data.entities || [];
         console.log('🏢 [主体选项] 获取到主体数据:', entities.length, '个主体');
 
-        // 创建游戏名称到主体名称的映射
-        const localGameNameToEntityMap = new Map<string, string>();
+        // 创建游戏名称到主体名称列表的映射
+        const localGameNameToEntityMap = new Map<string, string[]>();
         entities.forEach((entity: any) => {
           if (entity.game_name && entity.name) {
-            localGameNameToEntityMap.set(entity.game_name, entity.name);
+            if (!localGameNameToEntityMap.has(entity.game_name)) {
+              localGameNameToEntityMap.set(entity.game_name, []);
+            }
+            const entityNames = localGameNameToEntityMap.get(entity.game_name)!;
+            if (!entityNames.includes(entity.name)) {
+              entityNames.push(entity.name);
+            }
           }
         });
 
@@ -799,31 +816,30 @@ const updateAdvertiserOptions = async () => {
         gameList.value.forEach((game: any) => {
           const gameName = game.game?.name;
           if (gameName) {
-            // 尝试精确匹配
-            let entityName = localGameNameToEntityMap.get(gameName);
+            // 获取当前游戏对应的所有主体名称
+            let entityNames = localGameNameToEntityMap.get(gameName);
 
-            if (entityName) {
-              console.log('🏢 [主体选项] 找到游戏对应的主体:', gameName, '->', entityName);
-            } else {
+            if (!entityNames || entityNames.length === 0) {
               // 尝试模糊匹配（去除数字后缀等）
               const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
-              entityName = localGameNameToEntityMap.get(cleanGameName);
+              entityNames = localGameNameToEntityMap.get(cleanGameName);
+            }
 
-              if (entityName) {
-                console.log('🏢 [主体选项] 通过模糊匹配找到主体:', gameName, '->', cleanGameName, '->', entityName);
-              } else {
-                // 如果还是找不到，使用游戏名称作为备选
-                console.log('🏢 [主体选项] 未找到游戏对应的主体，使用游戏名称作为备选:', gameName);
-                entityName = gameName;
+            // 如果还是找不到，使用游戏名称作为备选
+            if (!entityNames || entityNames.length === 0) {
+              entityNames = [gameName];
+            }
+
+            // 为每个主体名称创建选项
+            entityNames.forEach(entityName => {
+              if (!entityNameMap.has(entityName)) {
+                entityNameMap.set(entityName, {
+                  id: entityName,
+                  name: entityName
+                });
+                console.log('🏢 [主体选项] 添加主体选项:', entityName);
               }
-            }
-
-            if (!entityNameMap.has(entityName)) {
-              entityNameMap.set(entityName, {
-                id: entityName,
-                name: entityName
-              });
-            }
+            });
           }
         });
 

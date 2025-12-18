@@ -112,6 +112,17 @@ douyin-admin.tar.gz
 dist-final-clean.zip
 ad-preview-qr.png
 
+# Backup files
+*.backup.*
+*backup*.tar.gz
+*backup*.sql
+config.backup.*
+database.sqlite.backup.*
+douyin-admin-master.backup.*
+html.backup.*
+entity-permissions-fix*.tar.gz
+backend-deploy.zip
+
 # SSH Keys and sensitive files
 ssh*
 *ssh*

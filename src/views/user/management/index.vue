@@ -476,6 +476,131 @@
       </div>
     </a-modal>
 
+    <!-- 创建游戏模态框 -->
+    <div v-if="showCreateGameModal" class="modal-overlay" @click="closeCreateGameModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>为用户创建游戏</h3>
+          <button @click="closeCreateGameModal" class="modal-close">&times;</button>
+        </div>
+
+        <div class="modal-body" style="flex: 1; overflow-y: auto;">
+          <div class="game-info-section">
+            <h4>用户信息</h4>
+            <p>用户名: {{ selectedUserForGame?.username }}</p>
+            <p>姓名: {{ selectedUserForGame?.name }}</p>
+            <p>角色: {{ getRoleText(selectedUserForGame?.role) }}</p>
+          </div>
+
+          <div class="form-item">
+            <label>游戏名称</label>
+            <input
+              v-model="gameForm.name"
+              type="text"
+              placeholder="输入游戏名称"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App ID</label>
+            <input
+              v-model="gameForm.appid"
+              type="text"
+              placeholder="输入抖音应用的App ID"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>App Secret</label>
+            <input
+              v-model="gameForm.appSecret"
+              type="password"
+              placeholder="输入32位App Secret，如：969c80995b1fc13fdbe952d73fb9f8c086706b6b"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>游戏描述</label>
+            <textarea
+              v-model="gameForm.description"
+              placeholder="输入游戏描述（可选）"
+              class="form-input"
+              rows="3"
+            ></textarea>
+          </div>
+
+          <div class="form-item">
+            <label>广告主ID</label>
+            <input
+              v-model="gameForm.advertiser_id"
+              type="text"
+              placeholder="输入广告主ID（可选，用于广告预览）"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>广告ID</label>
+            <input
+              v-model="gameForm.promotion_id"
+              type="text"
+              placeholder="输入广告ID（可选，用于广告预览）"
+              class="form-input"
+            />
+          </div>
+
+          <!-- 测试连接区域 -->
+          <div class="test-section" v-if="gameForm.appid && gameForm.appSecret">
+            <div class="test-header">
+              <h4>🔗 连接测试</h4>
+              <div class="test-actions">
+                <button
+                  @click="fillExampleGameData"
+                  class="btn btn-small"
+                  title="填入示例数据（App Secret需要手动填写有效的凭据）"
+                >
+                  📝 填入示例数据
+                </button>
+                <button
+                  @click="testGameConnection"
+                  :disabled="gameTesting"
+                  class="btn btn-outline"
+                >
+                  {{ gameTesting ? '测试中...' : '测试连接' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 测试结果显示 -->
+            <div v-if="gameTestResult" class="test-result" :class="{ 'success': gameTestResult.success, 'error': !gameTestResult.success }">
+              <div class="test-message">{{ gameTestResult.message }}</div>
+              <div v-if="gameTestResult.success" class="test-details">
+                <small>Token: {{ gameTestResult.token }}</small><br>
+                <small>有效期: {{ gameTestResult.expiresIn }}秒</small>
+              </div>
+              <div v-if="!gameTestResult.success && gameTestResult.suggestion" class="test-suggestion">
+                <small>💡 {{ gameTestResult.suggestion }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="flex-shrink: 0;">
+          <button @click="closeCreateGameModal" class="btn btn-secondary" :disabled="gameCreating">取消</button>
+          <button
+            @click="createGameForUser"
+            :disabled="!gameForm.name || !gameForm.appid || !gameForm.appSecret || gameCreating"
+            class="btn btn-primary"
+          >
+            {{ gameCreating ? '创建中...' : '创建游戏' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 晋升确认对话框暂时隐藏，保留代码以便以后恢复 -->
     <!--
     <a-modal
@@ -530,14 +655,19 @@ const createLoading = ref(false);
 const deleteLoading = ref(false);
 const editLoading = ref(false);
 const promoteLoading = ref(false);
+const gameCreating = ref(false);
+const gameTesting = ref(false);
+const gameTestResult = ref(null);
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 const showPromoteModal = ref(false);
+const showCreateGameModal = ref(false);
 const userList = ref<UserListItem[]>([]);
 const deleteUserInfo = ref<UserListItem | null>(null);
 const editUserInfo = ref<UserListItem | null>(null);
 const promoteUserInfo = ref<UserListItem | null>(null);
+const selectedUserForGame = ref<UserListItem | null>(null);
 const promoteWithSubordinates = ref(true);
 
 // 筛选相关
@@ -891,16 +1021,19 @@ const editForm = reactive({
   parent_id: ''
 });
 
+const gameForm = reactive({
+  name: '',
+  appid: '',
+  appSecret: '',
+  description: '',
+  advertiser_id: '',
+  promotion_id: ''
+});
+
 // 移除表单验证规则，使用自定义验证
 
 // 表格列配置
 const columns = [
-  {
-    title: 'ID',
-    dataIndex: 'id',
-    width: 60,
-    minWidth: 40
-  },
   {
     title: '用户名',
     dataIndex: 'username',
@@ -956,8 +1089,8 @@ const columns = [
   {
     title: '操作',
     slotName: 'action',
-    width: 150,
-    minWidth: 130,
+    width: 250,
+    minWidth: 220,
     fixed: 'right'
   }
 ];
@@ -1153,6 +1286,11 @@ const loadUserList = async () => {
       // 老板和客服只能看到自己创建的用户，以及这些用户创建的用户（递归）
       const managedUserIds = getManagedUserIds(users, currentUserId);
       filteredUsers = users.filter(user => managedUserIds.includes(user.id));
+
+      // 外部老板不显示自己的信息
+      if (currentUserRole === 'external_boss') {
+        filteredUsers = filteredUsers.filter(user => user.id !== currentUserId);
+      }
     } else {
       // 其他角色看不到用户列表
       filteredUsers = [];
@@ -1864,6 +2002,165 @@ const handleCreateUser = async () => {
   }
 };
 
+// 打开创建游戏模态框
+const openCreateGameModal = (user: UserListItem) => {
+  selectedUserForGame.value = user;
+  gameForm.name = '';
+  gameForm.appid = '';
+  gameForm.appSecret = '';
+  gameForm.description = '';
+  gameForm.advertiser_id = '';
+  gameForm.promotion_id = '';
+  gameTestResult.value = null;
+  showCreateGameModal.value = true;
+};
+
+// 关闭创建游戏模态框
+const closeCreateGameModal = () => {
+  showCreateGameModal.value = false;
+  selectedUserForGame.value = null;
+  gameForm.name = '';
+  gameForm.appid = '';
+  gameForm.appSecret = '';
+  gameForm.description = '';
+  gameForm.advertiser_id = '';
+  gameForm.promotion_id = '';
+  gameTestResult.value = null;
+};
+
+// 填入示例游戏数据
+const fillExampleGameData = () => {
+  gameForm.appid = 'tt8c62fadf136c334702';
+  gameForm.appSecret = ''; // 不设置示例App Secret，避免测试时使用无效凭据
+  gameForm.name = '示例游戏应用';
+  gameForm.description = '这是一个示例游戏应用配置';
+  gameTestResult.value = null;
+};
+
+// 测试游戏连接
+const testGameConnection = async () => {
+  if (!gameForm.appid || !gameForm.appSecret) {
+    alert('请先填写App ID和App Secret');
+    return;
+  }
+
+  // 检查App Secret是否为有效的32位格式
+  if (gameForm.appSecret.length !== 32 || !/^[a-f0-9]{32}$/.test(gameForm.appSecret)) {
+    alert('App Secret格式不正确，请输入有效的32位App Secret（仅包含小写字母和数字）');
+    return;
+  }
+
+  gameTesting.value = true;
+  gameTestResult.value = null;
+
+  try {
+    const response = await fetch('/api/douyin/test-connection', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        appid: gameForm.appid,
+        secret: gameForm.appSecret
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && (result.code === 0 || result.err_no === 0)) {
+      gameTestResult.value = {
+        success: true,
+        message: '✅ 连接成功！应用配置有效',
+        token: result.data?.access_token || 'token_received',
+        expiresIn: result.data?.expires_in || 7200
+      };
+    } else {
+      gameTestResult.value = {
+        success: false,
+        message: `❌ 连接失败: ${result.err_tips || result.message || '未知错误'}`,
+        suggestion: '请检查App ID和App Secret是否正确。从抖音开放平台获取有效的凭据。'
+      };
+    }
+  } catch (error) {
+    gameTestResult.value = {
+      success: false,
+      message: `❌ 网络错误: ${error.message}`
+    };
+  } finally {
+    gameTesting.value = false;
+  }
+};
+
+// 为用户创建游戏
+const createGameForUser = async () => {
+  if (!gameForm.name || !gameForm.appid || !gameForm.appSecret) {
+    alert('请填写完整的游戏信息');
+    return;
+  }
+
+  if (!selectedUserForGame.value) {
+    alert('未选择用户');
+    return;
+  }
+
+  gameCreating.value = true;
+
+  try {
+    // 先创建游戏
+    const createResponse = await fetch('/api/game/create', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: gameForm.name,
+        appid: gameForm.appid,
+        appSecret: gameForm.appSecret,
+        description: gameForm.description,
+        advertiser_id: gameForm.advertiser_id || undefined,
+        promotion_id: gameForm.promotion_id || undefined
+      })
+    });
+
+    const createResult = await createResponse.json();
+
+    if (createResponse.ok && createResult.code === 20000) {
+      const gameId = createResult.data.game.id;
+
+      // 然后分配给用户
+      const assignResponse = await fetch('/api/game/assign', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          userId: selectedUserForGame.value.id,
+          gameId: gameId,
+          role: 'viewer'
+        })
+      });
+
+      const assignResult = await assignResponse.json();
+
+      if (assignResponse.ok && assignResult.code === 20000) {
+        alert(`游戏"${gameForm.name}"创建成功，并已自动分配给用户"${selectedUserForGame.value.username}"！`);
+        closeCreateGameModal();
+      } else {
+        alert(`游戏创建成功，但分配给用户失败: ${assignResult.message || '未知错误'}`);
+        // 游戏已创建，但分配失败，可以考虑删除游戏或让用户手动分配
+      }
+    } else {
+      alert(`创建游戏失败: ${createResult.message || '未知错误'}`);
+    }
+  } catch (error) {
+    alert(`创建游戏失败: ${error.message}`);
+  } finally {
+    gameCreating.value = false;
+  }
+};
+
 // 组件挂载时加载数据
 onMounted(() => {
   // 检查用户权限
@@ -2379,6 +2676,52 @@ onMounted(() => {
       padding: 8px 4px;
     }
   }
+}
+
+/* 测试连接区域 */
+.test-section {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.test-result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.test-result.success {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #52c41a;
+}
+
+.test-result.error {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+}
+
+.game-info-section {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.game-info-section h4 {
+  margin: 0 0 8px 0;
+  color: #1d2129;
+}
+
+.game-info-section p {
+  margin: 4px 0;
+  color: #4e5969;
+  font-size: 14px;
 }
 
 /* 动画关键帧 */
