@@ -294,7 +294,7 @@
             <input
               v-model="newGame.appSecret"
               type="password"
-              placeholder="输入32位App Secret，如：969c80995b1fc13fdbe952d73fb9f8c086706b6b"
+              placeholder="输入32位App Secret"
               class="form-input"
             />
           </div>

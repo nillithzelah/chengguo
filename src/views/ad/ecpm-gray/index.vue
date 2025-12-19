@@ -702,10 +702,10 @@
          const entityMap = new Map();
 
          for (const game of grayGames) {
-           // 从游戏的 entity_names 字段提取主体信息
-           if (game.entity_names) {
-             // entity_names 可能是逗号分隔的字符串
-             const entityNames = game.entity_names.split('、').map(name => name.trim()).filter(name => name);
+           // 从游戏的 entity_name 字段提取主体信息
+           if (game.entity_name) {
+             // entity_name 可能是逗号分隔的字符串
+             const entityNames = game.entity_name.split('、').map(name => name.trim()).filter(name => name);
 
              for (const entityName of entityNames) {
                if (!entityMap.has(entityName)) {
@@ -769,8 +769,8 @@
            // 根据选中的主体过滤游戏（与游戏管理页面保持一致的逻辑）
            if (selectedEntityName.value) {
              filteredGames = filteredGames.filter(game => {
-               if (game.entity_names) {
-                 const entityNames = game.entity_names.split('、');
+               if (game.entity_name) {
+                 const entityNames = game.entity_name.split('、');
                  return entityNames.includes(selectedEntityName.value);
                }
                return false;
@@ -779,15 +779,15 @@
              console.log('🔍 主体过滤结果:', {
                selectedEntity: selectedEntityName.value,
                filteredGamesCount: filteredGames.length,
-               filteredGames: filteredGames.map(g => ({ name: g.name, appid: g.appid, entity_names: g.entity_names }))
+               filteredGames: filteredGames.map(g => ({ name: g.name, appid: g.appid, entity_name: g.entity_name }))
              });
            }
 
            for (const game of filteredGames) {
-             // 从entity_names中提取第一个主体名称作为显示名称
+             // 从entity_name中提取第一个主体名称作为显示名称
              let entityName = '未知主体';
-             if (game.entity_names) {
-               const entityNames = game.entity_names.split('、');
+             if (game.entity_name) {
+               const entityNames = game.entity_name.split('、');
                entityName = entityNames.length > 0 ? entityNames[0] : '未知主体';
              }
 
@@ -797,7 +797,7 @@
                appSecret: game.appSecret || game.app_secret || '',
                name: game.name,
                entity_name: entityName,
-               entity_names: game.entity_names, // 保存完整的主体信息
+               entity_name_full: game.entity_name, // 保存完整的主体信息
                owner: currentUser?.name || 'unknown',
                validated: game.validated,
                validatedAt: game.validated_at,
@@ -1153,12 +1153,18 @@
          }
        };
 
+       // 检查是否有有效的应用配置
+       const validApps = appList.value.filter(app => app.appid && app.appSecret);
+       if (validApps.length === 0) {
+         throw new Error('没有找到有效的应用配置，请检查游戏的appid和appSecret设置');
+       }
+
        // 并发获取所有应用的数据，但限制并发数量避免过载
        const MAX_CONCURRENT = 3; // 最多同时处理3个应用
        const appPromises = [];
 
-       for (let i = 0; i < appList.value.length; i += MAX_CONCURRENT) {
-         const batch = appList.value.slice(i, i + MAX_CONCURRENT);
+       for (let i = 0; i < validApps.length; i += MAX_CONCURRENT) {
+         const batch = validApps.slice(i, i + MAX_CONCURRENT);
          const batchPromises = batch.map(app => fetchAppAllData(app));
          appPromises.push(...batchPromises);
        }
@@ -2484,6 +2490,11 @@
        if (!selectedApp) {
          throw new Error('未选择有效的应用');
        }
+     }
+
+     // 检查应用配置是否完整
+     if (!selectedApp.appid || !selectedApp.appSecret) {
+       throw new Error(`应用 "${selectedApp.name}" 缺少必要的配置信息 (appid 或 appSecret)`);
      }
 
      // 获取access_token

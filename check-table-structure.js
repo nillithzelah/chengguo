@@ -1,29 +1,32 @@
 const { Sequelize } = require('sequelize');
 const sequelize = new Sequelize({
   dialect: 'sqlite',
-  storage: 'database.sqlite',
-  logging: false
+  storage: 'database.sqlite'
 });
 
 async function checkTableStructure() {
   try {
-    console.log('📋 检查entities表结构...');
+    const result = await sequelize.query('PRAGMA table_info(games)', {
+      type: Sequelize.QueryTypes.SELECT
+    });
 
-    const [result] = await sequelize.query('PRAGMA table_info(entities)');
-    console.log('Entities table structure:');
+    console.log('games表字段信息:');
     result.forEach(col => {
       console.log(`  ${col.name}: ${col.type}`);
     });
 
-    console.log('\n📋 检查一些示例数据...');
-    const [entities] = await sequelize.query('SELECT * FROM entities LIMIT 3');
-    console.log('Sample entities:');
-    entities.forEach(entity => {
-      console.log(`  ${JSON.stringify(entity)}`);
+    // 检查一些游戏记录的app_secret字段
+    const games = await sequelize.query('SELECT id, name, appid, app_secret FROM games LIMIT 5', {
+      type: Sequelize.QueryTypes.SELECT
+    });
+
+    console.log('\n前5个游戏的app_secret字段:');
+    games.forEach(game => {
+      console.log(`  ID ${game.id}: ${game.name} - app_secret: ${game.app_secret ? game.app_secret.substring(0, 10) + '...' : 'NULL'}`);
     });
 
   } catch (error) {
-    console.error('检查失败:', error.message);
+    console.error('查询失败:', error);
   } finally {
     await sequelize.close();
   }

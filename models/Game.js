@@ -23,7 +23,7 @@ function defineGameModel(sequelize) {
       notEmpty: true
     }
   },
-  appSecret: {
+  app_secret: {
     type: DataTypes.TEXT,
     allowNull: false,
     validate: {
