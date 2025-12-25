@@ -410,7 +410,7 @@
           <div class="form-item">
             <label>App Secret</label>
             <input
-              v-model="editGameData.appSecret"
+              v-model="editGameData.app_secret"
               type="password"
               placeholder="输入抖音应用的App Secret"
               class="form-input"
@@ -454,7 +454,7 @@
           </div>
 
           <!-- 测试连接区域 -->
-          <div class="test-section" v-if="editGameData.appid && editGameData.appSecret">
+          <div class="test-section" v-if="editGameData.appid && editGameData.app_secret">
             <div v-if="testResult" class="test-result-indicator" :class="{ 'success': testResult.success, 'error': !testResult.success }">
               <a-tooltip :content="getTestResultTooltipContent()" placement="top">
                 <div class="test-status">
@@ -469,7 +469,7 @@
         <div class="modal-footer">
            <div class="footer-buttons">
              <button
-               v-if="editGameData.appid && editGameData.appSecret"
+               v-if="editGameData.appid && editGameData.app_secret"
                @click="testEditGameConnection"
                :disabled="testing"
                class="btn btn-outline"
@@ -479,7 +479,7 @@
              <button @click="closeEditGameModal" class="btn btn-secondary" :disabled="editing">取消</button>
              <button
                @click="updateGame"
-               :disabled="!editGameData.name || !editGameData.appid || !editGameData.appSecret || editing"
+               :disabled="!editGameData.name || !editGameData.appid || !editGameData.app_secret || editing"
                class="btn btn-primary"
              >
                {{ editing ? '保存中...' : '保存修改' }}
@@ -698,7 +698,7 @@ const editGameData = reactive({
   id: null,
   name: '',
   appid: '',
-  appSecret: '',
+  app_secret: '',
   description: '',
   advertiser_id: '',
   promotion_id: ''
@@ -1566,7 +1566,7 @@ const editGame = (game) => {
   editGameData.id = game.id;
   editGameData.name = game.name;
   editGameData.appid = game.appid;
-  editGameData.appSecret = game.app_secret || '';
+  editGameData.app_secret = game.app_secret || '';
   editGameData.description = game.description || '';
   editGameData.advertiser_id = game.advertiser_id || '';
   editGameData.promotion_id = game.promotion_id || '';
@@ -1587,10 +1587,10 @@ const testEditGameConnection = async () => {
   testResult.value = null;
 
   try {
-    let secretToTest = editGameData.appSecret;
+    let secretToTest = editGameData.app_secret;
 
     // 如果是编辑现有游戏且表单中的App Secret为空，从数据库获取实际的App Secret
-    if (editGameData.id && !editGameData.appSecret) {
+    if (editGameData.id && !editGameData.app_secret) {
       try {
         const gameResponse = await fetch(`/api/game/${editGameData.id}`, {
           method: 'GET',
@@ -1730,7 +1730,7 @@ const testEditAdPreview = async () => {
 
 // 更新游戏
 const updateGame = async () => {
-  if (!editGameData.name || !editGameData.appid || !editGameData.appSecret) {
+  if (!editGameData.name || !editGameData.appid || !editGameData.app_secret) {
     alert('请填写完整的游戏信息');
     return;
   }
@@ -1741,7 +1741,7 @@ const updateGame = async () => {
     const updateData: any = {
       name: editGameData.name,
       appid: editGameData.appid,
-      appSecret: editGameData.appSecret,
+      appSecret: editGameData.app_secret,
       description: editGameData.description
     };
 
@@ -2245,7 +2245,7 @@ const closeEditGameModal = () => {
   editGameData.id = null;
   editGameData.name = '';
   editGameData.appid = '';
-  editGameData.appSecret = '';
+  editGameData.app_secret = '';
   editGameData.description = '';
   editGameData.advertiser_id = '';
   editGameData.promotion_id = '';

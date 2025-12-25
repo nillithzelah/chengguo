@@ -23,6 +23,18 @@ async function checkEntityRoles() {
       console.log('  ' + (row.assigned_user_role || 'NULL') + ': ' + row.count + ' 条');
     });
 
+    console.log('\n检查ID为119的主体记录:');
+    const [entity119] = await sequelize.query('SELECT id, name, assigned_user_role, assigned_user_id, programmer, manager, account_name, game_name, development_status FROM entities WHERE id = 119');
+    if (entity119.length > 0) {
+      const entity = entity119[0];
+      console.log('  ID: ' + entity.id + ', 名称: ' + entity.name + ', 角色: ' + (entity.assigned_user_role || 'NULL') + ', 用户ID: ' + (entity.assigned_user_id || 'NULL'));
+      console.log('  程序员: ' + (entity.programmer || 'NULL') + ', 管理者: ' + (entity.manager || 'NULL'));
+      console.log('  账号名: ' + (entity.account_name || 'NULL') + ', 游戏名: ' + (entity.game_name || 'NULL'));
+      console.log('  开发状态: ' + (entity.development_status || 'NULL'));
+    } else {
+      console.log('  未找到ID为119的主体记录');
+    }
+
     console.log('\n前10条主体记录:');
     const [entities] = await sequelize.query('SELECT id, name, assigned_user_role, assigned_user_id FROM entities LIMIT 10');
     entities.forEach(entity => {

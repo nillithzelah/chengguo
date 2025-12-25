@@ -1764,7 +1764,7 @@ app.put('/api/game/update/:id', authenticateJWT, async (req, res) => {
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (appid !== undefined) updateData.appid = appid;
-    if (appSecret !== undefined) updateData.appSecret = appSecret;
+    if (appSecret !== undefined && appSecret !== null) updateData['app_secret'] = appSecret;
     if (description !== undefined) updateData.description = description;
     // 外部老板不能编辑广告主和广告ID
     if (advertiser_id !== undefined && mappedRole !== 'external_boss') updateData.advertiser_id = advertiser_id || null;
@@ -2163,18 +2163,27 @@ app.put('/api/entity/update/:id', authenticateJWT, async (req, res) => {
       });
 
       if (!existingGame) {
-        // 创建新的游戏记录，使用临时值绕过验证
-        await Game.create({
-          name: entity.game_name,
-          appid: 'temp_' + Date.now(), // 临时appid，使用时间戳避免重复
-          appSecret: 'temp_secret_' + Date.now(), // 临时appSecret
-          description: `由主体"${entity.name}"自动创建的游戏`,
-          status: 'active',
-          validated: false, // 未验证状态
-          validatedAt: null
-        });
+        try {
+          // 创建新的游戏记录，使用临时值绕过验证
+          await Game.create({
+            name: entity.game_name,
+            appid: 'temp_' + Date.now(), // 临时appid，使用时间戳避免重复
+            app_secret: 'temp_secret_' + Date.now(), // 明确使用下划线字段名
+            description: `由主体"${entity.name}"自动创建的游戏`,
+            status: 'active',
+            validated: false, // 未验证状态
+            validatedAt: null
+          });
 
-        logger.info(`自动创建游戏记录: ${entity.game_name} (由于主体 ${entity.name} 达到上线运营状态)`);
+          logger.info(`自动创建游戏记录: ${entity.game_name} (由于主体 ${entity.name} 达到上线运营状态)`);
+        } catch (gameCreateError) {
+          // 游戏创建失败时记录错误，但不阻止主体更新
+          logger.error(`自动创建游戏记录失败: ${entity.game_name}`, gameCreateError.message);
+          console.error('游戏创建失败详情:', gameCreateError);
+
+          // 可以选择发送告警或记录到数据库，但不抛出错误
+          // 主体状态仍然可以更新，游戏可以后续手动创建
+        }
       }
     }
 

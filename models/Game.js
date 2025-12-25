@@ -116,11 +116,9 @@ Game.validateGameConfig = async function(appid, appSecret) {
 
 // 转换为前端格式的方法
 Game.prototype.toFrontendFormat = function() {
-  const { appSecret, ...gameData } = this.toJSON();
-  return {
-    ...gameData,
-    // 不返回appSecret给前端
-  };
+  const gameData = this.toJSON();
+  // app_secret字段需要返回给前端用于编辑功能
+  return gameData;
 };
 
   return Game;
