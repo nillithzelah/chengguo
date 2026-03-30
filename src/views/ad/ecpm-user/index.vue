@@ -125,6 +125,40 @@
        </div>
 
        <div class="form-actions">
+         <!-- 主体/游戏搜索栏 -->
+         <div class="quick-search-wrapper">
+           <input
+             v-model="quickSearch"
+             type="text"
+             placeholder="🔍 搜索主体名/游戏名快速查询..."
+             class="form-input quick-search-input"
+             @input="onQuickSearchInput"
+             @focus="showQuickSearchResults = true"
+             @blur="hideQuickSearchResultsDelayed"
+           />
+           <!-- 搜索结果下拉 -->
+           <div v-if="showQuickSearchResults && quickSearch.trim() && quickSearchResults.length > 0" class="quick-search-dropdown">
+             <div
+               v-for="item in quickSearchResults"
+               :key="item.type + '-' + item.id"
+               class="quick-search-item"
+               @mousedown.prevent="selectQuickSearchResult(item)"
+             >
+               <span class="quick-search-tag" :class="item.type === 'entity' ? 'tag-entity' : 'tag-game'">
+                 {{ item.type === 'entity' ? '主体' : '游戏' }}
+               </span>
+               <span class="quick-search-name">{{ item.name }}</span>
+               <span v-if="item.subInfo" class="quick-search-sub">{{ item.subInfo }}</span>
+             </div>
+           </div>
+         </div>
+         <input
+           v-model="searchKeyword"
+           type="text"
+           placeholder="🔍 搜索用户名/OpenID/来源/IP..."
+           class="form-input"
+           style="flex: 1; max-width: 280px;"
+         />
          <button
            @click="loadData"
            :disabled="loading"
@@ -232,7 +266,7 @@
        <!-- 数据表格 -->
        <div v-else class="table-container">
          <DataTable
-           :data="tableData"
+           :data="filteredTableData"
            :loading="loading"
            :binding="binding"
            :unbinding="unbinding"
@@ -431,6 +465,105 @@
  const loadingProgress = ref(0);
  const error = ref(null);
  const tableData = ref([]);
+const searchKeyword = ref('');
+
+// 快速搜索（主体/游戏名）
+const quickSearch = ref('');
+const showQuickSearchResults = ref(false);
+let hideResultsTimer = null;
+
+// 搜索结果：匹配主体名和游戏名
+const quickSearchResults = computed(() => {
+  const kw = quickSearch.value.trim().toLowerCase();
+  if (!kw) return [];
+
+  const results = [];
+
+  // 匹配主体名
+  for (const entity of entityList.value) {
+    if (entity.name && entity.name.toLowerCase().includes(kw)) {
+      // 找出该主体下有多少游戏
+      const gameCount = appList.value.filter(app => {
+        if (app.entity_name_full) {
+          return app.entity_name_full.split('、').includes(entity.name);
+        }
+        return app.entity_name === entity.name;
+      }).length;
+      results.push({
+        type: 'entity',
+        id: entity.id,
+        name: entity.name,
+        subInfo: `${gameCount} 个游戏`,
+        entityName: entity.name
+      });
+    }
+  }
+
+  // 匹配游戏名
+  for (const app of appList.value) {
+    if (app.name && app.name.toLowerCase().includes(kw)) {
+      results.push({
+        type: 'game',
+        id: app.appid,
+        name: app.name,
+        subInfo: app.entity_name || '未知主体',
+        appid: app.appid,
+        entityName: app.entity_name
+      });
+    }
+  }
+
+  return results.slice(0, 20); // 最多显示20条
+});
+
+const onQuickSearchInput = () => {
+  showQuickSearchResults.value = true;
+};
+
+const hideQuickSearchResultsDelayed = () => {
+  hideResultsTimer = setTimeout(() => {
+    showQuickSearchResults.value = false;
+  }, 200);
+};
+
+const selectQuickSearchResult = async (item) => {
+  clearTimeout(hideResultsTimer);
+
+  if (item.type === 'entity') {
+    // 选中主体 → 自动设置主体筛选并加载该主体的游戏
+    selectedEntityName.value = item.entityName;
+    await onEntityChange();
+  } else if (item.type === 'game') {
+    // 选中游戏 → 先切换到对应主体，再选中该游戏
+    if (item.entityName && item.entityName !== '未知主体') {
+      selectedEntityName.value = item.entityName;
+      await onEntityChange();
+    }
+    selectedAppId.value = item.appid;
+    queryParams.mp_id = item.appid;
+  }
+
+  quickSearch.value = item.name;
+  showQuickSearchResults.value = false;
+
+  // 自动查询数据
+  await loadData();
+};
+
+// 按搜索关键词过滤表格数据
+const filteredTableData = computed(() => {
+  if (!searchKeyword.value.trim()) return tableData.value;
+  const kw = searchKeyword.value.trim().toLowerCase();
+  return tableData.value.filter(item =>
+    (item.username && item.username.toLowerCase().includes(kw)) ||
+    (item.open_id && item.open_id.toLowerCase().includes(kw)) ||
+    (item.source && item.source.toLowerCase().includes(kw)) ||
+    (item.app && item.app.toLowerCase().includes(kw)) ||
+    (item.aid && String(item.aid).toLowerCase().includes(kw)) ||
+    (item.ip && item.ip.toLowerCase().includes(kw)) ||
+    (item.city && item.city.toLowerCase().includes(kw))
+  );
+});
 
  // 绑定相关状态
  const binding = ref(false);
@@ -2888,6 +3021,71 @@
  </script>
 
  <style scoped>
+ /* 快速搜索栏 */
+ .quick-search-wrapper {
+   position: relative;
+   flex: 1;
+   max-width: 320px;
+ }
+ .quick-search-input {
+   width: 100%;
+   padding-right: 32px;
+ }
+ .quick-search-dropdown {
+   position: absolute;
+   top: 100%;
+   left: 0;
+   right: 0;
+   background: #fff;
+   border: 1px solid #e5e6eb;
+   border-radius: 8px;
+   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+   max-height: 320px;
+   overflow-y: auto;
+   z-index: 1000;
+   margin-top: 4px;
+ }
+ .quick-search-item {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   padding: 10px 14px;
+   cursor: pointer;
+   transition: background 0.15s;
+   border-bottom: 1px solid #f2f3f5;
+ }
+ .quick-search-item:last-child {
+   border-bottom: none;
+ }
+ .quick-search-item:hover {
+   background: #f0f5ff;
+ }
+ .quick-search-tag {
+   font-size: 11px;
+   padding: 2px 8px;
+   border-radius: 4px;
+   font-weight: 500;
+   white-space: nowrap;
+ }
+ .tag-entity {
+   background: #e8f5e9;
+   color: #2e7d32;
+ }
+ .tag-game {
+   background: #e3f2fd;
+   color: #1565c0;
+ }
+ .quick-search-name {
+   font-size: 14px;
+   color: #1d2129;
+   font-weight: 500;
+ }
+ .quick-search-sub {
+   font-size: 12px;
+   color: #86909c;
+   margin-left: auto;
+   white-space: nowrap;
+ }
  .ecpm-page {
    max-width: 1400px;
    margin: 0 auto;
