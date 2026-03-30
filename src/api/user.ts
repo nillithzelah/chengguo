@@ -28,6 +28,16 @@ export function logout() {
   return axios.post<LoginRes>('/api/user/logout');
 }
 
+// 修改密码
+export interface ChangePasswordData {
+  oldPassword: string;
+  newPassword: string;
+}
+
+export function changePassword(data: ChangePasswordData) {
+  return axios.post('/api/user/change-password', data);
+}
+
 export function getUserInfo() {
   return axios.post<UserState>('/api/user/info');
 }

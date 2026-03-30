@@ -74,12 +74,16 @@
             <span class="user-name">{{ userStore.name || userStore.userInfo?.name || '用户' }}</span>
           </a-space>
           <template #content>
+            <a-doption @click="showChangePasswordModal = true">
+              <a-space>
+                <icon-lock />
+                <span>{{ $t('messageBox.changePassword') }}</span>
+              </a-space>
+            </a-doption>
             <a-doption>
               <a-space @click="handleLogout">
                 <icon-export />
-                <span>
-                  {{ $t('messageBox.logout') }}
-                </span>
+                <span>{{ $t('messageBox.logout') }}</span>
               </a-space>
             </a-doption>
           </template>
@@ -87,20 +91,129 @@
       </li>
     </ul>
   </div>
+
+  <!-- 修改密码模态框 -->
+  <a-modal
+    v-model:visible="showChangePasswordModal"
+    :title="$t('messageBox.changePassword')"
+    @ok="handleChangePassword"
+    @cancel="handleCancelChangePassword"
+    :confirm-loading="changePasswordLoading"
+    width="400px"
+  >
+    <a-form
+      :model="passwordForm"
+      :rules="passwordRules"
+      layout="vertical"
+      ref="passwordFormRef"
+    >
+      <a-form-item field="oldPassword" :label="$t('messageBox.oldPassword')">
+        <a-input-password
+          v-model="passwordForm.oldPassword"
+          :placeholder="$t('messageBox.oldPasswordPlaceholder')"
+          allow-clear
+        />
+      </a-form-item>
+      <a-form-item field="newPassword" :label="$t('messageBox.newPassword')">
+        <a-input-password
+          v-model="passwordForm.newPassword"
+          :placeholder="$t('messageBox.newPasswordPlaceholder')"
+          allow-clear
+        />
+      </a-form-item>
+      <a-form-item field="confirmPassword" :label="$t('messageBox.confirmPassword')">
+        <a-input-password
+          v-model="passwordForm.confirmPassword"
+          :placeholder="$t('messageBox.confirmPasswordPlaceholder')"
+          allow-clear
+        />
+      </a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 <script lang="ts" setup>
-  import { computed, ref, inject } from 'vue';
+  import { computed, ref, inject, reactive } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
   import { useAppStore, useUserStore } from '@/store';
   import useUser from '@/hooks/user';
+  import { changePassword } from '@/api/user';
   import Menu from '@/components/menu/index.vue';
 
   const appStore = useAppStore();
   const userStore = useUserStore();
   const { logout } = useUser();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
+
+  // 修改密码相关
+  const showChangePasswordModal = ref(false);
+  const changePasswordLoading = ref(false);
+  const passwordFormRef = ref();
+  const passwordForm = reactive({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const passwordRules = {
+    oldPassword: [
+      { required: true, message: '请输入旧密码' }
+    ],
+    newPassword: [
+      { required: true, message: '请输入新密码' },
+      { minLength: 6, message: '新密码长度不能少于6位' }
+    ],
+    confirmPassword: [
+      { required: true, message: '请再次输入新密码' },
+      {
+        validator: (value: string, cb: any) => {
+          if (value !== passwordForm.newPassword) {
+            cb('两次输入的密码不一致');
+          } else {
+            cb();
+          }
+        }
+      }
+    ]
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      const valid = await passwordFormRef.value.validate();
+      if (!valid) {
+        changePasswordLoading.value = true;
+        await changePassword({
+          oldPassword: passwordForm.oldPassword,
+          newPassword: passwordForm.newPassword
+        });
+        Message.success('密码修改成功，请重新登录');
+        changePasswordLoading.value = false;
+        showChangePasswordModal.value = false;
+        // 重置表单
+        passwordForm.oldPassword = '';
+        passwordForm.newPassword = '';
+        passwordForm.confirmPassword = '';
+        // 退出登录
+        setTimeout(() => {
+          logout();
+        }, 1000);
+      }
+    } catch (error: any) {
+      changePasswordLoading.value = false;
+      // 显示后端返回的错误消息
+      const errorMessage = error.response?.data?.message || error.message || '密码修改失败，请检查旧密码是否正确';
+      Message.error(errorMessage);
+    }
+  };
+
+  const handleCancelChangePassword = () => {
+    passwordForm.oldPassword = '';
+    passwordForm.newPassword = '';
+    passwordForm.confirmPassword = '';
+    passwordFormRef.value?.clearValidate();
+  };
+
   const avatar = computed(() => {
     return userStore.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userStore.userInfo?.accountId || 'default'}`;
   });

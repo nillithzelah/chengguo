@@ -1259,13 +1259,13 @@
 
        // 单应用模式：支持时间段查询
        if (queryParams.query_type === 'single_day') {
-         // 单天查询：原有逻辑
+         // 单天查询：使用前端分页参数，后端进行分页
          const params = new URLSearchParams();
          params.append('mp_id', queryParams.mp_id);
          params.append('app_secret', selectedApp.appSecret);
          params.append('date_hour', queryParams.date_hour || new Date().toISOString().split('T')[0]);
-         params.append('page_no', '1'); // 总是获取第一页
-         params.append('page_size', '10000'); // 设置大页大小获取所有数据用于汇总计算
+         params.append('page_no', queryParams.page_no.toString()); // 使用前端当前页码
+         params.append('page_size', queryParams.page_size.toString()); // 使用前端页大小
 
          // 从JWT token中获取用户名
          const token = localStorage.getItem('token');
@@ -1311,26 +1311,20 @@
              return;
            }
 
-           // 从API响应中获取总数和总收益
+           // 从API响应中获取总数和总收益（后端已进行分页，直接使用返回的数据）
            const apiTotalRecords = result.data.data ? result.data.data.total : result.data.total || allRecords.length;
-           const apiTotalRevenue = result.data.data ? result.data.data.total_revenue : '0.00';
+           const apiTotalRevenue = result.data.data ? result.data.data.total_revenue : result.data.total_revenue || '0.00';
+           const apiTotalUsers = result.data.data ? result.data.data.total_users : result.data.total_users || 0;
            stats.value = {
              totalRecords: apiTotalRecords,
              totalRevenue: apiTotalRevenue, // 使用API返回的总收益
              avgEcpm: '0.00',
-             totalUsers: 0
+             totalUsers: apiTotalUsers // 使用API返回的总用户数
            };
 
-           // 对单天查询的结果进行前端分页
-           const pageSize = queryParams.page_size;
-           const pageNo = queryParams.page_no;
-           const startIndex = (pageNo - 1) * pageSize;
-           const endIndex = startIndex + pageSize;
-
+           // 后端已进行分页，直接使用返回的数据，不需要再前端分页
            // 按时间倒序排序
            allRecords.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
-
-           allRecords = allRecords.slice(startIndex, endIndex);
          } else {
            throw new Error(result.message || '获取数据失败');
          }
@@ -1558,11 +1552,11 @@
          totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
          uniqueUsers = new Set(tableData.value.map(item => item.open_id)).size;
        } else if (queryParams.query_type === 'single_day') {
-         // 单天查询：从处理后的完整数据计算汇总统计
-         totalRecords = processedRecords.length; // 使用实际获取的数据数量
-         totalRevenue = processedRecords.reduce((sum, item) => sum + item.revenue, 0); // 从完整数据计算总收益
+         // 单天查询：使用API返回的总记录数、总收益和总用户数
+         totalRecords = stats.value?.totalRecords || processedRecords.length;
+         totalRevenue = parseFloat(stats.value?.totalRevenue || 0);
          totalEcpm = totalRecords > 0 ? (totalRevenue / totalRecords * 1000).toFixed(2) : '0.00';
-         uniqueUsers = new Set(processedRecords.map(item => item.open_id)).size; // 从完整数据计算唯一用户数
+         uniqueUsers = stats.value?.totalUsers || new Set(processedRecords.map(item => item.open_id)).size;
        }
 
        stats.value = {

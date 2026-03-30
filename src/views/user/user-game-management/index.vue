@@ -399,7 +399,6 @@ const gameList = ref<any[]>([]);
 const entityList = ref<any[]>([]); // 主体列表
 const advertiserOptions = ref<{id: string, name: string}[]>([]); // 主体选项列表
 const selectedAdvertiserId = ref<string>(''); // 选中的主体ID
-const gameNameToEntityMap = ref<Map<string, string[]>>(new Map()); // 游戏名称到主体名称列表的映射
 
 
 // 新增游戏相关
@@ -473,28 +472,17 @@ const filteredGameList = computed(() => {
 
   // 根据选中的主体名称筛选游戏
   return gameList.value.filter(game => {
-    const gameName = game.game?.name;
-    if (!gameName) return false;
+    const entityName = game.game?.entity_name;
+    if (!entityName) return false;
 
-    // 获取当前游戏对应的主体名称列表
-    let gameEntityNames = gameNameToEntityMap.value.get(gameName);
-
-    if (!gameEntityNames || gameEntityNames.length === 0) {
-      // 尝试模糊匹配
-      const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
-      gameEntityNames = gameNameToEntityMap.value.get(cleanGameName);
-    }
-
-    // 如果还是找不到，使用游戏名称本身作为备选
-    if (!gameEntityNames || gameEntityNames.length === 0) {
-      gameEntityNames = [gameName];
-    }
+    // entity_name 可能包含多个主体，用 "、" 分隔
+    const gameEntityNames = entityName.split('、').map(name => name.trim()).filter(name => name);
 
     // 检查选中的主体是否在游戏的主体列表中
     const isEntityMatch = gameEntityNames.includes(selectedAdvertiserId.value);
 
     console.log('🎮 [筛选调试]', {
-      gameName,
+      gameName: game.game?.name,
       gameEntityNames,
       selectedAdvertiserId: selectedAdvertiserId.value,
       isEntityMatch,
@@ -762,9 +750,8 @@ const loadUserGames = async (userId: number) => {
 
 // 更新主体选项列表
 const updateAdvertiserOptions = async () => {
-  // 清空现有的主体选项和映射
+  // 清空现有的主体选项
   advertiserOptions.value = [];
-  gameNameToEntityMap.value.clear();
 
   // 如果没有选中的用户，清空选项
   if (!selectedUserId.value) {
@@ -772,98 +759,27 @@ const updateAdvertiserOptions = async () => {
     return;
   }
 
-  try {
-    // 获取所有主体数据
-    console.log('🏢 [主体选项] 开始获取主体数据...');
-    const entityResponse = await fetch('/api/entity/list', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    });
+  console.log('🎮 [主体筛选] 开始从实体列表中获取所有主体名称...');
 
-    if (entityResponse.ok) {
-      const entityResult = await entityResponse.json();
-      if (entityResult.code === 20000) {
-        const entities = entityResult.data.entities || [];
-        console.log('🏢 [主体选项] 获取到主体数据:', entities.length, '个主体');
+  // 直接使用已加载的 entityList，获取所有主体名称（去重）
+  const entityNameMap = new Map<string, {id: string, name: string}>();
 
-        // 创建游戏名称到主体名称列表的映射
-        const localGameNameToEntityMap = new Map<string, string[]>();
-        entities.forEach((entity: any) => {
-          if (entity.game_name && entity.name) {
-            if (!localGameNameToEntityMap.has(entity.game_name)) {
-              localGameNameToEntityMap.set(entity.game_name, []);
-            }
-            const entityNames = localGameNameToEntityMap.get(entity.game_name)!;
-            if (!entityNames.includes(entity.name)) {
-              entityNames.push(entity.name);
-            }
-          }
+  entityList.value.forEach((entity: any) => {
+    if (entity.name) {
+      if (!entityNameMap.has(entity.name)) {
+        entityNameMap.set(entity.name, {
+          id: entity.name,
+          name: entity.name
         });
-
-        // 保存映射到全局变量
-        gameNameToEntityMap.value = localGameNameToEntityMap;
-
-        console.log('🏢 [主体选项] 游戏名称到主体名称映射:', Array.from(localGameNameToEntityMap.entries()));
-        console.log('🏢 [主体选项] 主体表中的游戏名称:', entities.map((e: any) => e.game_name));
-        console.log('🏢 [主体选项] 游戏表中的游戏名称:', gameList.value.map((g: any) => g.game?.name));
-
-        // 从当前用户的游戏数据中提取主体名称
-        const entityNameMap = new Map<string, {id: string, name: string}>();
-
-        gameList.value.forEach((game: any) => {
-          const gameName = game.game?.name;
-          if (gameName) {
-            // 获取当前游戏对应的所有主体名称
-            let entityNames = localGameNameToEntityMap.get(gameName);
-
-            if (!entityNames || entityNames.length === 0) {
-              // 尝试模糊匹配（去除数字后缀等）
-              const cleanGameName = gameName.replace(/\d+$/, ''); // 去除末尾数字
-              entityNames = localGameNameToEntityMap.get(cleanGameName);
-            }
-
-            // 如果还是找不到，使用游戏名称作为备选
-            if (!entityNames || entityNames.length === 0) {
-              entityNames = [gameName];
-            }
-
-            // 为每个主体名称创建选项
-            entityNames.forEach(entityName => {
-              if (!entityNameMap.has(entityName)) {
-                entityNameMap.set(entityName, {
-                  id: entityName,
-                  name: entityName
-                });
-                console.log('🏢 [主体选项] 添加主体选项:', entityName);
-              }
-            });
-          }
-        });
-
-        // 按字母顺序排序并设置主体选项
-        advertiserOptions.value = Array.from(entityNameMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-        console.log('🏢 [主体选项] 最终生成的主体选项（公司名称）:', advertiserOptions.value);
-      } else {
-        console.error('🏢 [主体选项] 获取主体数据失败:', entityResult.message);
+        console.log('🏢 [主体选项] 添加主体选项:', entity.name);
       }
-    } else {
-      console.error('🏢 [主体选项] 获取主体数据请求失败，状态码:', entityResponse.status);
     }
-  } catch (error) {
-    console.error('🏢 [主体选项] 获取主体数据时出错:', error);
-  }
+  });
 
-  console.log('🏢 [主体选项] 当前用户游戏数量:', gameList.value.length);
-  console.log('🏢 [主体选项] 游戏数据详情:', gameList.value.map((g: any) => ({
-    游戏名称: g.game?.name,
-    entity_name: g.game?.entity_name,
-    advertiser_id: g.game?.advertiser_id,
-    promotion_id: g.game?.promotion_id
-  })));
+  // 按字母顺序排序并设置主体选项
+  advertiserOptions.value = Array.from(entityNameMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+  console.log('✅ [主体筛选] 最终生成的主体选项（所有主体）:', advertiserOptions.value.map(e => e.name));
 };
 
 // 处理用户选择变化
@@ -881,7 +797,6 @@ const handleUserChange = (event: Event) => {
     selectedUser.value = null;
     gameList.value = [];
     advertiserOptions.value = [];
-    gameNameToEntityMap.value.clear();
     selectedAdvertiserId.value = '';
   }
 };
@@ -895,7 +810,6 @@ const refreshGames = () => {
     // 如果没有选择用户，清空游戏列表和主体选项
     gameList.value = [];
     advertiserOptions.value = [];
-    gameNameToEntityMap.value.clear();
   }
 };
 

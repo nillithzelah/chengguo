@@ -309,7 +309,7 @@
             ></textarea>
           </div>
 
-          <div class="form-item">
+          <div class="form-item" v-if="canViewAdFields">
             <label>广告主ID</label>
             <input
               v-model="newGame.advertiser_id"
@@ -319,7 +319,7 @@
             />
           </div>
 
-          <div class="form-item">
+          <div class="form-item" v-if="canViewAdFields">
             <label>广告ID</label>
             <input
               v-model="newGame.promotion_id"
@@ -842,7 +842,10 @@ const pagination = reactive({
 // 用户权限检查
 const userStore = useUserStore();
 const isAdmin = computed(() => userStore.userInfo?.role === 'admin' || userStore.userInfo?.role === 'clerk');
-const canModify = computed(() => isAdmin.value); // 只有admin可以修改（创建、编辑、删除）
+const canModify = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'clerk', 'external_boss'].includes(role || '');
+}); // admin、clerk和external_boss可以修改（创建、编辑、删除）
 const canEditGame = computed(() => {
   const role = userStore.userInfo?.role;
   return ['admin', 'clerk', 'external_boss'].includes(role || '');
@@ -867,6 +870,10 @@ const canEditAdFields = computed(() => {
   const role = userStore.userInfo?.role;
   return ['admin', 'clerk'].includes(role || '');
 }); // 只有管理员和文员可以编辑广告主ID和广告ID
+const canViewAdFields = computed(() => {
+  const role = userStore.userInfo?.role;
+  return ['admin', 'clerk'].includes(role || '');
+}); // 只有管理员和文员可以查看广告主ID和广告ID（外部老板不能查看）
 
 // 按权限高低排序用户列表
 const sortedUsers = computed(() => {
@@ -929,7 +936,7 @@ const gameColumns = computed(() => [
     slotName: 'game_name',
     width: 250
   },
-  ...(canModify.value ? [{
+  ...(canViewAdFields.value ? [{
     title: '广告信息',
     slotName: 'ad_info',
     width: 200
@@ -1529,20 +1536,26 @@ const createGame = async () => {
   creating.value = true;
 
   try {
+    const requestData: any = {
+      name: newGame.name,
+      appid: newGame.appid,
+      appSecret: newGame.appSecret,
+      description: newGame.description
+    };
+
+    // 只有有权限的用户才能设置广告字段
+    if (canViewAdFields.value) {
+      requestData.advertiser_id = newGame.advertiser_id || undefined;
+      requestData.promotion_id = newGame.promotion_id || undefined;
+    }
+
     const response = await fetch('/api/game/create', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        name: newGame.name,
-        appid: newGame.appid,
-        appSecret: newGame.appSecret,
-        description: newGame.description,
-        advertiser_id: newGame.advertiser_id || undefined,
-        promotion_id: newGame.promotion_id || undefined
-      })
+      body: JSON.stringify(requestData)
     });
 
     const result = await response.json();

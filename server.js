@@ -693,6 +693,58 @@ app.post('/api/user/logout', (req, res) => {
   });
 });
 
+// 修改当前用户密码
+app.post('/api/user/change-password', authenticateJWT, async (req, res) => {
+  try {
+    const currentUser = req.user;
+    const { oldPassword, newPassword } = req.body;
+
+    // 验证必填字段
+    if (!oldPassword || !newPassword) {
+      return errorResponse(res, 400, '旧密码和新密码不能为空', null, 400);
+    }
+
+    // 新密码长度验证
+    if (newPassword.length < 6) {
+      return errorResponse(res, 400, '新密码长度不能少于6位', null, 400);
+    }
+
+    // 查找当前用户
+    const user = await User.findByPk(currentUser.userId);
+
+    if (!user) {
+      return errorResponse(res, 404, '用户不存在', null, 404);
+    }
+
+    // 验证旧密码
+    const isValidPassword = await user.validatePassword(oldPassword);
+
+    if (!isValidPassword) {
+      logger.warn('修改密码失败 - 旧密码错误:', { username: user.username });
+      return errorResponse(res, 401, '旧密码错误', null, 50008);
+    }
+
+    // 生成新密码的哈希
+    const bcrypt = require('bcrypt');
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(newPassword, saltRounds);
+
+    // 更新密码
+    await user.update({
+      password_hash,
+      password_plain: newPassword // 保存明文密码用于显示
+    });
+
+    logger.info('用户密码修改成功:', { username: user.username });
+
+    return successResponse(res, null, '密码修改成功');
+
+  } catch (error) {
+    logger.error('修改密码过程发生错误:', error);
+    return errorResponse(res, 500, '服务器内部错误', error, 500);
+  }
+});
+
 // 以下接口已被移除，因为只返回空数据，无实际业务价值：
 // - /api/user/my-project/list
 // - /api/user/latest-activity
@@ -1384,7 +1436,7 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
     }
 
     if (mappedRole === 'admin' || mappedRole === 'steward') {
-      // 只有管理员可以看到所有游戏，但根据页面类型过滤状态
+      // 只有管理员和文员可以看到所有游戏，但根据页面类型过滤状态
       let whereCondition = {};
 
       // 根据页面类型过滤游戏状态
@@ -1583,19 +1635,19 @@ app.get('/api/game/list', authenticateJWT, async (req, res) => {
   }
 });
 
-// 删除游戏 (仅管理员)
+// 删除游戏 (管理员、文员和外部老板)
 app.delete('/api/game/delete/:id', authenticateJWT, async (req, res) => {
   try {
     const currentUser = req.user;
     const { id } = req.params;
 
-    // 检查权限：只有管理员可以删除游戏
+    // 检查权限：管理员、文员和外部老板可以删除游戏
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin' && mappedRole !== 'steward') {
+    if (mappedRole !== 'admin' && mappedRole !== 'steward' && mappedRole !== 'external_boss') {
       logger.warn('删除游戏权限不足:', { userRole: currentUser.role, mappedRole, requiredRole: 'admin' });
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以删除游戏'
+        message: '权限不足，只有管理员、文员和外部老板可以删除游戏'
       });
     }
 
@@ -1654,12 +1706,12 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
     const currentUser = req.user;
     const { name, appid, appSecret, description, advertiser_id, promotion_id } = req.body;
 
-    // 检查权限：只有管理员可以创建游戏
+    // 检查权限：管理员、文员和外部老板可以创建游戏
     const mappedRole = getMappedRole(currentUser.role);
-    if (mappedRole !== 'admin' && mappedRole !== 'steward') {
+    if (mappedRole !== 'admin' && mappedRole !== 'steward' && mappedRole !== 'external_boss') {
       return res.status(403).json({
         code: 403,
-        message: '权限不足，只有管理员可以创建游戏'
+        message: '权限不足，只有管理员、文员和外部老板可以创建游戏'
       });
     }
 
@@ -1684,7 +1736,7 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
     const newGame = await Game.create({
       name,
       appid,
-      appSecret,
+      app_secret: appSecret,
       description: description || '',
       advertiser_id: advertiser_id || null, // 可选参数
       promotion_id: promotion_id || null,   // 可选参数
@@ -1693,7 +1745,18 @@ app.post('/api/game/create', authenticateJWT, async (req, res) => {
       validatedAt: new Date()
     });
 
-    logger.info(`管理员 ${currentUser.username} 创建了新游戏: ${name} (App ID: ${appid})`);
+    logger.info(`用户 ${currentUser.username} 创建了新游戏: ${name} (App ID: ${appid})`);
+
+    // 如果是外部老板创建游戏，自动将自己添加为游戏所有者
+    if (mappedRole === 'external_boss') {
+      await UserGame.create({
+        user_id: currentUser.userId,
+        game_id: newGame.id,
+        role: 'owner',
+        assignedBy: currentUser.userId
+      });
+      logger.info(`外部老板 ${currentUser.username} 自动成为游戏 ${name} 的所有者`);
+    }
 
     res.json({
       code: 20000,
@@ -3582,20 +3645,33 @@ app.get('/api/douyin/ecpm', authenticateJWT, async (req, res) => {
     const pageRecords = allRecords.slice(startIndex, endIndex);
 
     // 计算总收益（基于所有记录，不是当前页）
-    const totalRevenue = allRecords.reduce((sum, item) => sum + parseFloat(item.revenue || 0), 0);
+    // 优先使用revenue字段，如果没有则使用cost字段（抖音API可能返回cost）
+    const totalRevenue = allRecords.reduce((sum, item) => {
+      let revenue = 0;
+      if (item.revenue !== undefined && item.revenue !== null && !isNaN(parseFloat(item.revenue))) {
+        revenue = parseFloat(item.revenue);
+      } else if (item.cost !== undefined && item.cost !== null && !isNaN(parseFloat(item.cost))) {
+        revenue = parseFloat(item.cost) / 100000; // cost单位是分，需要转换为元
+      }
+      return sum + revenue;
+    }, 0);
+
+    // 计算总唯一用户数（基于所有记录，不是当前页）
+    const totalUsers = new Set(allRecords.map(item => item.open_id)).size;
 
     // 构建分页响应数据
     const finalData = {
       data: {
         records: pageRecords,
         total: totalRecords,
-        total_revenue: totalRevenue.toFixed(2) // 添加总收益信息
+        total_revenue: totalRevenue.toFixed(2), // 添加总收益信息
+        total_users: totalUsers // 添加总唯一用户数
       },
       err_no: 0,
       err_msg: ""
     };
 
-    logger.info(`分页完成 - 页 ${pageNo}, 每页 ${pageSize} 条, 返回 ${pageRecords.length} 条记录, 总共 ${totalRecords} 条, 总收益 ${totalRevenue.toFixed(2)} 元`);
+    logger.info(`分页完成 - 页 ${pageNo}, 每页 ${pageSize} 条, 返回 ${pageRecords.length} 条记录, 总共 ${totalRecords} 条, 总收益 ${totalRevenue.toFixed(2)} 元, 总用户 ${totalUsers} 人`);
 
     res.json({
       code: 0,
