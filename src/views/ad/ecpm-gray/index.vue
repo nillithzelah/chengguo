@@ -1159,18 +1159,15 @@
          throw new Error('没有找到有效的应用配置，请检查游戏的appid和appSecret设置');
        }
 
-       // 并发获取所有应用的数据，但限制并发数量避免过载
+       // 并发获取所有应用的数据：分批执行并真正等待每批完成，避免瞬时并发打爆字节接口
        const MAX_CONCURRENT = 3; // 最多同时处理3个应用
-       const appPromises = [];
+       const appResults = [];
 
        for (let i = 0; i < validApps.length; i += MAX_CONCURRENT) {
          const batch = validApps.slice(i, i + MAX_CONCURRENT);
-         const batchPromises = batch.map(app => fetchAppAllData(app));
-         appPromises.push(...batchPromises);
+         const batchResults = await Promise.allSettled(batch.map(app => fetchAppAllData(app)));
+         appResults.push(...batchResults);
        }
-
-       // 等待所有应用的数据获取完成
-       const appResults = await Promise.allSettled(appPromises);
 
        // 处理结果，收集成功的应用数据
        let successCount = 0;
