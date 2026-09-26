@@ -43,7 +43,7 @@ cp server.js server.js.backup.$(date +%Y%m%d_%H%M%S)
 echo "🗑️ 重置数据库tokens表..."
 node scripts/reset-tokens-table.js
 
-echo "� 重启服务..."
+echo "🔄 重启服务..."
 # 停止当前服务
 pkill -f "node server.js" || true
 
